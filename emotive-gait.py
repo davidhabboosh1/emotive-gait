@@ -426,16 +426,16 @@ class CurveCreatorApp:
         point, vector = self.dragging_point_index
 
         if self.dragging_point_index is not None:
-            if point > 0 and event.x <= self.curves[self.current_curve.get()][point -  1][0] + self.threshold:
-                return
-            if point < len(self.curves[self.current_curve.get()]) - 1 and event.x >= self.curves[self.current_curve.get()][point + 1][0] - self.threshold:
-                return
             if event.x < 0 or event.x > self.canvas_width or event.y < 0 or event.y > self.canvas_height:
                 return
             
             # if shift key is not held...
             cur = self.curves[self.current_curve.get()][point]
             if not (event.state & 0x1):
+                if point > 0 and event.x <= self.curves[self.current_curve.get()][point -  1][0] + self.threshold:
+                    return
+                if point < len(self.curves[self.current_curve.get()]) - 1 and event.x >= self.curves[self.current_curve.get()][point + 1][0] - self.threshold:
+                    return
                 if y_to_angle(event.y, self.canvas_height) > self.limits[self.current_curve.get()][1] or y_to_angle(event.y, self.canvas_height) < self.limits[self.current_curve.get()][0]:
                     return
                 
