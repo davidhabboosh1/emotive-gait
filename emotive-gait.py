@@ -481,7 +481,7 @@ class CurveCreatorApp:
                     self.canvas.create_line(x, y, vector_2_x, vector_2_y, fill=color, width=1)
                     self.canvas.create_oval(vector_2_x - 5, vector_2_y - 5, vector_2_x + 5, vector_2_y + 5, outline=color)
 
-                # Draw the curve using Catmull-Rom spline
+                # Draw the curve using Bezier Curve
                 self.spline_points[curve_index] = self.generate_bezier_curve(points, self.canvas_height, self.limits, curve_index, self.total_points)
                 for i in range(len(self.spline_points[curve_index]) - 1):
                     x1, y1 = self.spline_points[curve_index][i]
