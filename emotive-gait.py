@@ -496,10 +496,10 @@ class CurveCreatorApp:
         bezier_points = []
         
         for i in range(len(points) - 1):
-            # Extract the points and control vectors for the current and next point
+            # Extract anchor points and control points
             p0 = np.array([points[i][0], points[i][1]])  # Current anchor point
-            c1 = np.array([points[i][0] + points[i][2], points[i][1] + points[i][3]])  # First control point of current
-            c2 = np.array([points[i + 1][0] + points[i + 1][4], points[i + 1][1] + points[i + 1][5]])  # Second control point of next
+            c1 = np.array([points[i][2], points[i][3]])  # First control point (absolute coordinates)
+            c2 = np.array([points[i + 1][4], points[i + 1][5]])  # Second control point (absolute coordinates)
             p3 = np.array([points[i + 1][0], points[i + 1][1]])  # Next anchor point
             
             # Generate curve using the cubic Bézier formula
