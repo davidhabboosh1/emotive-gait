@@ -280,7 +280,7 @@ class CurveCreatorApp:
 
     def on_right_click(self, event):
         curve = self.curves[self.current_curve.get()]
-        for i, (x, y, vector_x, vector_y) in enumerate(curve):
+        for i, (x, y, vector_1_x, vector_1_y, vector_2_x, vector_2_y) in enumerate(curve):
             if abs(x - event.x) < 10 and abs(y - event.y) < 10:
                 del curve[i]  # Remove the point
                 self.draw_curve()
@@ -301,18 +301,21 @@ class CurveCreatorApp:
         event.y = float(event.y)
 
         # Check if clicking near an existing point
-        for i, (x, y, vector_x, vector_y) in enumerate(self.curves[self.current_curve.get()]):
+        for i, (x, y, vector_1_x, vector_1_y, vector_2_x, vector_2_y) in enumerate(self.curves[self.current_curve.get()]):
             if (abs(x - event.x) < 10 and abs(y - event.y) < 10) and not (event.state & 0x1):
-                self.dragging_point_index = i
+                self.dragging_point_index = (i, 0)
                 return
-            elif (abs(vector_x - event.x) < 10 and abs(vector_y - event.y) < 10) and (event.state & 0x1):
-                self.dragging_point_index = i
+            elif (abs(vector_1_x - event.x) < 10 and abs(vector_1_y - event.y) < 10) and (event.state & 0x1):
+                self.dragging_point_index = (i, 1)
+                return
+            elif (abs(vector_2_x - event.x) < 10 and abs(vector_2_y - event.y) < 10) and (event.state & 0x1):
+                self.dragging_point_index = (i, 2)
                 return
 
         # Add a new point after the closest existing point
-        points = self.curves[self.current_curve.get()] + [(event.x, event.y, event.x, event.y)]
+        points = self.curves[self.current_curve.get()] + [(event.x, event.y, event.x, event.y, event.x, event.y)]
         points.sort(key=lambda p: p[0])
-        self.dragging_point_index = points.index((event.x, event.y, event.x, event.y))
+        self.dragging_point_index = (points.index((event.x, event.y, event.x, event.y, event.x, event.y)), 0)
         
         self.curves[self.current_curve.get()] = points
         self.draw_curve()
@@ -419,24 +422,29 @@ class CurveCreatorApp:
         # If the selected curve is not visible, do not allow modification
         if not self.curve_visibility[self.current_curve.get()]:
             return
+        
+        point, vector = self.dragging_point_index
 
         if self.dragging_point_index is not None:
-            if self.dragging_point_index > 0 and event.x <= self.curves[self.current_curve.get()][self.dragging_point_index -  1][0] + self.threshold:
+            if point > 0 and event.x <= self.curves[self.current_curve.get()][point -  1][0] + self.threshold:
                 return
-            if self.dragging_point_index < len(self.curves[self.current_curve.get()]) - 1 and event.x >= self.curves[self.current_curve.get()][self.dragging_point_index + 1][0] - self.threshold:
+            if point < len(self.curves[self.current_curve.get()]) - 1 and event.x >= self.curves[self.current_curve.get()][point + 1][0] - self.threshold:
                 return
             if event.x < 0 or event.x > self.canvas_width or event.y < 0 or event.y > self.canvas_height:
                 return
             
             # if shift key is not held...
-            cur = self.curves[self.current_curve.get()][self.dragging_point_index]
+            cur = self.curves[self.current_curve.get()][point]
             if not (event.state & 0x1):
                 if y_to_angle(event.y, self.canvas_height) > self.limits[self.current_curve.get()][1] or y_to_angle(event.y, self.canvas_height) < self.limits[self.current_curve.get()][0]:
                     return
                 
-                self.curves[self.current_curve.get()][self.dragging_point_index] = (event.x, event.y, cur[2], cur[3])
+                self.curves[self.current_curve.get()][point] = (event.x, event.y, cur[2], cur[3], cur[4], cur[5])
             else:
-                self.curves[self.current_curve.get()][self.dragging_point_index] = (cur[0], cur[1], event.x, event.y)
+                if vector == 1:
+                    self.curves[self.current_curve.get()][point] = (cur[0], cur[1], event.x, event.y, cur[4], cur[5])
+                else:
+                    self.curves[self.current_curve.get()][point] = (cur[0], cur[1], cur[2], cur[3], event.x, event.y)
                 
             self.draw_curve()
 
@@ -464,43 +472,48 @@ class CurveCreatorApp:
                 #         points.append((self.canvas_width, new_y, self.canvas_width, new_y))
                 #     if first_x > 0:
                 #         points.insert(0, (0, new_y, 0, new_y))
-                for x, y, vector_x, vector_y in points:
+                for x, y, vector_1_x, vector_1_y, vector_2_x, vector_2_y in points:
                     self.canvas.create_oval(x - 5, y - 5, x + 5, y + 5, fill=color)
-                    self.canvas.create_line(x, y, vector_x, vector_y, fill=color, width=1)
-                    self.canvas.create_oval(vector_x - 5, vector_y - 5, vector_x + 5, vector_y + 5, outline=color)
+                    
+                    self.canvas.create_line(x, y, vector_1_x, vector_1_y, fill=color, width=1)
+                    self.canvas.create_oval(vector_1_x - 5, vector_1_y - 5, vector_1_x + 5, vector_1_y + 5, outline=color)
+                    
+                    self.canvas.create_line(x, y, vector_2_x, vector_2_y, fill=color, width=1)
+                    self.canvas.create_oval(vector_2_x - 5, vector_2_y - 5, vector_2_x + 5, vector_2_y + 5, outline=color)
 
                 # Draw the curve using Catmull-Rom spline
-                self.spline_points[curve_index] = self.get_catmull_rom_spline(points, self.canvas_height, self.limits, curve_index, self.total_points)
+                self.spline_points[curve_index] = self.generate_bezier_curve(points, self.canvas_height, self.limits, curve_index, self.total_points)
                 for i in range(len(self.spline_points[curve_index]) - 1):
                     x1, y1 = self.spline_points[curve_index][i]
                     x2, y2 = self.spline_points[curve_index][i + 1]
                     self.canvas.create_line(x1, y1, x2, y2, fill=color, width=2)
                     
     @staticmethod
-    def get_catmull_rom_spline(points, canvas_height, limits, curve_index, total_points=1000):
+    def generate_bezier_curve(points, canvas_height, limits, curve_index, total_points=1000):
         if len(points) < 2:
             return points
         
         bezier_points = []
         
         for i in range(len(points) - 1):
-            # Get the current point, vector, and the next point, vector
-            p0 = np.array([points[i][0], points[i][1]])
-            p1 = np.array([points[i][0] + points[i][2], points[i][1] + points[i][3]])
-            p2 = np.array([points[i + 1][0] - points[i + 1][2], points[i + 1][1] - points[i + 1][3]])
-            p3 = np.array([points[i + 1][0], points[i + 1][1]])
+            # Extract the points and control vectors for the current and next point
+            p0 = np.array([points[i][0], points[i][1]])  # Current anchor point
+            c1 = np.array([points[i][0] + points[i][2], points[i][1] + points[i][3]])  # First control point of current
+            c2 = np.array([points[i + 1][0] + points[i + 1][4], points[i + 1][1] + points[i + 1][5]])  # Second control point of next
+            p3 = np.array([points[i + 1][0], points[i + 1][1]])  # Next anchor point
             
             # Generate curve using the cubic Bézier formula
             for t in np.linspace(0, 1, total_points):
                 bezier_point = (
                     (1 - t)**3 * p0 +
-                    3 * (1 - t)**2 * t * p1 +
-                    3 * (1 - t) * t**2 * p2 +
+                    3 * (1 - t)**2 * t * c1 +
+                    3 * (1 - t) * t**2 * c2 +
                     t**3 * p3
                 )
                 bezier_points.append(bezier_point)
         
         return np.array(bezier_points)
+
     
 def y_to_angle(y, canvas_height):
     moved = canvas_height - y
