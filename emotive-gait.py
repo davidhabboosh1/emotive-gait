@@ -326,8 +326,10 @@ class CurveCreatorApp:
                 return
 
         # Add a new point after the closest existing point
-        points = self.curves[self.current_curve.get()] + [(event.x, event.y, event.x, event.y, event.x, event.y)]
-        points.sort(key=lambda p: p[0])
+        if not (event.state & 0x1):
+            points = self.curves[self.current_curve.get()] + [(event.x, event.y, event.x, event.y, event.x, event.y)]
+            points.sort(key=lambda p: p[0])
+        
         self.dragging_point_index = (points.index((event.x, event.y, event.x, event.y, event.x, event.y)), 0)
         
         self.curves[self.current_curve.get()] = points
@@ -441,10 +443,15 @@ class CurveCreatorApp:
         if self.dragging_point_index is not None:
             if event.x < 0 or event.x > self.canvas_width or event.y < 0 or event.y > self.canvas_height:
                 return
+
+            if vector == 2 and point == 0:
+                vector = 1
+            elif vector == 1 and point == len(self.curves[self.current_curve.get()]) - 1:
+                vector = 2
             
             # if shift key is not held...
             cur = self.curves[self.current_curve.get()][point]
-            if not (event.state & 0x1):
+            if vector == 0:
                 if point > 0 and event.x <= self.curves[self.current_curve.get()][point -  1][0] + self.threshold:
                     return
                 if point < len(self.curves[self.current_curve.get()]) - 1 and event.x >= self.curves[self.current_curve.get()][point + 1][0] - self.threshold:
@@ -452,7 +459,12 @@ class CurveCreatorApp:
                 if y_to_angle(event.y, self.canvas_height) > self.limits[self.current_curve.get()][1] or y_to_angle(event.y, self.canvas_height) < self.limits[self.current_curve.get()][0]:
                     return
                 
-                self.curves[self.current_curve.get()][point] = (event.x, event.y, cur[2], cur[3], cur[4], cur[5])
+                if point == 0:
+                    self.curves[self.current_curve.get()][point] = (event.x, event.y, cur[2], cur[3], event.x, event.y)
+                elif point == len(self.curves[self.current_curve.get()]) - 1:
+                    self.curves[self.current_curve.get()][point] = (event.x, event.y, event.x, event.y, cur[4], cur[5])
+                else:
+                    self.curves[self.current_curve.get()][point] = (event.x, event.y, cur[2], cur[3], cur[4], cur[5])
             else:
                 if vector == 1:
                     self.curves[self.current_curve.get()][point] = (cur[0], cur[1], event.x, event.y, cur[4], cur[5])
