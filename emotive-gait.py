@@ -308,9 +308,6 @@ class CurveCreatorApp:
         if event.x < 0 or event.x > self.canvas_width or event.y < 0 or event.y > self.canvas_height:
             return
         
-        if y_to_angle(event.y, self.canvas_height) > self.limits[self.current_curve.get()][1] or y_to_angle(event.y, self.canvas_height) < self.limits[self.current_curve.get()][0]:
-            return
-        
         event.x = float(event.x)
         event.y = float(event.y)
 
@@ -328,6 +325,9 @@ class CurveCreatorApp:
 
         # Add a new point after the closest existing point
         if not (event.state & 0x1):
+            if y_to_angle(event.y, self.canvas_height) > self.limits[self.current_curve.get()][1] or y_to_angle(event.y, self.canvas_height) < self.limits[self.current_curve.get()][0]:
+                return
+            
             points = self.curves[self.current_curve.get()] + [(event.x, event.y, event.x, event.y, event.x, event.y)]
             points.sort(key=lambda p: p[0])
         
