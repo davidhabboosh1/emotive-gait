@@ -178,7 +178,8 @@ class CurveCreatorApp:
         for i, spline in enumerate(clipped_spline_points):
             clipped_spline_points[i] = [point for point in spline if point[0] <= self.canvas_width]
         
-        self.clipped_spline_points = self.emotion_from(clipped_spline_points)
+        self.clipped_spline_points = clipped_spline_points
+        # self.clipped_spline_points = self.emotion_from(clipped_spline_points)
         
         self.walk_cycle_time = self.walk_cycle_length.get()
 
