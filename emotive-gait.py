@@ -520,6 +520,8 @@ class CurveCreatorApp:
 
         bezier_points = []
 
+        final_x, final_y, _, _, _, _ = points[-1]
+
         for i in range(len(points) - 1):
             # Extract anchor points and control points
             p0 = np.array([points[i][0], points[i][1]])     # Anchor i
@@ -535,18 +537,16 @@ class CurveCreatorApp:
                     3 * (1 - t) * t**2 * c2 +
                     t**3 * p3
                 )
+                if bezier_point[0] > final_x:
+                    bezier_point[0] = final_x
                 bezier_points.append(bezier_point)
 
-        # -----------------------------------------------------------------
-        # FILTER OUT ANY POINTS THAT MOVE BACKWARD IN X (OVERLAPPING FIX)
-        # -----------------------------------------------------------------
         filtered_points = []
         last_x = float('-inf')  # Track the last x-coordinate
         for bp in bezier_points:
-            if bp[0] > last_x:
+            if bp[0] >= last_x:
                 filtered_points.append(bp)
                 last_x = bp[0]
-        # Now we have a strictly increasing sequence of x-coordinates
 
         return np.array(filtered_points)
 
