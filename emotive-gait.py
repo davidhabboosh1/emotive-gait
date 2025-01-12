@@ -261,22 +261,35 @@ class CurveCreatorApp:
             self.move_forward()
             
     def move_forward(self):
-        if not self.clipped_spline_points:
+        if not self.clipped_spline_points or len(self.clipped_spline_points) == 0:
+            print("No spline points to move forward.")
             return
 
-        trajectory = [spline[self.i][1] if spline != [] else None for spline in self.clipped_spline_points]
-        # print(trajectory)
-        
-        for i in range(len(trajectory)):
-            if trajectory[i] is not None:
-                motor = self.robot.getDevice(self.curve_names[i])
-                motor.setPosition(trajectory[i])
-        self.robot.step(int(self.robot.getBasicTimeStep()))
-        
-        longest_curve = max([len(spline) for spline in self.clipped_spline_points])
-        if longest_curve > 0:
-            self.i += int(self.robot.getBasicTimeStep() / (self.walk_cycle_time * 1000) * longest_curve)
-            self.i %= longest_curve
+        trajectory = []
+        for spline in self.clipped_spline_points:
+            if spline and len(spline) > self.i:  # Ensure spline is not empty and index is valid
+                trajectory.append(spline[self.i][1])
+            else:
+                trajectory.append(None)
+
+        # Update robot motor positions
+        for idx, position in enumerate(trajectory):
+            if position is not None:
+                motor = self.robot.getDevice(self.curve_names[idx])
+                motor.setPosition(position)
+
+        # Step the robot simulation
+        ts = int(self.robot.getBasicTimeStep())
+        self.robot.step(ts)
+
+        # Update index safely
+        longest_curve = max(len(spline) for spline in self.clipped_spline_points if spline)
+        if longest_curve > 0:  # Avoid division by zero
+            increment = int(ts / (self.walk_cycle_time * 1000) * longest_curve)
+            self.i = (self.i + increment) % longest_curve
+        else:
+            print("Longest curve is zero, cannot move forward.")
+
 
     def on_right_click(self, event):
         curve = self.curves[self.current_curve.get()]
@@ -492,17 +505,17 @@ class CurveCreatorApp:
     def generate_bezier_curve(points, canvas_height, limits, curve_index, total_points=1000):
         if len(points) < 2:
             return points
-        
+
         bezier_points = []
-        
+
         for i in range(len(points) - 1):
             # Extract anchor points and control points
-            p0 = np.array([points[i][0], points[i][1]])  # Current anchor point
-            c1 = np.array([points[i][2], points[i][3]])  # First control point (absolute coordinates)
-            c2 = np.array([points[i + 1][4], points[i + 1][5]])  # Second control point (absolute coordinates)
-            p3 = np.array([points[i + 1][0], points[i + 1][1]])  # Next anchor point
-            
-            # Generate curve using the cubic Bézier formula
+            p0 = np.array([points[i][0], points[i][1]])     # Anchor i
+            c1 = np.array([points[i][2], points[i][3]])     # Control 1 at anchor i
+            c2 = np.array([points[i + 1][4], points[i + 1][5]])  # Control 2 at anchor i+1
+            p3 = np.array([points[i + 1][0], points[i + 1][1]])  # Anchor i+1
+
+            # Generate points along the cubic Bézier curve
             for t in np.linspace(0, 1, total_points):
                 bezier_point = (
                     (1 - t)**3 * p0 +
@@ -511,8 +524,20 @@ class CurveCreatorApp:
                     t**3 * p3
                 )
                 bezier_points.append(bezier_point)
-        
-        return np.array(bezier_points)
+
+        # -----------------------------------------------------------------
+        # FILTER OUT ANY POINTS THAT MOVE BACKWARD IN X (OVERLAPPING FIX)
+        # -----------------------------------------------------------------
+        filtered_points = []
+        last_x = float('-inf')  # Track the last x-coordinate
+        for bp in bezier_points:
+            if bp[0] > last_x:
+                filtered_points.append(bp)
+                last_x = bp[0]
+        # Now we have a strictly increasing sequence of x-coordinates
+
+        return np.array(filtered_points)
+
 
     
 def y_to_angle(y, canvas_height):
