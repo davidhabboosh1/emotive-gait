@@ -250,8 +250,8 @@ class CurveCreatorApp:
 
     
     def reset_gait(self): # sets all curves to 0
-        self.curves = [[] for _ in range(len(self.curve_names))]
-        self.spline_points = [[] for _ in range(len(self.curve_names))]
+        self.curves = [[(0, self.canvas_height // 2, 0, self.canvas_height // 2, 0, self.canvas_height // 2), (self.canvas_width, self.canvas_height // 2, self.canvas_width, self.canvas_height // 2, self.canvas_width, self.canvas_height // 2)] for _ in range(len(self.curve_names))]
+        self.spline_points = [self.generate_bezier_curve(curve, self.canvas_height, self.limits[i], i, self.total_points) for i, curve in enumerate(self.curves)]
         self.draw_curve()
         self.dragging_point_index = None
         print('Gait reset')
@@ -334,7 +334,12 @@ class CurveCreatorApp:
         
         self.dragging_point_index = (points.index((event.x, event.y, event.x, event.y, event.x, event.y)), 0)
         
+        for point in points:
+            if y_to_angle(point[1], self.canvas_height) > self.limits[self.current_curve.get()][1] or y_to_angle(point[1], self.canvas_height) < self.limits[self.current_curve.get()][0]:
+                return
+        
         self.curves[self.current_curve.get()] = points
+        self.spline_points[self.current_curve.get()] = self.generate_bezier_curve(points, self.canvas_height, self.limits[self.current_curve.get()], self.current_curve.get(), self.total_points)
         self.draw_curve()
         
     def upload_proto(self, proto_file):
@@ -479,12 +484,13 @@ class CurveCreatorApp:
             curve = self.generate_bezier_curve(self.curves[self.current_curve.get()], self.canvas_height, self.limits[self.current_curve.get()], self.current_curve.get(), self.total_points)
             # check if curve overlaps with itself
             for i in range(len(curve) - 1):
-                if curve[i][0] > curve[i + 1][0]:
+                if curve[i][0] > curve[i + 1][0] or y_to_angle(curve[i][1], self.canvas_height) > self.limits[self.current_curve.get()][1] or y_to_angle(curve[i][1], self.canvas_height) < self.limits[self.current_curve.get()][0]:
                     self.curves[self.current_curve.get()][point] = cur
                     event.x = orig_x
                     event.y = orig_y
                     return
                 
+            self.spline_points[self.current_curve.get()] = curve
             self.draw_curve()
 
     def on_release(self, event):
@@ -499,18 +505,9 @@ class CurveCreatorApp:
         for curve_index in range(len(self.curve_names)):
             if self.curve_visibility[curve_index]:  # Only draw if visible
                 color = self.colors[curve_index]
+                
                 # Draw points for the current curve
                 points = self.curves[curve_index].copy()
-                # if len(self.curves[curve_index]) > 0:
-                #     last_x, last_y, last_vector_x, last_vector_y = self.curves[curve_index][-1]
-                #     first_x, first_y, first_vector_x, first_vector_y = self.curves[curve_index][0]
-                #     dist_end = self.canvas_width - last_x
-                #     dist_start = first_x
-                #     new_y = last_y + (first_y - last_y) * (dist_end / (dist_end + dist_start))
-                #     if last_x < self.canvas_width:
-                #         points.append((self.canvas_width, new_y, self.canvas_width, new_y))
-                #     if first_x > 0:
-                #         points.insert(0, (0, new_y, 0, new_y))
                 for x, y, vector_1_x, vector_1_y, vector_2_x, vector_2_y in points:
                     self.canvas.create_oval(x - 5, y - 5, x + 5, y + 5, fill=color)
                     
@@ -521,7 +518,6 @@ class CurveCreatorApp:
                     self.canvas.create_oval(vector_2_x - 5, vector_2_y - 5, vector_2_x + 5, vector_2_y + 5, outline=color)
 
                 # Draw the curve using Bezier Curve
-                self.spline_points[curve_index] = self.generate_bezier_curve(points, self.canvas_height, self.limits, curve_index, self.total_points)
                 for i in range(len(self.spline_points[curve_index]) - 1):
                     x1, y1 = self.spline_points[curve_index][i]
                     x2, y2 = self.spline_points[curve_index][i + 1]
