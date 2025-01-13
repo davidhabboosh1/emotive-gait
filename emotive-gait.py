@@ -330,6 +330,7 @@ class CurveCreatorApp:
             
             points = self.curves[self.current_curve.get()] + [(event.x, event.y, event.x, event.y, event.x, event.y)]
             points.sort(key=lambda p: p[0])
+        else: points = self.curves[self.current_curve.get()]
         
         self.dragging_point_index = (points.index((event.x, event.y, event.x, event.y, event.x, event.y)), 0)
         
@@ -432,16 +433,19 @@ class CurveCreatorApp:
             self.upload_motion(file_path)
 
     def on_drag(self, event):
+        orig_x = event.x
+        orig_y = event.y
+        
         event.x = float(event.x)
         event.y = float(event.y)
         
         # If the selected curve is not visible, do not allow modification
         if not self.curve_visibility[self.current_curve.get()]:
             return
-        
-        point, vector = self.dragging_point_index
 
         if self.dragging_point_index is not None:
+            point, vector = self.dragging_point_index
+            
             if event.x < 0 or event.x > self.canvas_width or event.y < 0 or event.y > self.canvas_height:
                 return
 
@@ -471,6 +475,15 @@ class CurveCreatorApp:
                     self.curves[self.current_curve.get()][point] = (cur[0], cur[1], event.x, event.y, cur[4], cur[5])
                 else:
                     self.curves[self.current_curve.get()][point] = (cur[0], cur[1], cur[2], cur[3], event.x, event.y)
+                    
+            curve = self.generate_bezier_curve(self.curves[self.current_curve.get()], self.canvas_height, self.limits[self.current_curve.get()], self.current_curve.get(), self.total_points)
+            # check if curve overlaps with itself
+            for i in range(len(curve) - 1):
+                if curve[i][0] > curve[i + 1][0]:
+                    self.curves[self.current_curve.get()][point] = cur
+                    event.x = orig_x
+                    event.y = orig_y
+                    return
                 
             self.draw_curve()
 
@@ -538,19 +551,19 @@ class CurveCreatorApp:
                     3 * (1 - t) * t**2 * c2 +
                     t**3 * p3
                 )
-                if bezier_point[0] > final_x:
-                    bezier_point[0] = final_x
+                # if bezier_point[0] > final_x:
+                #     bezier_point[0] = final_x
                 bezier_points.append(bezier_point)
 
-        filtered_points = []
-        last_x = float('-inf')  # Track the last x-coordinate
-        for bp in bezier_points:
-            if bp[0] >= last_x:
-                filtered_points.append(bp)
-                last_x = bp[0]
+        filtered_points = bezier_points
+        # filtered_points = []
+        # last_x = float('-inf')  # Track the last x-coordinate
+        # for bp in bezier_points:
+        #     if bp[0] >= last_x:
+        #         filtered_points.append(bp)
+        #         last_x = bp[0]
 
         return np.array(filtered_points)
-
 
     
 def y_to_angle(y, canvas_height):
