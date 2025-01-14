@@ -329,11 +329,11 @@ class CurveCreatorApp:
             if y_to_angle(event.y, self.canvas_height) > self.limits[self.current_curve.get()][1] or y_to_angle(event.y, self.canvas_height) < self.limits[self.current_curve.get()][0]:
                 return
             
-            points = self.curves[self.current_curve.get()] + [(event.x, event.y, event.x, event.y, event.x, event.y)]
+            points = self.curves[self.current_curve.get()] + [(event.x, event.y, event.x + 60, event.y, event.x - 60, event.y)]
             points.sort(key=lambda p: p[0])
         else: points = self.curves[self.current_curve.get()]
         
-        self.dragging_point_index = (points.index((event.x, event.y, event.x, event.y, event.x, event.y)), 0)
+        self.dragging_point_index = (points.index((event.x, event.y, event.x + 60, event.y, event.x - 60, event.y)), 0)
         
         for point in points:
             if y_to_angle(point[1], self.canvas_height) > self.limits[self.current_curve.get()][1] or y_to_angle(point[1], self.canvas_height) < self.limits[self.current_curve.get()][0]:
