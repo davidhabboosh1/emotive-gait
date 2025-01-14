@@ -525,17 +525,26 @@ class CurveCreatorApp:
                     )
 
                 else:
-                    # --- ALL OTHER ANCHORS ---
-                    # They can move freely in X and Y; preserve their handle offsets
-                    cur = self.curves[self.current_curve.get()][point]
+                    # "cur" holds the old anchor + handle data: (x, y, v1x, v1y, v2x, v2y)
+                    old_x, old_y, old_v1x, old_v1y, old_v2x, old_v2y = cur
+                    
+                    new_x = event.x
+                    new_y = event.y
+                    
+                    # Calculate how far we are moving in X/Y
+                    delta_x = new_x - old_x
+                    delta_y = new_y - old_y
+                    
+                    # Move the anchor AND both of its control handles by the same delta
                     self.curves[self.current_curve.get()][point] = (
-                        event.x,    # user can move freely
-                        event.y,
-                        cur[2],
-                        cur[3],
-                        cur[4],
-                        cur[5]
+                        new_x,                # new anchor X
+                        new_y,                # new anchor Y
+                        old_v1x + delta_x,    # handle1 X
+                        old_v1y + delta_y,    # handle1 Y
+                        old_v2x + delta_x,    # handle2 X
+                        old_v2y + delta_y     # handle2 Y
                     )
+
 
 
             else:
