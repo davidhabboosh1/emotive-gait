@@ -56,7 +56,7 @@ class CurveCreatorApp:
                 device.getPositionSensor().enable(ts)
         self.robot.step(ts)
         
-        self.curve_visibility = [True for _ in range(len(self.curve_names))]
+        self.curve_visibility = [False for _ in range(len(self.curve_names))]
         self.reset_gait()
         self.controls_frame = None
         self.create_ui()
@@ -295,8 +295,9 @@ class CurveCreatorApp:
     def on_right_click(self, event):
         curve = self.curves[self.current_curve.get()]
         for i, (x, y, vector_1_x, vector_1_y, vector_2_x, vector_2_y) in enumerate(curve):
-            if abs(x - event.x) < 10 and abs(y - event.y) < 10:
+            if i != 0 and i != len(curve) - 1 and abs(x - event.x) < 10 and abs(y - event.y) < 10:
                 del curve[i]  # Remove the point
+                self.spline_points[self.current_curve.get()] = self.generate_bezier_curve(curve, self.canvas_height, self.limits[self.current_curve.get()], self.current_curve.get(), self.total_points)
                 self.draw_curve()
                 break
 
@@ -469,10 +470,9 @@ class CurveCreatorApp:
                 if y_to_angle(event.y, self.canvas_height) > self.limits[self.current_curve.get()][1] or y_to_angle(event.y, self.canvas_height) < self.limits[self.current_curve.get()][0]:
                     return
                 
-                if point == 0:
-                    self.curves[self.current_curve.get()][point] = (event.x, event.y, cur[2], cur[3], event.x, event.y)
-                elif point == len(self.curves[self.current_curve.get()]) - 1:
-                    self.curves[self.current_curve.get()][point] = (event.x, event.y, event.x, event.y, cur[4], cur[5])
+                if point == 0 or point == len(self.curves[self.current_curve.get()]) - 1:
+                    self.curves[self.current_curve.get()][0] = (event.x, event.y, cur[2], cur[3], event.x, event.y)
+                    self.curves[self.current_curve.get()][len(self.curves[self.current_curve.get()]) - 1] = (event.x, event.y, event.x, event.y, cur[4], cur[5])
                 else:
                     self.curves[self.current_curve.get()][point] = (event.x, event.y, cur[2], cur[3], cur[4], cur[5])
             else:
