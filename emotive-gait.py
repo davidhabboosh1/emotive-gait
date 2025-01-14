@@ -517,11 +517,14 @@ class CurveCreatorApp:
                     self.canvas.create_line(x, y, vector_2_x, vector_2_y, fill=color, width=1)
                     self.canvas.create_oval(vector_2_x - 5, vector_2_y - 5, vector_2_x + 5, vector_2_y + 5, outline=color)
 
-                # Draw the curve using Bezier Curve
-                for i in range(len(self.spline_points[curve_index]) - 1):
-                    x1, y1 = self.spline_points[curve_index][i]
-                    x2, y2 = self.spline_points[curve_index][i + 1]
-                    self.canvas.create_line(x1, y1, x2, y2, fill=color, width=2)
+                    # Replace with something like this:
+                    coords = []
+                    for (x, y) in self.spline_points[curve_index]:
+                        coords.extend([x, y])
+
+                    # Draw the entire spline in one shot:
+                    self.canvas.create_line(*coords, fill=color, width=2, smooth=True, splinesteps=36)
+
                     
     @staticmethod
     def generate_bezier_curve(points, canvas_height, limits, curve_index, total_points=1000):
