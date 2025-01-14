@@ -462,19 +462,82 @@ class CurveCreatorApp:
             
             # if shift key is not held...
             cur = self.curves[self.current_curve.get()][point]
+            # Assume 'point, vector' are your anchor + handle indices in self.dragging_point_index
             if vector == 0:
-                if point > 0 and event.x <= self.curves[self.current_curve.get()][point -  1][0] + self.threshold:
-                    return
-                if point < len(self.curves[self.current_curve.get()]) - 1 and event.x >= self.curves[self.current_curve.get()][point + 1][0] - self.threshold:
-                    return
-                if y_to_angle(event.y, self.canvas_height) > self.limits[self.current_curve.get()][1] or y_to_angle(event.y, self.canvas_height) < self.limits[self.current_curve.get()][0]:
-                    return
-                
-                if point == 0 or point == len(self.curves[self.current_curve.get()]) - 1:
-                    self.curves[self.current_curve.get()][0] = (event.x, event.y, cur[2], cur[3], event.x, event.y)
-                    self.curves[self.current_curve.get()][len(self.curves[self.current_curve.get()]) - 1] = (event.x, event.y, event.x, event.y, cur[4], cur[5])
+                new_y = event.y  # The mouse's vertical position
+
+                if point == 0:
+                    # --- LEFTMOST ANCHOR ---
+                    # Pin X to 0 and preserve existing control-handle offsets
+                    left_x, left_y, l_v1x, l_v1y, l_v2x, l_v2y = self.curves[self.current_curve.get()][0]
+                    delta_y = new_y - left_y
+                    
+                    self.curves[self.current_curve.get()][0] = (
+                        0,               # forced X = 0
+                        new_y,           # new Y from mouse
+                        l_v1x,           # keep original handle X
+                        l_v1y + delta_y, # shift handle Y by the same delta
+                        l_v2x,           # keep original handle X
+                        l_v2y + delta_y  # shift handle Y by the same delta
+                    )
+
+                    # --- RIGHTMOST ANCHOR ---
+                    # Must also share the same Y
+                    rx, ry, rv1x, rv1y, rv2x, rv2y = self.curves[self.current_curve.get()][-1]
+                    delta_y_r = new_y - ry
+                    
+                    self.curves[self.current_curve.get()][-1] = (
+                        self.canvas_width, 
+                        new_y,             # match the same new_y
+                        rv1x,
+                        rv1y + delta_y_r,
+                        rv2x,
+                        rv2y + delta_y_r
+                    )
+
+                elif point == len(self.curves[self.current_curve.get()]) - 1:
+                    # --- RIGHTMOST ANCHOR ---
+                    # Pin X to canvas_width, preserve control handles
+                    rx, ry, rv1x, rv1y, rv2x, rv2y = self.curves[self.current_curve.get()][-1]
+                    delta_y_r = new_y - ry
+                    
+                    self.curves[self.current_curve.get()][-1] = (
+                        self.canvas_width,
+                        new_y,
+                        rv1x,
+                        rv1y + delta_y_r,
+                        rv2x,
+                        rv2y + delta_y_r
+                    )
+
+                    # --- LEFTMOST ANCHOR ---
+                    # Must share the same Y
+                    lx, ly, lv1x, lv1y, lv2x, lv2y = self.curves[self.current_curve.get()][0]
+                    delta_y_l = new_y - ly
+                    
+                    self.curves[self.current_curve.get()][0] = (
+                        0,
+                        new_y,
+                        lv1x,
+                        lv1y + delta_y_l,
+                        lv2x,
+                        lv2y + delta_y_l
+                    )
+
                 else:
-                    self.curves[self.current_curve.get()][point] = (event.x, event.y, cur[2], cur[3], cur[4], cur[5])
+                    # --- ALL OTHER ANCHORS ---
+                    # They can move freely in X and Y; preserve their handle offsets
+                    cur = self.curves[self.current_curve.get()][point]
+                    self.curves[self.current_curve.get()][point] = (
+                        event.x,    # user can move freely
+                        event.y,
+                        cur[2],
+                        cur[3],
+                        cur[4],
+                        cur[5]
+                    )
+
+
             else:
                 if vector == 1:
                     self.curves[self.current_curve.get()][point] = (cur[0], cur[1], event.x, event.y, cur[4], cur[5])
