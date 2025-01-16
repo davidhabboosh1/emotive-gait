@@ -3,13 +3,12 @@ import time
 import threading
 import numpy as np
 from tkinter import filedialog
-from controller import Robot, Motor
+from controller import Robot, Motor, Supervisor
 
 class CurveCreatorApp:
     def __init__(self, root, threshold=65, total_points=600):
         self.i = 0
         self.spline_points = None
-        self.robot = Robot()
         self.clipped_spline_points = None
         
         self.root = root
@@ -43,18 +42,21 @@ class CurveCreatorApp:
         self.canvas.bind("<Button-3>", self.on_right_click)
         self.root.bind("<Key>", self.on_key_press)
         
-        ts = int(self.robot.getBasicTimeStep())
+        self.sup = Supervisor()
+        self.node = self.sup.getSelf()
+        
+        ts = int(self.sup.getBasicTimeStep())
         self.curve_names = []
         self.limits = []
         self.colors = []
-        for i in range(self.robot.getNumberOfDevices()):
-            device = self.robot.getDeviceByIndex(i)
+        for i in range(self.sup.getNumberOfDevices()):
+            device = self.sup.getDeviceByIndex(i)
             if isinstance(device, Motor):
                 self.curve_names.append(device.getName())
                 self.limits.append((device.getMinPosition(), device.getMaxPosition()))
                 self.colors.append('#%06X' % np.random.randint(0, 0xFFFFFF))
                 device.getPositionSensor().enable(ts)
-        self.robot.step(ts)
+        self.sup.step(ts)
         
         self.curve_visibility = [False for _ in range(len(self.curve_names))]
         self.reset_gait()
@@ -276,12 +278,15 @@ class CurveCreatorApp:
         # Update robot motor positions
         for idx, position in enumerate(trajectory):
             if position is not None:
-                motor = self.robot.getDevice(self.curve_names[idx])
+                motor = self.sup.getDevice(self.curve_names[idx])
                 motor.setPosition(position)
 
+        balanced = self.node.getStaticBalance()
+        print('Balanced' if balanced else 'Not balanced')
+
         # Step the robot simulation
-        ts = int(self.robot.getBasicTimeStep())
-        self.robot.step(ts)
+        ts = int(self.sup.getBasicTimeStep())
+        self.sup.step(ts)
 
         # Update index safely
         longest_curve = max(len(spline) for spline in self.clipped_spline_points if spline)
@@ -371,13 +376,13 @@ class CurveCreatorApp:
                 self.curves.append([])
                 self.spline_points.append([])
 
-        ts = int(self.robot.getBasicTimeStep())
+        ts = int(self.sup.getBasicTimeStep())
         sensors = []
         for name in self.curve_names:
-            sensor = self.robot.getDevice(name + 'S')
+            sensor = self.sup.getDevice(name + 'S')
             sensor.enable(ts)
             sensors.append(sensor)
-        self.robot.step(ts)
+        self.sup.step(ts)
 
         self.curve_visibility = [True] * len(self.curve_names)
         self.draw_curve()
