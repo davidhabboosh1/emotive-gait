@@ -275,23 +275,30 @@ class CurveCreatorApp:
             else:
                 trajectory.append(None)
 
-        # Update robot motor positions
-        for idx, position in enumerate(trajectory):
-            if position is not None:
-                motor = self.sup.getDevice(self.curve_names[idx])
-                motor.setPosition(position)
+        # Update robot motor positions with interpolation
+        timestep = self.sup.getBasicTimeStep()
+        step_fraction = max(1, int(timestep / (self.walk_cycle_time * 1000) * len(trajectory)))
 
+        for sub_step in range(step_fraction):
+            # Interpolate positions for smoother transition
+            for idx, position in enumerate(trajectory):
+                if position is not None:
+                    motor = self.sup.getDevice(self.curve_names[idx])
+                    current_position = motor.getPositionSensor().getValue()
+                    interpolated_position = current_position + (position - current_position) / step_fraction
+                    motor.setPosition(interpolated_position)
+
+            # Wait for the robot to stabilize for this sub-step
+            self.sup.step(int(timestep / step_fraction))
+
+        # Check balance
         balanced = self.node.getStaticBalance()
         print('Balanced' if balanced else 'Not balanced')
-
-        # Step the robot simulation
-        ts = int(self.sup.getBasicTimeStep())
-        self.sup.step(ts)
 
         # Update index safely
         longest_curve = max(len(spline) for spline in self.clipped_spline_points if spline)
         if longest_curve > 0:  # Avoid division by zero
-            increment = int(ts / (self.walk_cycle_time * 1000) * longest_curve)
+            increment = max(1, int(timestep / (self.walk_cycle_time * 1000) * longest_curve))
             self.i = (self.i + increment) % longest_curve
         else:
             print("Longest curve is zero, cannot move forward.")
