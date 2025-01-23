@@ -290,10 +290,10 @@ class CurveCreatorApp:
 
             # Wait for the robot to stabilize for this sub-step
             self.sup.step(int(timestep / step_fraction))
-
-        # Check balance
-        balanced = self.node.getStaticBalance()
-        print('Balanced' if balanced else 'Not balanced')
+            
+            # Check balance
+            balanced = self.node.getStaticBalance()
+            print('Balanced' if balanced else 'Not balanced')
 
         # Update index safely
         longest_curve = max(len(spline) for spline in self.clipped_spline_points if spline)
