@@ -287,6 +287,23 @@ class CurveCreatorApp:
             M_y += -dx * force 
         
         return M_x, M_y
+
+    def compute_zmp(self, com, M_x, M_y, F_z):
+        """
+        Compute Zero Moment Point assuming z is vertical.
+        com: (x_com, y_com, z_com)
+        M_x, M_y: torque about CoM around x and y axes
+        F_z: net vertical force
+        Returns: (zmp_x, zmp_y)
+        """
+        x_com = com[0]
+        y_com = com[1]
+        
+        # Classic 2D formula for ZMP
+        zmp_x = x_com - (M_y / F_z)
+        zmp_y = y_com + (M_x / F_z)
+        return (zmp_x, zmp_y)
+
             
     def move_forward(self):
         if not self.clipped_spline_points or len(self.clipped_spline_points) == 0:
@@ -322,7 +339,10 @@ class CurveCreatorApp:
             com = self.node.getCenterOfMass()
             inertial_force = self.get_inertial_force()
             M_x, M_y = self.calculate_moments(contact_points, inertial_force, com)
+            zmp_x, zmp_y = self.compute_zmp(com, M_x, M_y, inertial_force)
+
             print('Balanced' if balanced else 'Not balanced\n', 'Mx: ', M_x, 'My: ', M_y)
+            print(f"ZMP => x: {zmp_x:.3f}, y: {zmp_y:.3f}")
 
         # Update index safely
         longest_curve = max(len(spline) for spline in self.clipped_spline_points if spline)
