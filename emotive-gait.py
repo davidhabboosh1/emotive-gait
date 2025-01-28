@@ -3,7 +3,7 @@ import time
 import threading
 import numpy as np
 from tkinter import filedialog
-from controller import Robot, Motor, Supervisor
+from controller import Motor, Supervisor, Accelerometer, Node
 
 class CurveCreatorApp:
     def __init__(self, root, threshold=65, total_points=600):
@@ -45,10 +45,13 @@ class CurveCreatorApp:
         self.sup = Supervisor()
         self.node = self.sup.getSelf()
         
+        self.mass = 5.31062
+        
         ts = int(self.sup.getBasicTimeStep())
         self.curve_names = []
         self.limits = []
         self.colors = []
+        
         for i in range(self.sup.getNumberOfDevices()):
             device = self.sup.getDeviceByIndex(i)
             if isinstance(device, Motor):
@@ -56,6 +59,9 @@ class CurveCreatorApp:
                 self.limits.append((device.getMinPosition(), device.getMaxPosition()))
                 self.colors.append('#%06X' % np.random.randint(0, 0xFFFFFF))
                 device.getPositionSensor().enable(ts)
+            elif isinstance(device, Accelerometer):
+                device.enable(ts)
+                self.accelerometer = device
         self.sup.step(ts)
         
         self.curve_visibility = [False for _ in range(len(self.curve_names))]
@@ -263,6 +269,25 @@ class CurveCreatorApp:
         if event.char.lower() == 'w' or event.keysym == 'Up':
             self.move_forward()
             
+    def get_inertial_force(self):
+        acceleration = self.accelerometer.getValues()
+        
+        return self.mass * acceleration[2]
+    
+    def calculate_moments(self, contact_points, force, com):
+        M_x = 0
+        M_y = 0
+        for point in contact_points:
+            point = point.getPoint()
+            
+            dx = point[0] - com[0]
+            dy = point[1] - com[1]
+            
+            M_x += dy * force
+            M_y += -dx * force 
+        
+        return M_x, M_y
+            
     def move_forward(self):
         if not self.clipped_spline_points or len(self.clipped_spline_points) == 0:
             print("No spline points to move forward.")
@@ -293,7 +318,11 @@ class CurveCreatorApp:
             
             # Check balance
             balanced = self.node.getStaticBalance()
-            print('Balanced' if balanced else 'Not balanced')
+            contact_points = self.node.getContactPoints(includeDescendants=True)
+            com = self.node.getCenterOfMass()
+            inertial_force = self.get_inertial_force()
+            M_x, M_y = self.calculate_moments(contact_points, inertial_force, com)
+            print('Balanced' if balanced else 'Not balanced\n', 'Mx: ', M_x, 'My: ', M_y)
 
         # Update index safely
         longest_curve = max(len(spline) for spline in self.clipped_spline_points if spline)
