@@ -1,19 +1,26 @@
 import pybullet as p
 import pybullet_data
 
-# Load the URDF file
+# Load atlas\\atlas_v4_with_multisense.urdf and make sure it stands upright
 p.connect(p.GUI)
-# load plane from pybullet_data
 p.setAdditionalSearchPath(pybullet_data.getDataPath())
+p.loadURDF("atlas/atlas_v4_with_multisense.urdf", [0, 0, 0], p.getQuaternionFromEuler([0, 0, 0]))
+
+# Load plane.urdf
 p.loadURDF("plane.urdf")
-p.loadURDF("nao.urdf", [0, 0, 0])
 
-# Set the gravity
-p.setGravity(0, 0, -9.8)
+# Set gravity
+p.setGravity(0, 0, -9.81)
 
-# Set the simulation time step
-p.setTimeStep(1/240)
+# Set simulation time step
+p.setTimeStep(1/100)
 
-# Run the simulation
-while True:
+# Set real-time simulation
+p.setRealTimeSimulation(1)
+
+# Run simulation for 10 seconds
+p.setTimeOut(10)
+
+# Keep simulation running
+while p.isConnected():
     p.stepSimulation()
