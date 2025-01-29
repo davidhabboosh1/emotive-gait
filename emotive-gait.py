@@ -4,6 +4,11 @@ import threading
 import numpy as np
 from tkinter import filedialog
 from controller import Motor, Supervisor, Accelerometer, Node
+from ikpy.chain import Chain
+from ikpy.link import OriginLink, URDFLink
+import urdf2webots
+import io
+import os
 
 class CurveCreatorApp:
     def __init__(self, root, threshold=65, total_points=600):
@@ -46,6 +51,11 @@ class CurveCreatorApp:
         self.node = self.sup.getSelf()
         
         self.mass = 5.31062
+        
+        urdf = self.sup.getUrdf()
+        with open('robot.urdf', 'w') as f:
+            f.write(urdf)
+            f.close()
         
         ts = int(self.sup.getBasicTimeStep())
         self.curve_names = []
