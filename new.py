@@ -1,10 +1,14 @@
 import mujoco
 import mujoco.viewer
 import numpy as np
-from scipy.linalg import solve_continuous_are, solve_discrete_are
+from scipy.linalg import solve_discrete_are
 
 model = mujoco.MjModel.from_xml_path("scene.xml")
 data = mujoco.MjData(model)
+
+for _ in range(100):
+    mujoco.mj_step(model, data)
+
 ctrl0 = data.ctrl.copy()
 
 nv = model.nv
@@ -14,8 +18,6 @@ R = np.eye(nu)
 
 with mujoco.viewer.launch_passive(model, data) as viewer:
     while viewer.is_running():
-        print('step')
-        
         qpos0 = data.qpos.copy()
         ctrl0 = data.ctrl.copy()
         
