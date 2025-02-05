@@ -1,14 +1,10 @@
 import tkinter as tk
-import time
-import threading
 import numpy as np
 from tkinter import filedialog
-from controller import Motor, Supervisor, Accelerometer, Node
 from ikpy.chain import Chain
 from ikpy.link import OriginLink, URDFLink
-import urdf2webots
-import io
-import os
+import mujoco
+import mujoco.viewer
 
 class CurveCreatorApp:
     def __init__(self, root, threshold=65, total_points=600):
@@ -47,32 +43,12 @@ class CurveCreatorApp:
         self.canvas.bind("<Button-3>", self.on_right_click)
         self.root.bind("<Key>", self.on_key_press)
         
-        self.sup = Supervisor()
-        self.node = self.sup.getSelf()
-        
-        self.mass = 5.31062
-        
-        urdf = self.sup.getUrdf()
-        with open('robot.urdf', 'w') as f:
-            f.write(urdf)
-            f.close()
-        
-        ts = int(self.sup.getBasicTimeStep())
-        self.curve_names = []
-        self.limits = []
-        self.colors = []
-        
-        for i in range(self.sup.getNumberOfDevices()):
-            device = self.sup.getDeviceByIndex(i)
-            if isinstance(device, Motor):
-                self.curve_names.append(device.getName())
-                self.limits.append((device.getMinPosition(), device.getMaxPosition()))
-                self.colors.append('#%06X' % np.random.randint(0, 0xFFFFFF))
-                device.getPositionSensor().enable(ts)
-            elif isinstance(device, Accelerometer):
-                device.enable(ts)
-                self.accelerometer = device
-        self.sup.step(ts)
+        # Load model and initialize
+        model = mujoco.MjModel.from_xml_path("scene.xml")
+        nq = model.nq
+        self.curve_names = [model.joint(i).name for i in range(nq)]
+        self.limits = [(model.joint(i).range[0], model.joint(i).range[1]) for i in range(nq)]
+        self.colors = ['#%06X' % np.random.randint(0, 0xFFFFFF) for _ in range(nq)]
         
         self.curve_visibility = [False for _ in range(len(self.curve_names))]
         self.reset_gait()
@@ -101,10 +77,6 @@ class CurveCreatorApp:
         # Add "Reset Gait" button below the Update Gait button
         reset_gait_button = tk.Button(self.controls_frame, text="Reset Gait", command=self.reset_gait)
         reset_gait_button.pack(side=tk.TOP, pady=10)
-
-        # Add "Import .proto file" button
-        # import_proto_button = tk.Button(self.controls_frame, text="Import .proto file", command=self.import_proto_file)
-        # import_proto_button.pack(side=tk.TOP, pady=10)
 
         # Add "Import .motion file" button below the Reset Gait button
         import_motion_button = tk.Button(self.controls_frame, text="Import .motion file", command=self.import_motion_file)
@@ -199,7 +171,19 @@ class CurveCreatorApp:
         self.clipped_spline_points = clipped_spline_points
         # self.clipped_spline_points = self.emotion_from(clipped_spline_points)
         
+        # sample the spline points to match the total_points
+        for i, spline in enumerate(self.clipped_spline_points):
+            if len(spline) > 0:
+                x = np.array([point[0] for point in spline])
+                y = np.array([point[1] for point in spline])
+                x_new = np.linspace(x.min(), x.max(), self.total_points)
+                y_new = np.interp(x_new, x, y)
+                self.clipped_spline_points[i] = [[x_new[j], y_new[j]] for j in range(len(x_new))]
+        
         self.walk_cycle_time = self.walk_cycle_length.get()
+
+        # save clipped spline points to a npy file
+        np.save('clipped_spline_points.npy', np.array(self.clipped_spline_points))
 
         print("Gait saved")
         
@@ -382,6 +366,8 @@ class CurveCreatorApp:
         
         event.x = float(event.x)
         event.y = float(event.y)
+        
+        # print(event.x, event.y)
 
         # Check if clicking near an existing point
         for i, (x, y, vector_1_x, vector_1_y, vector_2_x, vector_2_y) in enumerate(self.curves[self.current_curve.get()]):
@@ -402,9 +388,8 @@ class CurveCreatorApp:
             
             points = self.curves[self.current_curve.get()] + [(event.x, event.y, event.x + 60, event.y, event.x - 60, event.y)]
             points.sort(key=lambda p: p[0])
+            self.dragging_point_index = (points.index((event.x, event.y, event.x + 60, event.y, event.x - 60, event.y)), 0)
         else: points = self.curves[self.current_curve.get()]
-        
-        self.dragging_point_index = (points.index((event.x, event.y, event.x + 60, event.y, event.x - 60, event.y)), 0)
         
         for point in points:
             if y_to_angle(point[1], self.canvas_height) > self.limits[self.current_curve.get()][1] or y_to_angle(point[1], self.canvas_height) < self.limits[self.current_curve.get()][0]:
@@ -413,48 +398,6 @@ class CurveCreatorApp:
         self.curves[self.current_curve.get()] = points
         self.spline_points[self.current_curve.get()] = self.generate_bezier_curve(points, self.canvas_height, self.limits[self.current_curve.get()], self.current_curve.get(), self.total_points)
         self.draw_curve()
-        
-    def upload_proto(self, proto_file):
-        self.curve_names = []
-        self.colors = []
-        self.limits = []
-        
-        # reset curves using the function reset_gait
-        self.reset_gait()
-        
-        with open(proto_file, 'r') as f:
-            lines = f.readlines()
-            f.close()
-        
-        for i in range(len(lines)):
-            if 'RotationalMotor' in lines[i]:
-                name = lines[i + 1].lstrip().split(' ')[1].strip('\n').strip('"')
-                self.curve_names.append(name)
-                
-                llimit = lines[i + 3].lstrip().split(' ')[1]
-                hlimit = lines[i + 4].lstrip().split(' ')[1]
-                
-                self.limits.append((float(llimit), float(hlimit)))
-                
-                # add a random color
-                self.colors.append('#%06X' % np.random.randint(0, 0xFFFFFF))
-                
-                self.curves.append([])
-                self.spline_points.append([])
-
-        ts = int(self.sup.getBasicTimeStep())
-        sensors = []
-        for name in self.curve_names:
-            sensor = self.sup.getDevice(name + 'S')
-            sensor.enable(ts)
-            sensors.append(sensor)
-        self.sup.step(ts)
-
-        self.curve_visibility = [True] * len(self.curve_names)
-        self.draw_curve()
-
-        # Create UI elements for curve selection and visibility toggling
-        self.create_ui()
         
     def upload_motion(self, motion_file):
         with open(motion_file, 'r') as f:
@@ -490,15 +433,6 @@ class CurveCreatorApp:
         self.walk_cycle_length.set(t)
         
         self.draw_curve()
-            
-    def import_proto_file(self):
-        # Open a file dialog to select a .proto file
-        file_path = filedialog.askopenfilename(
-            title="Select a .proto file",
-            filetypes=[("Proto files", "*.proto"), ("All files", "*.*")]
-        )
-        if file_path:
-            self.upload_proto(file_path)
             
     def import_motion_file(self):
         # Open a file dialog to select a .motion file
