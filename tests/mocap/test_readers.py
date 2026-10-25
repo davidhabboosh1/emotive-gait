@@ -64,7 +64,7 @@ def test_malformed_bvh_names_the_line(tmp_path):
 
 def test_ptd_real_layout_has_a_frame_count_header_and_no_frame_column(tmp_path):
     f = tmp_path / "real.ptd"
-    f.write_text("2\n1 2 3 4 5 6 7 8 9\n\n10 20 30 40 50 60 70 80 90\n")
+    f.write_text("2\n1 2 3 4 5 6 7 8 9\n\n10 20 30 40 50 60 70 80 90\n10 20 30 40 50 60 70 80 90\n")
     clip = read_ptd(f, joint_names=("a", "b", "c"), scale=1.0, up_axis="z")
     assert clip.frames() == 2
     assert clip.positions[1, 2] == pytest.approx([70, 80, 90])
@@ -73,7 +73,7 @@ def test_ptd_real_layout_has_a_frame_count_header_and_no_frame_column(tmp_path):
 
 def test_ptd_header_frame_count_mismatch_and_bad_width_name_the_file(tmp_path):
     f = tmp_path / "bad.ptd"
-    f.write_text("3\n1 2 3 4 5 6 7 8 9\n")
+    f.write_text("2\n" + ("1 2 3 4 5 6 7 8 9\n" * 5))
     with pytest.raises(MocapFormatError, match=r"bad\.ptd.*line 1"):
         read_ptd(f, joint_names=("a", "b", "c"), scale=1.0, up_axis="z")
     f.write_text("1 2 3 4 5\n")

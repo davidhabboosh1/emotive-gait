@@ -1,7 +1,8 @@
 """Reader for PTD files: one row per frame with x, y, z for every joint.
 
 Two layouts are accepted, decided from token counts: the real Body Movement Library layout (a
-first line holding the frame count, then rows of ``3 * J`` numbers) and a layout whose rows
+first line holding the frame count N, then N or N + 1 rows of ``3 * J`` numbers; the extra
+trailing row is dropped) and a layout whose rows
 carry a leading frame number (``3 * J + 1`` numbers; the number is dropped).
 """
 
@@ -51,10 +52,15 @@ def read_ptd(
         except ValueError as exc:
             raise MocapFormatError(path, number, f"non-numeric value ({exc})") from exc
         rows.append(values[-width:])
-    if header is not None and header[0] != len(rows):
-        raise MocapFormatError(
-            path, header[1], f"header declares {header[0]} frames but the file has {len(rows)}"
-        )
+    if header is not None:
+        declared, header_line = header
+        if len(rows) not in (declared, declared + 1):
+            raise MocapFormatError(
+                path,
+                header_line,
+                f"header declares {declared} frames but the file has {len(rows)} data rows",
+            )
+        rows = rows[:declared]  # real BML files carry one duplicated trailing row
     if not rows:
         raise MocapFormatError(path, None, "no frames")
     data = np.asarray(rows).reshape(len(rows), len(joint_names), 3) * scale
