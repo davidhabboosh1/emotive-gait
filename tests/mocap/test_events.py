@@ -2,64 +2,14 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-
 import numpy as np
 import pytest
 
 from emotive_gait.mocap.events import cycles, foot_events, path_frame
+from mocap.walker import FPS, make_arc_pelvis, straight_walker
 
-FPS = 120.0
-SPEED = 0.6
-STRIDE_S = 1.0  # one left-to-left cycle: 0.5 s stance + 0.5 s swing
-SWAY_M = 0.015
-CLEARANCE_M = 0.05
-FOOT_REST_Z = 0.08  # the ankle never reaches the floor, as in the real markers
-
-
-@dataclass(frozen=True)
-class Walker:
-    pelvis: np.ndarray
-    left_foot: np.ndarray
-    right_foot: np.ndarray
-
-
-def _foot_track(t: np.ndarray, offset_s: float, y: float) -> np.ndarray:
-    """Smoothstep swing for the first half of each cycle, then stance (fixed world x)."""
-    u = (t - offset_s) / STRIDE_S
-    cycle = np.floor(u)
-    swing = np.clip((u - cycle) / 0.5, 0.0, 1.0)
-    smooth = swing * swing * (3.0 - 2.0 * swing)
-    x = SPEED * STRIDE_S * (cycle + smooth)
-    z = FOOT_REST_Z + CLEARANCE_M * np.sin(np.pi * swing)
-    return np.stack([x, np.full_like(t, y), z], axis=1)
-
-
-def _straight_walker(sway_m: float = SWAY_M) -> Walker:
-    t = np.arange(int(6 * FPS)) / FPS
-    pelvis = np.stack(
-        [SPEED * t, sway_m * np.sin(2 * np.pi * t / STRIDE_S), np.full_like(t, 0.9)], axis=1
-    )
-    return Walker(
-        pelvis=pelvis,
-        left_foot=_foot_track(t, 0.0, 0.1),
-        right_foot=_foot_track(t, STRIDE_S / 2, -0.1),
-    )
-
-
-def _arc_pelvis() -> np.ndarray:
-    """Straight, a 90-degree left turn over 1.5 s, straight again; constant 0.6 m/s."""
-    n = int(6 * FPS)
-    t = np.arange(n) / FPS
-    turn = np.clip((t - 2.25) / 1.5, 0.0, 1.0) * (np.pi / 2)
-    velocity = SPEED * np.stack([np.cos(turn), np.sin(turn), np.zeros(n)], axis=1)
-    pelvis = np.cumsum(velocity, axis=0) / FPS
-    pelvis[:, 2] = 0.9
-    return pelvis
-
-
-straight = _straight_walker()
-arc_pelvis = _arc_pelvis()
+straight = straight_walker()
+arc_pelvis = make_arc_pelvis()
 
 
 def test_path_frame_forward_follows_travel_and_marks_turns():

@@ -49,6 +49,9 @@ G1_PROFILE = RobotProfile(
     nominal_pelvis_height=0.68,
     foot_site_floor_height=0.0331,
     foot_sites=("left_foot", "right_foot"),
+    # hip_pitch_link to knee_link 0.340 m plus knee_link to ankle_pitch_link 0.300 m plus the
+    # ankle-pitch stance height 0.051 m = 0.691 m.
+    leg_length=0.69,
 )
 
 G1_PROFILE_WITH_NECK = replace(

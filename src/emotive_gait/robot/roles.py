@@ -63,6 +63,8 @@ class RobotProfile:
 
     ``sign_for`` carries a per-role multiplier for robots whose joint axes are mirrored
     (e.g. left/right roll joints), so symmetric modulations can negate rather than copy.
+    ``leg_length`` is the hip-pitch joint height at ``qpos0`` (m), the ``l`` that re-dimensions
+    Froude-scaled gait deltas.
     """
 
     name: str
@@ -75,6 +77,8 @@ class RobotProfile:
     foot_site_floor_height: float = 0.0331
     # Foot site names, (left, right). A plain tuple: robot/ imports nothing from gait/.
     foot_sites: tuple[str, str] = ("left_foot", "right_foot")
+    # Leg length (m): hip-pitch joint height at qpos0.
+    leg_length: float = 0.69
 
     def has(self, role: JointRole) -> bool:
         return role in self.actuator_for

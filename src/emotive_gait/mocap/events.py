@@ -1,20 +1,32 @@
 """Path frame and gait events from joint tracks (NumPy and SciPy only).
 
 All positions are ``(T, 3)`` world coordinates in metres, +z up. The thresholds below are
-keyword defaults, frozen against the synthetic round trip in Task 3:
+keyword defaults, frozen against the G1 kinematic round trip in Task 3
+(``tests/mocap/test_roundtrip.py``: neutral, sad, angry and happy at 120 Hz, plus neutral at
+60 Hz with 3 mm marker noise). ``mocap.extract`` feeds these functions tracks low-passed at
+6 Hz (``EVENT_FILTER_HZ``):
 
 ``smooth_s`` (1.0 s)
     Width of the moving-average window applied to the pelvis velocity before taking the
     travel heading. About one stride, so lateral sway (one period per stride) averages out;
-    0.25 s flags most of a swaying straight walk as turning.
+    0.25 s flags most of a swaying straight walk as turning. A fixed 1.0 s is not enough for a
+    slow stride: sad (1.32 steps/s, a 1.52 s stride, 0.025 m sway at 0.34 m/s) keeps a
+    0.54 rad/s heading wobble and 26 % of its frames read as turning. ``mocap.extract``
+    therefore uses this default only to find the events, then rebuilds the frame with
+    ``smooth_s`` set to the clip's median cycle duration; the default itself is unchanged.
 ``yaw_rate_max`` (0.5 rad/s)
     A frame is ``turning`` where the heading of the path frame rotates faster than this.
-``speed_frac`` (0.15)
+``speed_frac`` (0.12; 0.15 in Task 2)
     A foot is stationary when its horizontal world speed is below this fraction of the mean
-    pelvis speed.
+    pelvis speed. The swing foot is slow at both ends of its swing, so stance (and with it
+    double support) always reads long: at 0.15 sad's double support read 0.259 for 0.20
+    (outside the 0.05 round-trip tolerance); at 0.12 the worst preset reads +0.045 (sad).
+    Lower is less robust to marker noise: at 0.10 the noisy 60 Hz neutral clip's cadence is
+    off by 2.8 % (tolerance 3 %), at 0.12 by 1.1 %.
 ``height_band_m`` (0.03 m)
     A foot is on the ground when it is within this height of its own 5th-percentile height
-    (markers sit on the ankle, so the floor itself is not a usable reference).
+    (markers sit on the ankle, so the floor itself is not a usable reference). Unchanged: on
+    the round trip the speed test always binds first.
 ``MIN_STANCE_S`` (0.1 s)
     Stance runs shorter than this are flicker and are dropped.
 """
@@ -103,7 +115,7 @@ def foot_events(
     frame: PathFrame,
     fps: float,
     *,
-    speed_frac: float = 0.15,
+    speed_frac: float = 0.12,
     height_band_m: float = 0.03,
 ) -> FootEvents:
     """Detect stance as slow and low relative to the foot's own track.
