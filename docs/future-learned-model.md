@@ -25,4 +25,4 @@ The stub used this index map: anger 0, disgust 1, fear 2, happiness 3, sadness 4
 
 ## Integration seam
 
-The analytic emotion model in `emotion/` is the seam a learned model would replace. The function to swap is `emotion.model.modulate`: a learned model would provide the same interface, taking base joint angles and emotion intensities and returning modulated joint angles.
+The analytic emotion model in `emotion/` is the seam a learned model would replace. The function to swap is `emotion.model.modulate(params, intensities, profile, *, hold_speed=None, speed_mode=...)`, which takes base `GaitParameters`, emotion intensities and a `RobotProfile` and returns modulated `GaitParameters` (not joint angles); a learned model would provide the same interface.
