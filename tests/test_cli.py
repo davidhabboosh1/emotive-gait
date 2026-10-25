@@ -1,6 +1,9 @@
+import pytest
+
 from emotive_gait.cli import main
 
 
+@pytest.mark.requires_gl
 def test_demo_writes_a_video(tmp_path):
     out = tmp_path / "d.mp4"
     code = main(

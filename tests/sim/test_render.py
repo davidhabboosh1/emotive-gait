@@ -8,6 +8,7 @@ from emotive_gait.sim.kinematic import play_kinematic
 from emotive_gait.sim.render import FfmpegUnavailableError, render_frames, write_video
 
 
+@pytest.mark.requires_gl
 def test_frames_have_the_requested_shape():
     r = load_robot()
     t = generate(GaitParameters(), r)
@@ -17,6 +18,7 @@ def test_frames_have_the_requested_shape():
     assert f.shape == (240, 320, 3) and f.dtype == np.uint8
 
 
+@pytest.mark.requires_gl
 def test_render_above_the_default_framebuffer_works():
     """Default offscreen buffer is 640x480; the model must raise offwidth/offheight."""
     r = load_robot()
@@ -27,6 +29,7 @@ def test_render_above_the_default_framebuffer_works():
     assert f.shape == (720, 960, 3)
 
 
+@pytest.mark.requires_gl
 def test_write_video_produces_a_playable_file(tmp_path):
     r = load_robot()
     t = generate(GaitParameters(), r)

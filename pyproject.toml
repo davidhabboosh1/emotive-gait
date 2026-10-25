@@ -18,7 +18,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest", "ruff"]
+dev = ["pytest", "ruff==0.17.2"]  # ruff pinned to match .pre-commit-config.yaml
 
 [project.scripts]
 emotive-gait = "emotive_gait.cli:main"
@@ -32,3 +32,6 @@ extend-exclude = ["docs/archive", "docs/superpowers"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = [
+    "requires_gl: needs an OpenGL context for mujoco.Renderer and ffmpeg on PATH (skipped if absent)",
+]
