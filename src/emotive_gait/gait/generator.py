@@ -2,8 +2,10 @@
 
 Composition order (design 4.3.1): procedural base, then a per-role override replaces or an
 offset adds, then the result is clamped to the joint range last. ``expansiveness`` scales only
-the procedural amplitude group, never hand-authored curves. Foot placement and root motion
-parameters are deliberately not consumed here.
+the procedural amplitude group, never hand-authored curves. The knee amplitude is in that group
+deliberately, alongside arm swing and abduction: the activation axis is overall movement size,
+legs included, so a shorter list elsewhere (e.g. the plan) is not authoritative. Foot placement
+and root motion parameters are deliberately not consumed here.
 """
 
 from __future__ import annotations
