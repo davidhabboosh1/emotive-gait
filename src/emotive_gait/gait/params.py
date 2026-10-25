@@ -48,25 +48,38 @@ class GaitParameters:
     def with_speed(
         self, target: float, mode: SpeedMode = SpeedMode.PROPORTIONAL
     ) -> GaitParameters:
+        mode = SpeedMode(mode)
         # Validate first so no division or sqrt can produce NaN/ZeroDivisionError.
-        if self.cadence <= 0 or self.step_length <= 0 or target <= 0:
-            raise SpeedConstraintError(
-                f"cannot reach speed {target} with cadence={self.cadence}, "
-                f"step_length={self.step_length}; all must be positive"
-            )
+        for name, value in (
+            ("cadence", self.cadence),
+            ("step_length", self.step_length),
+            ("target", target),
+        ):
+            if not math.isfinite(value) or value <= 0:
+                raise SpeedConstraintError(
+                    f"{name}={value} must be finite and positive to constrain speed"
+                )
         if mode is SpeedMode.HOLD_CADENCE:
             return replace(self, step_length=target / self.cadence)
         if mode is SpeedMode.HOLD_STEP_LENGTH:
             return replace(self, cadence=target / self.step_length)
-        k = math.sqrt(target / (self.cadence * self.step_length))
-        return replace(self, cadence=self.cadence * k, step_length=self.step_length * k)
+        if mode is SpeedMode.PROPORTIONAL:
+            k = math.sqrt(target / (self.cadence * self.step_length))
+            return replace(self, cadence=self.cadence * k, step_length=self.step_length * k)
+        raise AssertionError(f"unhandled SpeedMode {mode!r}")  # pragma: no cover
 
     def to_yaml(self, path: str | Path) -> None:
         Path(path).write_text(yaml.safe_dump(asdict(self), sort_keys=False))
 
     @classmethod
     def from_yaml(cls, path: str | Path) -> GaitParameters:
-        data = yaml.safe_load(Path(path).read_text()) or {}
+        data = yaml.safe_load(Path(path).read_text())
+        if data is None:
+            data = {}
+        if not isinstance(data, dict):
+            raise ValueError(  # noqa: TRY004 - contract specifies ValueError
+                f"expected a mapping of gait parameters, got {type(data).__name__}"
+            )
         unknown = sorted(set(data) - {f.name for f in fields(cls)})
         if unknown:
             raise ValueError(f"unknown gait parameter(s): {', '.join(unknown)}")

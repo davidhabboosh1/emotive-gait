@@ -33,7 +33,19 @@ def test_hold_modes_pin_the_named_quantity():
 @pytest.mark.parametrize("mode", list(SpeedMode))
 @pytest.mark.parametrize(
     "cadence,step_length,target",
-    [(0.0, 0.35, 0.8), (1.8, 0.0, 0.8), (0.0, 0.0, 0.8), (1.8, 0.35, 0.0), (1.8, 0.35, -1.0)],
+    [
+        (0.0, 0.35, 0.8),
+        (1.8, 0.0, 0.8),
+        (0.0, 0.0, 0.8),
+        (1.8, 0.35, 0.0),
+        (1.8, 0.35, -1.0),
+        (float("nan"), 0.35, 0.8),
+        (float("inf"), 0.35, 0.8),
+        (1.8, float("nan"), 0.8),
+        (1.8, float("inf"), 0.8),
+        (1.8, 0.35, float("nan")),
+        (1.8, 0.35, float("inf")),
+    ],
 )
 def test_degenerate_speed_constraints_raise_not_nan(cadence, step_length, target, mode):
     p = GaitParameters(cadence=cadence, step_length=step_length)
@@ -42,10 +54,32 @@ def test_degenerate_speed_constraints_raise_not_nan(cadence, step_length, target
 
 
 def test_yaml_round_trip_preserves_every_field(tmp_path):
-    p = GaitParameters(cadence=2.1, trunk_pitch=0.3, expansiveness=1.2)
+    values = {f.name: 0.1 + 0.01 * i for i, f in enumerate(dataclasses.fields(GaitParameters))}
+    p = GaitParameters(**values)
+    assert all(getattr(p, k) != getattr(GaitParameters(), k) for k in values)
     f = tmp_path / "g.yaml"
     p.to_yaml(f)
+    text = f.read_text()
+    for name in values:
+        assert name in text
     assert GaitParameters.from_yaml(f) == p
+
+
+def test_string_mode_matches_enum_mode():
+    p = GaitParameters(cadence=2.4, step_length=0.5)
+    assert p.with_speed(0.8, "hold_cadence") == p.with_speed(0.8, SpeedMode.HOLD_CADENCE)
+
+
+def test_unknown_mode_raises():
+    with pytest.raises(ValueError):
+        GaitParameters().with_speed(0.8, "not_a_mode")
+
+
+def test_from_yaml_rejects_non_mapping(tmp_path):
+    f = tmp_path / "g.yaml"
+    f.write_text("- cadence: 2.0\n")
+    with pytest.raises(ValueError, match="expected a mapping of gait parameters, got list"):
+        GaitParameters.from_yaml(f)
 
 
 def test_from_yaml_rejects_unknown_keys(tmp_path):
