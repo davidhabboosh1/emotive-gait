@@ -58,18 +58,14 @@ Dependency rules:
   `qpos` addresses on the free root.
 - Roll joints are mirrored left/right, so symmetric modulation negates them.
 - Positive `neck_pitch` is gaze DOWN.
-- Seven `GaitParameters` fields are inert in the in-place generator and must not be read there:
-  `step_length`, `step_height`, `double_support_frac`, `feet_spacing`, `com_height_scale`,
-  `com_bounce_amp`, `lateral_sway_amp`. They exist for a future stepping generator.
-- The leg constants in `generator.py` are calibrated against the Z-rail bob and contact bounds
-  (pelvis bob < 6 cm, no-foot-contact steps < 25%) in
-  `test_z_rail_survives_six_seconds_on_every_preset`. Changing one is a physics decision.
+- `com_height_scale = 1.0` is the profile's nominal pelvis height (G1 0.68 m), below the straight-leg stand; the IK is seeded bent-kneed because the keyframe knee is singular; the ankle pitch range binds at deep crouch and leg reach binds at long stride, and the preset feasibility test is the arbiter.
+- Posture rule: amplitudes are relative, postures are absolute.
 - On `Z_RAIL`/`WELD` the pelvis cannot rotate, so uprightness is floored at cos(0.52)^2 = 0.753
   by the waist limits and can never signal a fall. `simulate` uses uprightness < 0.6 only on
   `FREE`; constrained roots fall on rail-stop contact, lost foot contact or a 15 cm pelvis drop
   (`SimResult.fail_reason` says which).
 - Emotion is applied to PARAMETERS, never to joint angles. The generator clamps to joint range last.
-- Fear has four category offsets (`knee_flexion_bias`, `elbow_swing_ratio`, `cadence`, `neck_pitch`), two of which (cadence, neck_pitch) override the axes, because it breaks a pure three-axis mapping. Anger has one offset, `neck_pitch = -0.135`, that
+- Fear has four category offsets (`com_height_scale`, `elbow_swing_ratio`, `cadence`, `neck_pitch`), two of which (cadence, neck_pitch) override the axes, because it breaks a pure three-axis mapping. Anger has one offset, `neck_pitch = -0.135`, that
   exactly cancels its valence-driven head drop (the evidence says no head change); it must track
   `AXIS_GAINS["neck_pitch"]` and anger's valence weight.
 - No claim may state a magnitude in degrees; claims are signed directions with a grounding level.

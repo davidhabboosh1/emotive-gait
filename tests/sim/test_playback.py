@@ -52,8 +52,7 @@ def test_root_mode_keeps_the_offscreen_framebuffer():
 
 
 # Local literals, not emotion.model.PRESET_PARAMS: that is Task 14 and this is Task 10.
-# These mirror the Phase 0 spike's crude presets; knee_flexion_bias is relative to the
-# generator's 0.25 baseline knee amplitude.
+# These mirror the Phase 0 spike's crude presets.
 _PHASE0_PRESETS = {
     "neutral": GaitParameters(
         cadence=1.8,
@@ -61,7 +60,6 @@ _PHASE0_PRESETS = {
         elbow_flexion=1.28,
         trunk_pitch=0.00,
         neck_pitch=0.00,
-        knee_flexion_bias=0.0,
     ),
     "sad": GaitParameters(
         cadence=1.0,
@@ -69,7 +67,6 @@ _PHASE0_PRESETS = {
         elbow_flexion=1.05,
         trunk_pitch=0.32,
         neck_pitch=0.70,
-        knee_flexion_bias=-0.11,
     ),
     "angry": GaitParameters(
         cadence=2.7,
@@ -77,7 +74,6 @@ _PHASE0_PRESETS = {
         elbow_flexion=1.85,
         trunk_pitch=0.18,
         neck_pitch=-0.10,
-        knee_flexion_bias=0.13,
     ),
     "happy": GaitParameters(
         cadence=2.3,
@@ -85,7 +81,6 @@ _PHASE0_PRESETS = {
         elbow_flexion=0.95,
         trunk_pitch=-0.12,
         neck_pitch=-0.35,
-        knee_flexion_bias=0.11,
     ),
 }
 
@@ -146,7 +141,7 @@ def test_z_rail_detects_collapse():
 
 def test_ramp_avoids_the_startup_yank():
     r = load_robot(root=RootMode.Z_RAIL)
-    t = generate(GaitParameters(knee_flexion_bias=0.4), r)
+    t = generate(GaitParameters(com_height_scale=0.9), r)
     assert not simulate(r, t, duration=1.0, ramp=0.5).fell
 
 
@@ -156,25 +151,16 @@ def _post_ramp_mean_pelvis_z(r, res, ramp=0.5):
 
 def test_crouch_and_neutral_do_not_fall_on_the_z_rail():
     r = load_robot(root=RootMode.Z_RAIL)
-    for bias in (0.5, 0.0):
-        res = simulate(r, generate(GaitParameters(knee_flexion_bias=bias), r), duration=2.0)
-        assert not res.fell, f"knee_flexion_bias={bias}: {res.fail_reason}"
+    for scale in (0.9, 1.0):
+        res = simulate(r, generate(GaitParameters(com_height_scale=scale), r), duration=2.0)
+        assert not res.fell, f"com_height_scale={scale}: {res.fail_reason}"
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "Final-fix-wave I1.3 premise does not hold for this generator: knee_flexion_bias "
-        "scales the swing-knee amplitude, not a stance crouch. Measured post-ramp mean pelvis z "
-        "over 2 s: bias 0.5 -> 0.8038 m, bias 0.0 -> 0.7979 m (crouch is 5.9 mm HIGHER). "
-        "Making it pass changes the leg constants, a physics decision outside this wave."
-    ),
-)
 def test_crouch_lowers_the_pelvis_at_least_3cm_below_neutral():
     r = load_robot(root=RootMode.Z_RAIL)
     crouch, neutral = (
-        simulate(r, generate(GaitParameters(knee_flexion_bias=b), r), duration=2.0)
-        for b in (0.5, 0.0)
+        simulate(r, generate(GaitParameters(com_height_scale=s), r), duration=2.0)
+        for s in (0.9, 1.0)
     )
     assert _post_ramp_mean_pelvis_z(r, crouch) <= _post_ramp_mean_pelvis_z(r, neutral) - 0.03
 

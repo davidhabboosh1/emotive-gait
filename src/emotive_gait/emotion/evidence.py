@@ -66,7 +66,7 @@ _GROUNDED_ROWS: dict[Emotion, tuple[tuple[str, int, Grounding, str, str], ...]] 
             _ROETHER,
             "pronounced increase; top predictor of anger expressiveness",
         ),
-        ("knee_flexion_bias", 0, _D, _ROETHER, "hip/knee flexion not significant"),
+        ("com_height_scale", 0, _D, _ROETHER, "hip/knee flexion not significant"),
         ("expansiveness", 1, _D, _ROETHER, "larger joint amplitudes overall"),
         ("com_bounce_amp", 0, _D, _GROSS, "reported only as smoother than sadness, not vs neutral"),
         (
@@ -100,8 +100,8 @@ _GROUNDED_ROWS: dict[Emotion, tuple[tuple[str, int, Grounding, str, str], ...]] 
         ),
         ("elbow_swing_ratio", 1, _D, _HK, "mainly the lower arm moves"),
         (
-            "knee_flexion_bias",
-            1,
+            "com_height_scale",
+            -1,
             _D,
             _ROETHER,
             "increased hip and knee flexion, widespread postural tension",

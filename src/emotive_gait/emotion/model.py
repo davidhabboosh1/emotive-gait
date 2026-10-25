@@ -44,6 +44,14 @@ overridden by ``CATEGORY_OFFSETS``, and anger's neck_pitch offset cancels its va
 re-check the claim cross-check test if a gain changes.
 """
 
+_LEG_ROLES = (
+    JointRole.HIP_PITCH_L,
+    JointRole.HIP_PITCH_R,
+    JointRole.KNEE_L,
+    JointRole.KNEE_R,
+    JointRole.ANKLE_PITCH_L,
+    JointRole.ANKLE_PITCH_R,
+)
 _PARAMETER_ROLES: Mapping[str, tuple[JointRole, ...]] = MappingProxyType(
     {
         "neck_pitch": (JointRole.NECK_PITCH,),
@@ -52,8 +60,19 @@ _PARAMETER_ROLES: Mapping[str, tuple[JointRole, ...]] = MappingProxyType(
         "elbow_swing_ratio": (JointRole.ELBOW_L, JointRole.ELBOW_R),
         "arm_swing_amp": (JointRole.SHOULDER_PITCH_L, JointRole.SHOULDER_PITCH_R),
         "arm_abduction": (JointRole.SHOULDER_ROLL_L, JointRole.SHOULDER_ROLL_R),
-        "knee_flexion_bias": (JointRole.KNEE_L, JointRole.KNEE_R),
     }
+    | dict.fromkeys(
+        (
+            "com_height_scale",
+            "step_length",
+            "step_height",
+            "feet_spacing",
+            "double_support_frac",
+            "com_bounce_amp",
+            "lateral_sway_amp",
+        ),
+        _LEG_ROLES,
+    )
 )
 # Parameters absent here are whole-body timing/amplitude and are never unexpressible.
 
@@ -64,6 +83,7 @@ _NONNEGATIVE_AMPLITUDES = (
     "com_bounce_amp",
     "lateral_sway_amp",
     "step_height",
+    "step_length",
 )
 
 
@@ -133,7 +153,7 @@ def modulate(
 
     Cues the profile cannot show are dropped (see :func:`unexpressible`). Amplitude parameters
     (``arm_swing_amp``, ``arm_abduction``, ``expansiveness``, ``com_bounce_amp``,
-    ``lateral_sway_amp``, ``step_height``) are floored at 0.0: "less arm swing" saturates at
+    ``lateral_sway_amp``, ``step_height``, ``step_length``) are floored at 0.0: "less arm swing" saturates at
     none, and a negative amplitude is a phase flip, not a smaller motion. When ``hold_speed``
     is given, speed is pinned to it last, so posture cues survive.
     """

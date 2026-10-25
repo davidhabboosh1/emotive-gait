@@ -51,8 +51,8 @@ def test_intensity_scales_each_axis_monotonically():
         prev = cur
 
 
-def test_fear_carries_a_category_offset_for_knee_flexion():
-    assert CATEGORY_OFFSETS[Emotion.FEAR]["knee_flexion_bias"] > 0
+def test_fear_carries_a_category_offset_for_crouch():
+    assert CATEGORY_OFFSETS[Emotion.FEAR]["com_height_scale"] < 0
 
 
 def test_axes_are_a_linear_sum_of_weights():

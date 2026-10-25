@@ -28,13 +28,12 @@ class GaitParameters:
     step_length: float = 0.35  # metres
     step_height: float = 0.05
     double_support_frac: float = 0.20
-    feet_spacing: float = 0.15
+    feet_spacing: float = 0.20
     com_height_scale: float = 1.0
     com_bounce_amp: float = 0.02
     lateral_sway_amp: float = 0.015
     trunk_pitch: float = 0.0
     neck_pitch: float = 0.0
-    knee_flexion_bias: float = 0.0
     arm_swing_amp: float = 0.35
     arm_abduction: float = 0.05
     elbow_flexion: float = 0.25

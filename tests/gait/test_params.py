@@ -112,3 +112,10 @@ def test_from_yaml_rejects_nan(tmp_path):
     f.write_text("cadence: .nan\n")
     with pytest.raises(ValueError, match="cadence"):
         GaitParameters.from_yaml(f)
+
+
+def test_yaml_with_the_retired_knee_bias_is_rejected_by_name(tmp_path):
+    f = tmp_path / "old.yaml"
+    f.write_text("knee_flexion_bias: 0.1\n")
+    with pytest.raises(ValueError, match="knee_flexion_bias"):
+        GaitParameters.from_yaml(f)
