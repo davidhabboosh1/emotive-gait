@@ -1,9 +1,11 @@
 import itertools
 
 import mujoco
+import numpy as np
 import pytest
 
 from emotive_gait.robot.loader import load_robot
+from emotive_gait.robot.neck import NeckConfig, inject_neck
 from emotive_gait.robot.profiles.g1 import G1_PROFILE, G1_PROFILE_WITH_NECK
 from emotive_gait.robot.roles import JointRole
 
@@ -73,3 +75,40 @@ def test_neck_profile_is_g1_plus_neck_only():
     assert G1_PROFILE_WITH_NECK.actuator(JointRole.NECK_PITCH) == "neck_pitch_joint"
     assert G1_PROFILE_WITH_NECK.sign(JointRole.NECK_PITCH) == 1.0
     assert not G1_PROFILE.has(JointRole.NECK_PITCH)
+
+
+def _standing_com(r):
+    d = mujoco.MjData(r.model)
+    d.qpos[:] = r.stand_qpos
+    mujoco.mj_forward(r.model, d)
+    return d.subtree_com[0].copy()
+
+
+def test_whole_body_com_is_conserved():
+    bare = _standing_com(load_robot(with_neck=False))
+    necked = _standing_com(load_robot(with_neck=True))
+    np.testing.assert_allclose(necked, bare, atol=1e-3)
+
+
+def test_torso_remainder_inertia_is_positive():
+    r = load_robot(with_neck=True)
+    tid = mujoco.mj_name2id(r.model, mujoco.mjtObj.mjOBJ_BODY, "torso_link")
+    assert np.all(r.model.body_inertia[tid] > 0)
+
+
+def test_impossible_head_split_is_rejected():
+    import mujoco_menagerie
+
+    spec = mujoco.MjSpec.from_file(str(mujoco_menagerie.get("unitree_g1").xml("scene")))
+    with pytest.raises(ValueError):
+        inject_neck(spec, NeckConfig(mass=20.0))
+
+
+def test_neck_actuator_tracks_its_command_in_closed_loop():
+    r = load_robot(with_neck=True)
+    d = mujoco.MjData(r.model)
+    d.qpos[:] = r.stand_qpos
+    d.ctrl[r.ctrl_index(JointRole.NECK_PITCH)] = 0.5
+    for _ in range(500):
+        mujoco.mj_step(r.model, d)
+    assert d.qpos[r.qpos_adr(JointRole.NECK_PITCH)] == pytest.approx(0.5, abs=0.02)

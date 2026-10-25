@@ -62,11 +62,7 @@ def load_robot(profile: RobotProfile | None = None, *, with_neck: bool = True) -
     try:
         robot = mujoco_menagerie.get(profile.name)
         model = robot.model(profile.scene_entry)
-        if with_neck:
-            neck_model = build_with_neck(str(robot.xml(profile.scene_entry)))
-            return RobotModel(
-                model=neck_model, profile=profile, stand_qpos=standing_qpos(model, neck_model)
-            )
+        entry_xml = str(robot.xml(profile.scene_entry))
     except (OSError, TypeError, mujoco_menagerie.MenagerieError) as exc:
         raise ModelUnavailableError(
             f"Could not load robot model {profile.name!r}: {exc}. "
@@ -74,4 +70,9 @@ def load_robot(profile: RobotProfile | None = None, *, with_neck: bool = True) -
             "the first download requires Python >= 3.11.4 (3.12 recommended) because "
             "mujoco-menagerie extracts archives with tarfile's `filter=` argument."
         ) from exc
+    if with_neck:
+        neck_model = build_with_neck(entry_xml)
+        return RobotModel(
+            model=neck_model, profile=profile, stand_qpos=standing_qpos(model, neck_model)
+        )
     return RobotModel(model=model, profile=profile, stand_qpos=_stand_qpos(model))
