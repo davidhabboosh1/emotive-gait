@@ -4,6 +4,7 @@ import pytest
 
 from emotive_gait.robot.loader import load_robot
 from emotive_gait.robot.root import RootMode
+from emotive_gait.sim import metrics
 from emotive_gait.sim.metrics import (
     _foot_contacts,
     center_of_pressure,
@@ -129,3 +130,15 @@ def test_zmp_margin_is_none_without_three_contact_points():
 def test_foot_contact_flags_are_both_true_when_standing():
     r = load_robot(root=RootMode.Z_RAIL)
     assert foot_contact_flags(r.model, _settle(r)) == (True, True)
+
+
+def test_zmp_margin_is_none_for_collinear_contacts(monkeypatch):
+    r = load_robot(root=RootMode.Z_RAIL)
+    d = _settle(r)
+    line = [np.array([x, 0.0, 0.0]) for x in (0.0, 0.1, 0.2)]
+    monkeypatch.setattr(
+        metrics,
+        "_foot_contacts",
+        lambda m, dd: iter((p, np.array([0.0, 0.0, 10.0]), 10.0) for p in line),
+    )
+    assert metrics.zmp_margin(r.model, d) is None

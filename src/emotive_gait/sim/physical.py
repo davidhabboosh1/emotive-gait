@@ -66,6 +66,8 @@ class SimResult:
     # (N,) commanded pelvis height of the played trajectory at each sample time
     pelvis_z_cmd: np.ndarray = field(default_factory=lambda: np.empty(0))
     root_mode: RootMode = RootMode.FREE
+    ramp: float = 0.5  # s: the ramp ``simulate`` used
+    timestep: float = 0.002  # s: the model timestep ``simulate`` used
 
 
 def project_for_root(params: GaitParameters, mode: RootMode) -> GaitParameters:
@@ -192,7 +194,8 @@ def simulate(
         else:
             data.ctrl[:] = target
         if rail_x_adr >= 0:
-            # The IK legs assume the pelvis is exactly at speed * t, so x is prescribed, not servoed.
+            # The IK legs assume the pelvis is exactly at speed * t, so x is prescribed,
+            # not servoed.
             data.qpos[rail_x_adr] = traj.root_x_at(t)
             data.qvel[rail_x_dof] = traj.params.speed
         mujoco.mj_step(model, data)
@@ -252,6 +255,8 @@ def simulate(
         foot_slip=slip[:done],
         pelvis_z_cmd=pelvis_cmd[:done],
         root_mode=mode,
+        ramp=ramp,
+        timestep=model.opt.timestep,
     )
 
 
@@ -281,8 +286,14 @@ def _nan_rms(x: np.ndarray) -> float:
     return float(np.sqrt(np.mean(x**2))) if x.size else float("nan")
 
 
-def summarize(res: SimResult, *, ramp: float = 0.5, timestep: float) -> GaitReport:
-    """Reduce ``res`` to a :class:`GaitReport` over steps sampled at ``t >= ramp``."""
+def summarize(
+    res: SimResult, *, ramp: float | None = None, timestep: float | None = None
+) -> GaitReport:
+    """Reduce ``res`` to a :class:`GaitReport` over steps sampled at ``t >= ramp``.
+
+    ``ramp`` and ``timestep`` default to the values ``simulate`` recorded on ``res``."""
+    ramp = res.ramp if ramp is None else ramp
+    timestep = res.timestep if timestep is None else timestep
     t = (np.arange(len(res.pelvis_z)) + 1) * timestep
     post = t >= ramp - 1e-9
     margin = res.zmp_margin[post]

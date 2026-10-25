@@ -278,7 +278,7 @@ def test_xz_rail_reports_a_fall_on_an_absurd_gait():
 def test_report_on_the_z_rail_has_finite_numbers_and_no_slip_claim():
     r = load_robot(root=RootMode.Z_RAIL)
     res = simulate(r, generate(GaitParameters(), r), duration=2.0)
-    rep = summarize(res, timestep=r.model.opt.timestep)
+    rep = summarize(res)
     assert 0.0 <= rep.zmp_outside_frac <= 1.0 and math.isfinite(rep.zmp_mean_margin_m)
     assert all(s < 0.05 for s in rep.foot_slip_rms_m_s)  # in place: feet do not slide
     assert 0.0 <= rep.pelvis_tracking_ptp_m <= rep.pelvis_bob_m
@@ -288,11 +288,20 @@ def test_report_on_the_z_rail_has_finite_numbers_and_no_slip_claim():
 def test_weld_report_is_labelled_pelvis_held():
     r = load_robot(root=RootMode.WELD)
     res = simulate(r, generate(GaitParameters(), r), duration=1.0)
-    assert summarize(res, timestep=r.model.opt.timestep).pelvis_held
+    assert summarize(res).pelvis_held
 
 
 def test_summarize_with_no_post_ramp_steps_is_nan_and_does_not_raise():
     r = load_robot(root=RootMode.Z_RAIL)
     res = simulate(r, generate(GaitParameters(), r), duration=0.2)
-    rep = summarize(res, timestep=r.model.opt.timestep)
+    rep = summarize(res)
     assert math.isnan(rep.zmp_outside_frac) and math.isnan(rep.pelvis_bob_m)
+
+
+def test_summarize_accepts_explicit_ramp_and_timestep_overrides():
+    r = load_robot(root=RootMode.Z_RAIL)
+    res = simulate(r, generate(GaitParameters(), r), duration=0.6)
+    assert (res.ramp, res.timestep) == (0.5, r.model.opt.timestep)
+    default = summarize(res)
+    late = summarize(res, ramp=10.0, timestep=r.model.opt.timestep)
+    assert math.isfinite(default.pelvis_bob_m) and math.isnan(late.pelvis_bob_m)

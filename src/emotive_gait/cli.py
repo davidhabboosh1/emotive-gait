@@ -237,14 +237,12 @@ def _demo(args: argparse.Namespace) -> int:
         if args.physics:
             sim_robot = load_robot(root=RootMode[_ROOTS[args.root]])
             res = simulate(sim_robot, make_traj(sim_robot), duration=args.duration)
-            bob = float(res.pelvis_z.max() - res.pelvis_z.min())
             print(f"root: {args.root}")
             print(f"fell: {res.fell}")
             print(f"fell_at: {res.fell_at if res.fell else 'n/a'}")
             if res.fell:
                 print(f"fail_reason: {res.fail_reason}")
-            print(f"pelvis bob (m): {bob:.4f}")
-            rep = summarize(res, timestep=sim_robot.model.opt.timestep)
+            rep = summarize(res)
             held = " (pelvis held)" if rep.pelvis_held else ""
             print(f"zmp_outside_frac: {rep.zmp_outside_frac:.4f}{held}")
             print(f"zmp_mean_margin_m: {rep.zmp_mean_margin_m:.4f}{held}")
@@ -253,6 +251,12 @@ def _demo(args: argparse.Namespace) -> int:
             print(f"pelvis_bob_m: {rep.pelvis_bob_m:.4f}")
             print(f"pelvis_tracking_ptp_m: {rep.pelvis_tracking_ptp_m:.4f}")
             print(f"pelvis_held: {rep.pelvis_held}")
+            changed = [
+                f"{f.name}={getattr(rep.played_params, f.name)}"
+                for f in dataclasses.fields(params)
+                if getattr(rep.played_params, f.name) != getattr(params, f.name)
+            ]
+            print(f"played_params: {' '.join(changed) if changed else 'unchanged'}")
             if args.no_video:
                 return 0
         frames = render_frames(

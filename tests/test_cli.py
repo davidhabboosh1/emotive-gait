@@ -135,3 +135,6 @@ def test_physics_prints_the_gait_report(capsys):
     out = capsys.readouterr().out
     assert "zmp_outside_frac:" in out and "foot_slip_rms_m_s:" in out
     assert "pelvis_tracking_ptp_m:" in out
+    line = next(ln for ln in out.splitlines() if ln.startswith("played_params:"))
+    assert "step_length=0.0" in line
+    assert "pelvis bob (m)" not in out
