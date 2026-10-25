@@ -77,3 +77,26 @@ def test_physics_summary_names_the_fail_reason(capsys):
     out = capsys.readouterr().out
     assert code == 0
     assert "fell: True" in out and "fail_reason: uprightness" in out
+
+
+def test_width_above_the_framebuffer_is_a_user_error(tmp_path, capsys):
+    code = main(["demo", "--width", "1280", "--duration", "0.2", "--out", str(tmp_path / "x.mp4")])
+    err = capsys.readouterr().err
+    assert code == 2
+    assert "framebuffer" in err and "Traceback" not in err
+
+
+def test_odd_width_is_a_user_error(tmp_path, capsys):
+    code = main(["demo", "--width", "321", "--duration", "0.2", "--out", str(tmp_path / "x.mp4")])
+    err = capsys.readouterr().err
+    assert code == 2
+    assert "even" in err and "Traceback" not in err
+
+
+def test_duration_shorter_than_one_frame_is_a_user_error(tmp_path, capsys):
+    out = tmp_path / "x.mp4"
+    code = main(["demo", "--duration", "0.01", "--out", str(out)])
+    err = capsys.readouterr().err
+    assert code == 2
+    assert "frame" in err and "Traceback" not in err
+    assert not out.exists()

@@ -129,6 +129,26 @@ def _to_gif(video: Path) -> Path:
     return gif
 
 
+def _video_problem(args: argparse.Namespace, model) -> str | None:
+    """Return a message for video settings the renderer or encoder cannot honour, else None."""
+    max_w, max_h = model.vis.global_.offwidth, model.vis.global_.offheight
+    if args.width > max_w:
+        return f"--width {args.width} exceeds the offscreen framebuffer width {max_w}"
+    if args.height > max_h:
+        return f"--height {args.height} exceeds the offscreen framebuffer height {max_h}"
+    if args.width % 2 or args.height % 2:
+        return (
+            f"--width and --height must be even for H.264/yuv420p video "
+            f"(got {args.width}x{args.height})"
+        )
+    if int(args.duration * args.fps) < 1:
+        return (
+            f"--duration {args.duration} at --fps {args.fps} yields no frame; "
+            "need duration * fps >= 1"
+        )
+    return None
+
+
 def _demo(args: argparse.Namespace) -> int:
     try:
         intensities = _parse_emotions(args.emotion)
@@ -166,9 +186,16 @@ def _demo(args: argparse.Namespace) -> int:
     from emotive_gait.sim.render import FfmpegUnavailableError, render_frames, write_video
 
     try:
+        video = not (args.physics and args.no_video)
+        if video:
+            robot = load_robot()  # the kinematic video needs the free-root model
+            problem = _video_problem(args, robot.model)
+            if problem is not None:
+                _err(problem)
+                return 2
         if args.physics:
-            robot = load_robot(root=RootMode[_ROOTS[args.root]])
-            res = simulate(robot, generate(params, robot), duration=args.duration)
+            sim_robot = load_robot(root=RootMode[_ROOTS[args.root]])
+            res = simulate(sim_robot, generate(params, sim_robot), duration=args.duration)
             bob = float(res.pelvis_z.max() - res.pelvis_z.min())
             print(f"root: {args.root}")
             print(f"fell: {res.fell}")
@@ -178,7 +205,6 @@ def _demo(args: argparse.Namespace) -> int:
             print(f"pelvis bob (m): {bob:.4f}")
             if args.no_video:
                 return 0
-        robot = load_robot()  # the kinematic video needs the free-root model
         frames = render_frames(
             robot,
             play_kinematic(robot, generate(params, robot), duration=args.duration, fps=args.fps),
