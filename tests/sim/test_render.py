@@ -1,3 +1,4 @@
+import mujoco
 import numpy as np
 import pytest
 
@@ -5,7 +6,13 @@ from emotive_gait.gait.generator import generate
 from emotive_gait.gait.params import GaitParameters
 from emotive_gait.robot.loader import load_robot
 from emotive_gait.sim.kinematic import play_kinematic
-from emotive_gait.sim.render import FfmpegUnavailableError, render_frames, write_video
+from emotive_gait.sim.render import (
+    CameraSpec,
+    FfmpegUnavailableError,
+    make_camera,
+    render_frames,
+    write_video,
+)
 
 
 @pytest.mark.requires_gl
@@ -53,3 +60,15 @@ def test_frame_size_mismatch_is_rejected(tmp_path):
     frame = np.zeros((240, 320, 3), dtype=np.uint8)
     with pytest.raises(ValueError, match="240"):
         write_video(iter([frame]), tmp_path / "v.mp4", width=960, height=720)
+
+
+def test_tracking_camera_follows_the_pelvis():
+    r = load_robot()
+    cam = make_camera(r.model, CameraSpec())
+    assert cam.type == mujoco.mjtCamera.mjCAMERA_TRACKING
+    assert cam.trackbodyid == mujoco.mj_name2id(r.model, mujoco.mjtObj.mjOBJ_BODY, "pelvis")
+
+
+def test_fixed_camera_is_free():
+    cam = make_camera(load_robot().model, CameraSpec(tracking=False))
+    assert cam.type == mujoco.mjtCamera.mjCAMERA_FREE

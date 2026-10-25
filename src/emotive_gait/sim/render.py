@@ -20,12 +20,32 @@ class FfmpegUnavailableError(RuntimeError):
 
 @dataclass(frozen=True)
 class CameraSpec:
-    """Free-camera placement, framed on a standing robot by default."""
+    """Camera placement, framed on a standing robot by default.
+
+    ``tracking`` follows the pelvis body (it looks at that body, so ``lookat_z`` applies to the
+    fixed camera only).
+    """
 
     distance: float = 3.2
     azimuth: float = 135.0
     elevation: float = -8.0
     lookat_z: float = 0.9
+    tracking: bool = True
+
+
+def make_camera(model: mujoco.MjModel, spec: CameraSpec) -> mujoco.MjvCamera:
+    """Build the camera for ``spec``: tracking the pelvis, or a free camera at a fixed point."""
+    cam = mujoco.MjvCamera()
+    mujoco.mjv_defaultFreeCamera(model, cam)
+    if spec.tracking:
+        cam.type = mujoco.mjtCamera.mjCAMERA_TRACKING
+        cam.trackbodyid = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, "pelvis")
+    else:
+        cam.lookat[2] = spec.lookat_z
+    cam.distance = spec.distance
+    cam.azimuth = spec.azimuth
+    cam.elevation = spec.elevation
+    return cam
 
 
 def render_frames(
@@ -42,12 +62,7 @@ def render_frames(
     not exceed the model's offscreen framebuffer. Physics is never advanced here.
     """
     model = robot.model
-    cam = mujoco.MjvCamera()
-    mujoco.mjv_defaultFreeCamera(model, cam)
-    cam.distance = camera.distance
-    cam.azimuth = camera.azimuth
-    cam.elevation = camera.elevation
-    cam.lookat[2] = camera.lookat_z
+    cam = make_camera(model, camera)
 
     renderer = mujoco.Renderer(model, height=height, width=width)
     try:

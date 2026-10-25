@@ -77,6 +77,12 @@ def _build_parser() -> argparse.ArgumentParser:
         default="z-rail",
         help="pelvis constraint for --physics (default z-rail)",
     )
+    d.add_argument(
+        "--camera",
+        choices=["tracking", "fixed"],
+        default="tracking",
+        help="video camera: follow the pelvis, or stay fixed (default tracking)",
+    )
     mode = d.add_mutually_exclusive_group()
     mode.add_argument(
         "--kinematic",
@@ -188,7 +194,12 @@ def _demo(args: argparse.Namespace) -> int:
     from emotive_gait.robot.root import RootMode
     from emotive_gait.sim.kinematic import play_kinematic
     from emotive_gait.sim.physical import simulate
-    from emotive_gait.sim.render import FfmpegUnavailableError, render_frames, write_video
+    from emotive_gait.sim.render import (
+        CameraSpec,
+        FfmpegUnavailableError,
+        render_frames,
+        write_video,
+    )
 
     def load_robot(**kwargs):
         try:
@@ -198,6 +209,22 @@ def _demo(args: argparse.Namespace) -> int:
                 f"the installed robot model revision does not match this package ({exc}); "
                 "install the pinned mujoco-menagerie==2026.10.4"
             ) from exc
+
+    warned = False
+
+    def make_traj(rob):
+        nonlocal warned
+        traj = generate(params, rob)
+        if not warned:
+            warned = True
+            report = traj.feasibility
+            if not report.feasible:
+                roles = ", ".join(r.name.lower() for r in report.roles_at_limit) or "none"
+                _err(
+                    "warning: parameters exceed the robot's reach: max foot error "
+                    f"{report.max_foot_position_error_m * 1000:.1f} mm; roles at limit: {roles}"
+                )
+        return traj
 
     try:
         video = not (args.physics and args.no_video)
@@ -209,7 +236,7 @@ def _demo(args: argparse.Namespace) -> int:
                 return 2
         if args.physics:
             sim_robot = load_robot(root=RootMode[_ROOTS[args.root]])
-            res = simulate(sim_robot, generate(params, sim_robot), duration=args.duration)
+            res = simulate(sim_robot, make_traj(sim_robot), duration=args.duration)
             bob = float(res.pelvis_z.max() - res.pelvis_z.min())
             print(f"root: {args.root}")
             print(f"fell: {res.fell}")
@@ -221,9 +248,10 @@ def _demo(args: argparse.Namespace) -> int:
                 return 0
         frames = render_frames(
             robot,
-            play_kinematic(robot, generate(params, robot), duration=args.duration, fps=args.fps),
+            play_kinematic(robot, make_traj(robot), duration=args.duration, fps=args.fps),
             width=args.width,
             height=args.height,
+            camera=CameraSpec(tracking=args.camera == "tracking"),
         )
         out = Path(args.out)
         out.parent.mkdir(parents=True, exist_ok=True)

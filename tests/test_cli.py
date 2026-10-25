@@ -113,3 +113,13 @@ def test_model_revision_mismatch_is_an_environment_failure(monkeypatch, capsys):
     err = capsys.readouterr().err
     assert code == 1
     assert "revision" in err and "Traceback" not in err
+
+
+def test_infeasible_parameters_warn_but_still_render(capsys):
+    # --dry-run loads no model, so drive the warning through the physics path with no video
+    code = main(
+        ["demo", "--physics", "--no-video", "--root", "free", "--duration", "0.2"]
+        + ["--hold-speed", "3.0"]
+    )
+    err = capsys.readouterr().err
+    assert code == 0 and "exceed the robot's reach" in err

@@ -1,9 +1,10 @@
 import math
 
+import mujoco
 import numpy as np
 import pytest
 
-from emotive_gait.gait.footsteps import phase_at
+from emotive_gait.gait.footsteps import Side, foot_point, phase_at
 from emotive_gait.gait.generator import generate
 from emotive_gait.gait.params import GaitParameters
 from emotive_gait.robot.loader import load_robot
@@ -216,3 +217,44 @@ def test_weld_projection_freezes_everything_the_pelvis_would_move_for():
 def test_free_root_is_not_projected():
     p = GaitParameters(step_length=0.3)
     assert project_for_root(p, RootMode.FREE) == p
+
+
+def test_kinematic_stance_foot_is_stationary_in_the_world():
+    r = load_robot()
+    p = GaitParameters()
+    t = generate(p, r)
+    site = mujoco.mj_name2id(r.model, mujoco.mjtObj.mjOBJ_SITE, "left_foot")
+    fps = 200
+    xs = []
+    for k, f in enumerate(play_kinematic(r, t, duration=2 / p.cadence, fps=fps)):
+        if foot_point(p, phase_at(p, k / fps), Side.LEFT).in_stance:
+            xs.append(f.site_xpos[site][:2].copy())
+    xs = np.array(xs)
+    assert len(xs) > 50 and np.ptp(xs, axis=0).max() < 1e-3
+
+
+def test_kinematic_pelvis_advances_two_step_lengths_per_cycle():
+    r = load_robot()
+    p = GaitParameters(cadence=1.5)
+    t = generate(p, r)
+    # 2 / cadence s at 30 fps is exactly 40 frames; the yielded MjData is reused, so read inside.
+    xs = [float(f.qpos[0]) for f in play_kinematic(r, t, duration=2 / p.cadence, fps=30)]
+    assert len(xs) == 40
+    assert xs[-1] - xs[0] == pytest.approx(2 * p.step_length * (39 / 40), abs=1e-6)
+
+
+def test_kinematic_crouch_lowers_the_world_pelvis():
+    r = load_robot()
+
+    def z(scale):
+        traj = generate(GaitParameters(com_height_scale=scale), r)
+        return next(iter(play_kinematic(r, traj, duration=0.1, fps=10))).qpos[2]
+
+    # the G1 nominal pelvis height is 0.68 m, so a 10% crouch is 0.068 m
+    assert z(1.0) - z(0.9) == pytest.approx(0.068, abs=1e-6)
+
+
+def test_kinematic_playback_rejects_a_constrained_root():
+    r = load_robot(root=RootMode.Z_RAIL)
+    with pytest.raises(ValueError, match="FREE"):
+        next(iter(play_kinematic(r, generate(GaitParameters(), r), duration=0.1, fps=10)))
