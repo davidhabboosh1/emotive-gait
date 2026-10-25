@@ -71,14 +71,15 @@ Dependency rules:
 - Positive `neck_pitch` is gaze DOWN.
 - Gait geometry is "treadmill style": foot targets live in the pelvis frame, the stance foot
   slides back at walking speed while the world pelvis advances at that speed, so the stance foot
-  is stationary in the world (< 1 mm). Phase 0 starts the left swing; sway goes toward the
+  is stationary in the world (< 1 mm). Gait phase 0 (phi = 0) starts the left swing; sway goes toward the
   stance side (G1 +y is left). Pelvis-frame swing x overshoots +-D/2 by about 11%.
 - Nominal pelvis height is 0.68 m (`com_height_scale = 1.0`), below the straight-leg 0.79 m
   stand. 0.70 leaves anger's 0.47 m steps unreachable (132.8 mm foot error); 0.66 trips the
   ankle pitch limit (13.6 mm); 0.68 solves every preset to <= 0.065 mm. The preset feasibility
   test is the arbiter.
 - IK is seeded from a bent-knee pose (hip -0.2, knee 0.4, ankle -0.2): the keyframe's straight
-  knee is a Jacobian singularity. `generate()` costs about 0.6 s (the IK solve), so tests share
+  knee is a Jacobian singularity. `generate()` costs about 0.6 s (two warm-started IK laps of ~0.3 s each; design doc
+  section 9), so tests share
   trajectories instead of regenerating.
 - Sole orientation is a hard task (level) in stance and a soft preference (cost 0.1) in swing;
   the swing foot may pitch (worst ~0.034 rad on neutral). No heel-toe roll is modelled.
@@ -92,9 +93,10 @@ Dependency rules:
 - `feet_spacing` defaults to 0.20 m.
 - Physics plays a recorded projection of the parameters (`played_params`, printed by the CLI):
   `Z_RAIL` zeroes `step_length` and `lateral_sway_amp`; `WELD` also zeroes `com_bounce_amp` and
-  forces `com_height_scale` 1.0 (pelvis welded at 0.68 m); `FREE` plays everything and falls.
-- `XZ_RAIL` is EXPERIMENTAL and a measured negative result: a prescribed forward slide (zero
-  root lag) still loses foot contact on neutral (first gap 0.074 s) and falls at about 0.54 s,
+  forces `com_height_scale` 1.0 (pelvis welded at 0.68 m); `XZ_RAIL` (experimental) zeroes only
+  `lateral_sway_amp`; `FREE` plays everything and falls.
+- `XZ_RAIL` is EXPERIMENTAL and a measured negative result: a prescribed forward slide (no
+  servo lag) still loses foot contact on neutral (first gap 0.074 s) and falls at about 0.54 s,
   and a servoed rail (kp 5000-100000, ramped) failed the same way at 0.52-1.12 s. Forward
   walking is a kinematic-tier result; the physics tier is in place. Sway is lost on every rail.
 - The Z-rail survival gate is the deviation of pelvis z from the commanded path (peak-to-peak

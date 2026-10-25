@@ -79,7 +79,7 @@ for instrumentation and never used for control.
   `pelvis_bob_m` 0.0545 (includes the commanded bounce), `pelvis_tracking_ptp_m` 0.0235
   (uncommanded). A constrained root plays a projection of the parameters (`played_params:`
   lists what changed): the Z rail zeroes `step_length` and `lateral_sway_amp`; the weld also
-  zeroes `com_bounce_amp` and fixes `com_height_scale` at 1.0; the free root plays everything
+  zeroes `com_bounce_amp` and fixes `com_height_scale` at 1.0; the experimental `xz-rail` zeroes only `lateral_sway_amp`; the free root plays everything
   and falls.
 - `--root xz-rail`, a prescribed forward slide, is experimental and falls under stride: the
   neutral gait loses foot contact (first gap at 0.074 s) and falls at about 0.54 s. A servoed
