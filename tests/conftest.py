@@ -7,6 +7,8 @@ import shutil
 
 import pytest
 
+from emotive_gait.gait.params import GaitParameters
+
 
 @functools.cache
 def _gl_skip_reason() -> str | None:
@@ -33,3 +35,37 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
     marker = pytest.mark.skip(reason=f"requires_gl: {reason}")
     for item in gl_items:
         item.add_marker(marker)
+
+
+# Phase 0 spike presets (crude, minus the retired knee bias), shared by the playback and
+# feasibility tests.
+PHASE0_PRESETS = {
+    "neutral": GaitParameters(
+        cadence=1.8,
+        arm_swing_amp=0.30,
+        elbow_flexion=1.28,
+        trunk_pitch=0.00,
+        neck_pitch=0.00,
+    ),
+    "sad": GaitParameters(
+        cadence=1.0,
+        arm_swing_amp=0.08,
+        elbow_flexion=1.05,
+        trunk_pitch=0.32,
+        neck_pitch=0.70,
+    ),
+    "angry": GaitParameters(
+        cadence=2.7,
+        arm_swing_amp=0.60,
+        elbow_flexion=1.85,
+        trunk_pitch=0.18,
+        neck_pitch=-0.10,
+    ),
+    "happy": GaitParameters(
+        cadence=2.3,
+        arm_swing_amp=0.62,
+        elbow_flexion=0.95,
+        trunk_pitch=-0.12,
+        neck_pitch=-0.35,
+    ),
+}

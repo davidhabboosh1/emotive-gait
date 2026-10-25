@@ -113,3 +113,39 @@ def test_model_revision_mismatch_is_an_environment_failure(monkeypatch, capsys):
     err = capsys.readouterr().err
     assert code == 1
     assert "revision" in err and "Traceback" not in err
+
+
+def test_infeasible_parameters_warn_but_still_render(capsys):
+    # --dry-run loads no model, so drive the warning through the physics path with no video
+    code = main(
+        ["demo", "--physics", "--no-video", "--root", "free", "--duration", "0.2"]
+        + ["--hold-speed", "3.0"]
+    )
+    err = capsys.readouterr().err
+    assert code == 0 and "exceed the robot's reach" in err
+
+
+def test_xz_rail_is_a_root_choice(capsys):
+    assert main(["demo", "--physics", "--no-video", "--root", "xz-rail", "--duration", "0.5"]) == 0
+    assert "root: xz-rail" in capsys.readouterr().out
+
+
+def test_physics_prints_the_gait_report(capsys):
+    assert main(["demo", "--physics", "--no-video", "--duration", "1"]) == 0
+    out = capsys.readouterr().out
+    assert "zmp_outside_frac:" in out and "foot_slip_rms_m_s:" in out
+    assert "pelvis_tracking_ptp_m:" in out
+    line = next(ln for ln in out.splitlines() if ln.startswith("played_params:"))
+    assert "step_length=0.0" in line
+    assert "pelvis bob (m)" not in out
+
+
+@pytest.mark.requires_gl
+def test_missing_ffmpeg_is_an_environment_failure(tmp_path, capsys, monkeypatch):
+    monkeypatch.setattr("shutil.which", lambda *a, **k: None)
+    out = tmp_path / "v.mp4"
+    code = main(
+        ["demo", "--duration", "0.2", "--width", "320", "--height", "240", "--out", str(out)]
+    )
+    assert code == 1
+    assert "ffmpeg" in capsys.readouterr().err

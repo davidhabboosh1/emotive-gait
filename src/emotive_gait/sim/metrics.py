@@ -22,12 +22,19 @@ def _body_id(model: mujoco.MjModel, name: str) -> int:
     return idx
 
 
-def _foot_contacts(model: mujoco.MjModel, data: mujoco.MjData):
-    """Yield ``(position, world_force, normal_force)`` for every floor-foot contact."""
+def _floor_and_feet(model: mujoco.MjModel) -> tuple[int, tuple[int, int]]:
+    """Floor geom id and the (left, right) foot body ids; raises if either is missing."""
     floor = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_GEOM, _FLOOR_GEOM)
     if floor < 0:
         raise ValueError(f"geom {_FLOOR_GEOM!r} not found in model")
-    feet = {_body_id(model, n) for n in _FOOT_BODIES}
+    left, right = (_body_id(model, n) for n in _FOOT_BODIES)
+    return floor, (left, right)
+
+
+def _foot_contacts(model: mujoco.MjModel, data: mujoco.MjData):
+    """Yield ``(position, world_force, normal_force)`` for every floor-foot contact."""
+    floor, foot_ids = _floor_and_feet(model)
+    feet = set(foot_ids)
     wrench = np.zeros(6)
     for i in range(data.ncon):
         c = data.contact[i]
@@ -92,6 +99,51 @@ def support_polygon(model: mujoco.MjModel, data: mujoco.MjData) -> np.ndarray:
         return pts[ConvexHull(pts).vertices]
     except QhullError:  # collinear points: hull is degenerate
         return pts
+
+
+def zmp_margin(model: mujoco.MjModel, data: mujoco.MjData) -> float | None:
+    """Signed distance (m) from the ZMP to the nearest edge of the support polygon.
+
+    Positive inside, negative outside. ``None`` without a ZMP or with fewer than three
+    support-polygon vertices, or a degenerate (collinear) one: no area to be inside of.
+    Outside the polygon the value is the distance to the nearest edge LINE, which understates
+    the distance near a corner; the sign (hence ``zmp_outside_frac``) is exact.
+    """
+    zmp = zero_moment_point(model, data)
+    hull = support_polygon(model, data)
+    if zmp is None or len(hull) < 3:
+        return None
+    nxt = np.roll(hull, -1, axis=0)
+    # Shoelace area; ConvexHull is counter-clockwise in 2-D, guard against other orderings.
+    area2 = float(np.sum(hull[:, 0] * nxt[:, 1] - nxt[:, 0] * hull[:, 1]))
+    if abs(area2) < _EPS:
+        return None
+    if area2 < 0:
+        hull = hull[::-1]
+        nxt = np.roll(hull, -1, axis=0)
+    edge = nxt - hull
+    length = np.linalg.norm(edge, axis=1)
+    if np.any(length < _EPS):
+        return None
+    rel = zmp - hull
+    # The left of a counter-clockwise edge is inside, so inside distances are positive.
+    signed = (edge[:, 0] * rel[:, 1] - edge[:, 1] * rel[:, 0]) / length
+    return float(signed.min())
+
+
+def foot_contact_flags(model: mujoco.MjModel, data: mujoco.MjData) -> tuple[bool, bool]:
+    """``(left, right)``: that foot has a floor contact."""
+    floor, (left, right) = _floor_and_feet(model)
+    hit = {left: False, right: False}
+    for i in range(data.ncon):
+        c = data.contact[i]
+        if floor not in (c.geom1, c.geom2):
+            continue
+        for g in (c.geom1, c.geom2):
+            b = int(model.geom_bodyid[g])
+            if b in hit:
+                hit[b] = True
+    return hit[left], hit[right]
 
 
 def uprightness(model: mujoco.MjModel, data: mujoco.MjData, *, body: str = "torso_link") -> float:

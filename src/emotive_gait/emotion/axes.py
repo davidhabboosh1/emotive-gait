@@ -65,7 +65,7 @@ _OFFSETS: dict[Emotion, Mapping[str, float]] = {
     Emotion.DISGUST: MappingProxyType({}),
     Emotion.FEAR: MappingProxyType(
         {
-            "knee_flexion_bias": 0.08,
+            "com_height_scale": -0.02,
             "elbow_swing_ratio": 0.30,
             "cadence": 0.45,
             "neck_pitch": -0.25,

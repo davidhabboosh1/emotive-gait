@@ -48,7 +48,7 @@ def test_headline_cue_directions():
     assert d(Emotion.ANGER, "elbow_flexion") > 0
     assert d(Emotion.FEAR, "elbow_flexion") > 0
     assert d(Emotion.HAPPINESS, "elbow_flexion") < 0
-    assert d(Emotion.FEAR, "knee_flexion_bias") > 0
+    assert d(Emotion.FEAR, "com_height_scale") < 0
 
 
 def test_claims_are_frozen_and_directions_are_signs():

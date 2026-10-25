@@ -69,6 +69,12 @@ class RobotProfile:
     scene_entry: str
     actuator_for: Mapping[JointRole, str]
     sign_for: Mapping[JointRole, float]
+    # Pelvis height (m) used when the root is welded: the stride phase needs bent knees.
+    nominal_pelvis_height: float = 0.70
+    # World z (m) of the foot sites when the sole rests on the floor.
+    foot_site_floor_height: float = 0.0331
+    # Foot site names, (left, right). A plain tuple: robot/ imports nothing from gait/.
+    foot_sites: tuple[str, str] = ("left_foot", "right_foot")
 
     def has(self, role: JointRole) -> bool:
         return role in self.actuator_for

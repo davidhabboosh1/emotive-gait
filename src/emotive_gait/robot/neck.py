@@ -101,7 +101,7 @@ def _subtract_child_inertia(
 
 def inject_neck(spec: mujoco.MjSpec, cfg: NeckConfig = DEFAULT_NECK) -> mujoco.MjSpec:
     """Add a ``head_link`` body on a pitch hinge under ``cfg.parent_body``, in place."""
-    torso = spec.find_body(cfg.parent_body)
+    torso = spec.body(cfg.parent_body)
     if torso is None:
         raise KeyError(f"body {cfg.parent_body!r} not found")
     if not torso.explicitinertial:
@@ -133,7 +133,7 @@ def inject_neck(spec: mujoco.MjSpec, cfg: NeckConfig = DEFAULT_NECK) -> mujoco.M
             material=src.material,
             density=0.0,  # inertia is explicit; do not double count
         )
-        src.delete()
+        spec.delete(src)
 
     m_r = _subtract_child_inertia(torso, cfg.mass, head_com, np.asarray(cfg.diaginertia))
     if not math.isclose(m_r, cfg.parent_mass_after, abs_tol=1e-6):
@@ -173,8 +173,34 @@ def inject_neck(spec: mujoco.MjSpec, cfg: NeckConfig = DEFAULT_NECK) -> mujoco.M
 
     # Adding a joint changes nq, which invalidates every stored keyframe.
     for key in list(spec.keys):
-        key.delete()
+        spec.delete(key)
     return spec
+
+
+def build_model(
+    entry_xml: str,
+    *,
+    neck: NeckConfig | None,
+    root: RootMode,
+    pelvis_z: float | None,
+    offwidth: int = 960,
+    offheight: int = 720,
+) -> mujoco.MjModel:
+    """Compile ``entry_xml`` with an optional neck, a root mode and an offscreen framebuffer.
+
+    Neck and root are applied to one spec compiled once, so the framebuffer size survives.
+    ``pelvis_z`` re-heights a welded pelvis (see ``to_root_mode``).
+    """
+    spec = mujoco.MjSpec.from_file(entry_xml)
+    visual_global = getattr(spec.visual, "global")
+    visual_global.offwidth = offwidth
+    visual_global.offheight = offheight
+    if neck is not None:
+        inject_neck(spec, neck)
+    to_root_mode(spec, root, pelvis_z=pelvis_z)
+    for key in list(spec.keys):  # a changed root or joint set invalidates every stored keyframe
+        spec.delete(key)
+    return spec.compile()
 
 
 def build_with_neck(
@@ -184,20 +210,17 @@ def build_with_neck(
     offwidth: int = 960,
     offheight: int = 720,
     root: RootMode = RootMode.FREE,
+    pelvis_z: float | None = None,
 ) -> mujoco.MjModel:
-    """Compile ``entry_xml`` with a neck, a root mode and an offscreen framebuffer of this size.
-
-    Neck and root are applied to one spec compiled once, so the framebuffer size survives.
-    """
-    spec = mujoco.MjSpec.from_file(entry_xml)
-    visual_global = getattr(spec.visual, "global")
-    visual_global.offwidth = offwidth
-    visual_global.offheight = offheight
-    inject_neck(spec, cfg)
-    to_root_mode(spec, root)
-    for key in list(spec.keys):  # a changed root invalidates every stored keyframe
-        key.delete()
-    return spec.compile()
+    """Compile ``entry_xml`` with a neck; a thin wrapper over :func:`build_model`."""
+    return build_model(
+        entry_xml,
+        neck=cfg,
+        root=root,
+        pelvis_z=pelvis_z,
+        offwidth=offwidth,
+        offheight=offheight,
+    )
 
 
 def standing_qpos(src_model: mujoco.MjModel, new_model: mujoco.MjModel) -> np.ndarray:

@@ -43,6 +43,12 @@ G1_PROFILE = RobotProfile(
     scene_entry="scene",
     actuator_for=_ACTUATORS,
     sign_for={role: -1.0 if role.name.endswith("_ROLL_R") else 1.0 for role in _ACTUATORS},
+    # 0.68 (measured, Phase 4 Task 5). 0.70 was the spec's starting value, but it leaves the
+    # anger stride (0.47 m at 2.4 steps/s) unreachable: 132.8 mm IK residual. 0.66 trips the
+    # ankle limit instead: 13.6 mm on anger. At 0.68 every preset solves within 0.07 mm.
+    nominal_pelvis_height=0.68,
+    foot_site_floor_height=0.0331,
+    foot_sites=("left_foot", "right_foot"),
 )
 
 G1_PROFILE_WITH_NECK = replace(

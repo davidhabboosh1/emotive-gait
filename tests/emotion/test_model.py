@@ -37,7 +37,7 @@ def test_anger_speeds_up_and_flexes_the_elbows():
 # against neutral and found no effect, so the model must not move it. Every other direction-0
 # claim means "not reported vs neutral" (e.g. only compared with another emotion): the evidence
 # is silent, so the model is free there and the claim stays exempt.
-NO_CHANGE = {(Emotion.ANGER, "neck_pitch"), (Emotion.ANGER, "knee_flexion_bias")}
+NO_CHANGE = {(Emotion.ANGER, "neck_pitch"), (Emotion.ANGER, "com_height_scale")}
 
 
 def test_modulation_direction_agrees_with_every_grounded_claim():
