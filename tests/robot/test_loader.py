@@ -5,22 +5,15 @@ from emotive_gait.robot.loader import ModelUnavailableError, load_robot
 from emotive_gait.robot.profiles.g1 import G1_PROFILE
 from emotive_gait.robot.roles import JointRole
 
-NEEDED = [
-    JointRole.HIP_PITCH_L,
-    JointRole.KNEE_R,
-    JointRole.ANKLE_PITCH_L,
-    JointRole.WAIST_PITCH,
-    JointRole.SHOULDER_PITCH_R,
-    JointRole.ELBOW_L,
-]
 
-
-def test_profile_resolves_core_roles_to_real_actuators():
+def test_every_mapped_role_resolves_to_its_named_joint():
     r = load_robot(with_neck=False)
-    for role in NEEDED:
-        assert r.ctrl_index(role) >= 0
-        name = mujoco.mj_id2name(r.model, mujoco.mjtObj.mjOBJ_ACTUATOR, r.ctrl_index(role))
-        assert name == G1_PROFILE.actuator(role)
+    for role in G1_PROFILE.actuator_for:
+        aid = r.ctrl_index(role)
+        assert aid >= 0
+        jid = r.model.actuator_trnid[aid, 0]
+        joint_name = mujoco.mj_id2name(r.model, mujoco.mjtObj.mjOBJ_JOINT, jid)
+        assert joint_name == G1_PROFILE.actuator(role)
 
 
 def test_g1_has_no_neck_without_injection():
@@ -48,9 +41,11 @@ def test_known_ranges_match_the_spec():
     assert r.joint_range(JointRole.ANKLE_PITCH_L) == pytest.approx((-0.87267, 0.5236), abs=1e-4)
 
 
-def test_qpos_adr_skips_the_free_joint():
+def test_qpos_adr_matches_joint_address_for_every_role():
     r = load_robot(with_neck=False)
-    assert r.qpos_adr(JointRole.HIP_PITCH_L) >= 7
+    for role in G1_PROFILE.actuator_for:
+        expected = r.model.jnt_qposadr[r.model.actuator_trnid[r.ctrl_index(role), 0]]
+        assert r.qpos_adr(role) == expected
 
 
 def test_mirrored_roll_ranges_are_read_per_side():
