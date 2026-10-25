@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "emotive-gait"
+version = "0.1.0"
+description = "Emotion-modulated bipedal gait for a humanoid robot in MuJoCo"
+license = { file = "LICENSE" }
+requires-python = ">=3.11"
+dependencies = [
+    "mujoco>=3.2.0",
+    "mujoco-menagerie",
+    "numpy",
+    "scipy",
+    "pyyaml",
+]
+
+[project.optional-dependencies]
+dev = ["pytest", "ruff"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 100
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

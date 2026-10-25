@@ -1,2 +1,10 @@
 .venv/
 .superpowers/
+__pycache__/
+*.pyc
+MUJOCO_LOG.TXT
+*.npy
+*.mp4
+build/
+dist/
+*.egg-info/
