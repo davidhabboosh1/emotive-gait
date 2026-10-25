@@ -107,3 +107,40 @@ def test_qpos_and_ctrl_use_robot_layout_without_mutating_stand_pose():
     for role, v in a.items():
         assert q[r.qpos_adr(role)] == pytest.approx(v)
         assert c[r.ctrl_index(role)] == pytest.approx(v)
+
+
+def _elbow_ptp(r, **kw):
+    t = generate(GaitParameters(**kw), r)
+    v = [t.angles_at(float(p))[JointRole.ELBOW_L] for p in np.linspace(0, 1, 32, endpoint=False)]
+    return max(v) - min(v)
+
+
+def test_elbow_swing_ratio_zero_holds_the_elbow_constant():
+    assert _elbow_ptp(load_robot(), elbow_swing_ratio=0.0) < 1e-9
+
+
+def test_elbow_swing_ratio_scales_elbow_oscillation():
+    r = load_robot()
+    kw = {"arm_swing_amp": 0.4, "elbow_flexion": 0.8}
+    p0, p5, p1 = (_elbow_ptp(r, elbow_swing_ratio=x, **kw) for x in (0.0, 0.5, 1.0))
+    assert p1 == pytest.approx(0.8, abs=1e-3)
+    assert p1 > p5 > p0
+
+
+def test_expansiveness_scales_elbow_swing_too():
+    r = load_robot()
+    assert _elbow_ptp(r, elbow_swing_ratio=1.0, expansiveness=1.4) > _elbow_ptp(
+        r, elbow_swing_ratio=1.0, expansiveness=1.0
+    )
+
+
+def test_elbow_oscillates_in_phase_with_its_own_shoulder():
+    r = load_robot()
+    p = GaitParameters(elbow_swing_ratio=1.0)
+    t = generate(p, r)
+    stand = r.stand_qpos[r.qpos_adr(JointRole.SHOULDER_PITCH_L)]
+    for ph in (0.25, 0.75):
+        a = t.angles_at(ph)
+        assert (a[JointRole.ELBOW_L] - p.elbow_flexion) * (
+            a[JointRole.SHOULDER_PITCH_L] - stand
+        ) > 0

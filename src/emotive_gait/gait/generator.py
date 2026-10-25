@@ -30,7 +30,10 @@ _LEG_SIDES = (
     (JointRole.HIP_PITCH_R, JointRole.KNEE_R, JointRole.ANKLE_PITCH_R, 0.5),
 )
 _ROLL = (JointRole.SHOULDER_ROLL_L, JointRole.SHOULDER_ROLL_R)
-_ELBOWS = (JointRole.ELBOW_L, JointRole.ELBOW_R)
+_ELBOW_FOR_ARM = {
+    JointRole.ELBOW_L: JointRole.SHOULDER_PITCH_L,
+    JointRole.ELBOW_R: JointRole.SHOULDER_PITCH_R,
+}
 
 
 @dataclass(frozen=True)
@@ -69,8 +72,11 @@ class GaitTrajectory:
             out[arm] = self._stand[arm] + arm_swing * swing[leg]
         for roll in _ROLL:
             out[roll] = self._signs[roll] * abduction
-        for elbow in _ELBOWS:
-            out[elbow] = p.elbow_flexion
+        for elbow, arm in _ELBOW_FOR_ARM.items():
+            # In phase with the shoulder deviation (elbow flexes more as the arm swings
+            # forward) is a tuning choice; the amplitude semantics (elbow swing / shoulder
+            # swing = elbow_swing_ratio) are what the emotion model relies on.
+            out[elbow] = p.elbow_flexion + p.elbow_swing_ratio * (out[arm] - self._stand[arm])
         out[JointRole.WAIST_PITCH] = p.trunk_pitch
         out[JointRole.NECK_PITCH] = p.neck_pitch
         return out
