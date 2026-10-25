@@ -365,6 +365,18 @@ stance foot's world position is constant to 1 mm through its stance; pelvis x ad
   legs play the full stride. The X range is long (0 to 20 m) so the rail stop is a real fault,
   not a horizon. This is the parent design's "prescribed-root forward variant", decided as a
   driven rail rather than a mocap weld so the Z instrumentation survives.
+
+  **Execution outcome (rulings R16-R18).** The servoed rail (kp 5000 to 100000, ramped) lost
+  foot contact at 0.52 to 1.12 s on the neutral gait; a 5 cm root lag makes the two
+  position-controlled legs in double support command inconsistent geometry and hop. The X slide
+  was therefore made **prescribed** (qpos and qvel written every step, zero lag, Z still free),
+  and the neutral gait still lost foot contact at 0.54 s with the first gap at 0.074 s. Two
+  mechanisms failing the same way locate the cause in the position-servo legs under stride, and
+  tuning that is walking-controller work this design excludes. **`XZ_RAIL` is therefore not a
+  supported tier.** It stays in the code as an explicitly experimental root whose test pins the
+  measured fall, exactly as the free-root fall is pinned; forward walking is a kinematic-tier
+  result and the physics tier is in place, as the parent design's "honest limitation" paragraph
+  already said. Foot slip and ZMP margin are reported on `Z_RAIL`.
 - `RootMode.WELD`: pelvis welded at the nominal height; projection per the table.
 
 **Fall criteria, per mode** (closing the gap carried out of Phase 3):
@@ -373,7 +385,7 @@ stance foot's world position is constant to 1 mm through its stance; pelvis x ad
 |---|---|
 | FREE | uprightness < 0.6 (unchanged; never height) |
 | Z_RAIL | rail stop, foot contact lost > 25 % of a 0.5 s window, pelvis drop > 15 cm (unchanged) |
-| XZ_RAIL | all of Z_RAIL's, plus **root lag**: X slide more than 10 cm behind its command after the ramp |
+| XZ_RAIL (experimental) | exactly Z_RAIL's; the prescribed X slide has no lag to measure (R17) |
 | WELD | contact lost, pelvis drop (unchanged) |
 
 **ZMP versus support polygon is a reported margin, never a fall criterion.** Per step after
@@ -488,7 +500,9 @@ steps 1 to 6 is droppable; they are the phase.
 
 - Parameter table: `knee_flexion_bias` retired (4.5). Everything else in the table stands.
 - Section 4.5 "prescribed-root forward variant": decided as a driven X slide plus free Z slide
-  (`XZ_RAIL`), not a mocap weld.
+  (`XZ_RAIL`), not a mocap weld; in execution the drive became a prescribed slide and the
+  variant was found not to survive open loop, so it ships as a measured negative result, not a
+  tier (4.6, rulings R16-R18).
 - Section 8 "IK fallback": not taken; `mink` is committed, with `daqp`.
 - Section 4.3.1 "feasibility clamping is strictly last": kept as the joint clamp; feasibility
   itself is a flag, not a clamp (4.4).
