@@ -7,8 +7,10 @@ from emotive_gait.gait.generator import generate
 from emotive_gait.gait.params import GaitParameters
 from emotive_gait.robot.loader import load_robot
 from emotive_gait.robot.roles import JointRole
+from emotive_gait.robot.root import RootMode, to_root_mode
+from emotive_gait.sim import physical
 from emotive_gait.sim.kinematic import play_kinematic
-from emotive_gait.sim.physical import RootMode, simulate
+from emotive_gait.sim.physical import simulate
 
 
 def test_kinematic_playback_never_integrates_physics():
@@ -24,6 +26,12 @@ def test_kinematic_playback_reaches_commanded_angles_exactly():
     t = generate(GaitParameters(trunk_pitch=0.4), r)
     f = next(iter(play_kinematic(r, t, duration=0.1, fps=10)))
     assert f.qpos[r.qpos_adr(JointRole.WAIST_PITCH)] == pytest.approx(0.4, abs=1e-9)
+
+
+def test_sim_physical_re_exports_the_root_api():
+    """The brief documents ``sim.physical`` as an import path; robot.root is the home."""
+    assert physical.RootMode is RootMode
+    assert physical.to_root_mode is to_root_mode
 
 
 def test_z_rail_root_has_no_quaternion():
