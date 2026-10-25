@@ -20,6 +20,10 @@ _ROOTS = {"free": "FREE", "z-rail": "Z_RAIL", "weld": "WELD"}
 _DIRECTION = {1: "+", 0: "0", -1: "-"}
 
 
+class _ModelRevisionError(Exception):
+    """The installed robot model does not match the constants this package was derived for."""
+
+
 def _err(msg: str) -> None:
     print(f"emotive-gait: {msg}", file=sys.stderr)
 
@@ -179,11 +183,21 @@ def _demo(args: argparse.Namespace) -> int:
         return 2
 
     from emotive_gait.gait.generator import generate
-    from emotive_gait.robot.loader import ModelUnavailableError, load_robot
+    from emotive_gait.robot.loader import ModelUnavailableError
+    from emotive_gait.robot.loader import load_robot as _load_robot
     from emotive_gait.robot.root import RootMode
     from emotive_gait.sim.kinematic import play_kinematic
     from emotive_gait.sim.physical import simulate
     from emotive_gait.sim.render import FfmpegUnavailableError, render_frames, write_video
+
+    def load_robot(**kwargs):
+        try:
+            return _load_robot(**kwargs)
+        except (ValueError, KeyError) as exc:
+            raise _ModelRevisionError(
+                f"the installed robot model revision does not match this package ({exc}); "
+                "install the pinned mujoco-menagerie==2026.10.4"
+            ) from exc
 
     try:
         video = not (args.physics and args.no_video)
@@ -220,6 +234,9 @@ def _demo(args: argparse.Namespace) -> int:
     except (ModelUnavailableError, FfmpegUnavailableError) as exc:
         _err(str(exc))
         return 2
+    except _ModelRevisionError as exc:
+        _err(str(exc))
+        return 1
     except (subprocess.CalledProcessError, RuntimeError, OSError) as exc:
         _err(f"environment failure: {exc}")
         return 1

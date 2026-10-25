@@ -11,7 +11,9 @@ readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "mujoco>=3.2.0",
-    "mujoco-menagerie",
+    # Exact pin: the wheel carries the model registry, so this also pins the G1 model OID
+    # (ad24af3fa9bc1a99e37291e656fb85e445da6158) that NeckConfig's mass constants assume.
+    "mujoco-menagerie==2026.10.4",
     "numpy",
     "scipy",
     "pyyaml",

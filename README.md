@@ -29,7 +29,9 @@ pytest
 Python 3.11 or newer, 3.12 recommended. `mujoco-menagerie` downloads the robot model on first
 use and extracts it with `tarfile.extractall(filter=...)` (PEP 706), which needs Python 3.11.4
 or newer. If that step fails the loader raises an error naming the prefetch command above and
-the sparse-checkout fallback. MuJoCo 3.2.0 or newer.
+the sparse-checkout fallback. On Python below 3.11.4 the `prefetch` command itself fails with a
+raw `TypeError` traceback (a `mujoco-menagerie` bug); run `emotive-gait demo` instead, which
+reports the same failure as an actionable message. MuJoCo 3.2.0 or newer.
 
 ## Architecture
 

@@ -81,7 +81,10 @@ def load_robot(
             "If prefetch is not possible, clone the model directly:\n"
             "  git clone --filter=blob:none --no-checkout --depth 1 "
             "https://github.com/google-deepmind/mujoco_menagerie.git _menagerie\n"
-            f"  cd _menagerie && git sparse-checkout set {profile.name} && git checkout"
+            f"  cd _menagerie && git sparse-checkout set {profile.name} && git checkout\n"
+            "then point mujoco-menagerie at the clone:\n"
+            "  set MENAGERIE_ROOT=<absolute path to _menagerie>   (Windows)\n"
+            "  export MENAGERIE_ROOT=<absolute path to _menagerie> (POSIX)"
         ) from exc
     if with_neck:
         neck_model = build_with_neck(entry_xml, root=root)

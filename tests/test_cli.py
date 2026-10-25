@@ -100,3 +100,16 @@ def test_duration_shorter_than_one_frame_is_a_user_error(tmp_path, capsys):
     assert code == 2
     assert "frame" in err and "Traceback" not in err
     assert not out.exists()
+
+
+def test_model_revision_mismatch_is_an_environment_failure(monkeypatch, capsys):
+    from emotive_gait.robot import loader
+
+    def mismatched(**kwargs):
+        raise ValueError("torso mass remainder 6.0 != expected 6.0155")
+
+    monkeypatch.setattr(loader, "load_robot", mismatched)
+    code = main(["demo", "--physics", "--no-video", "--duration", "0.2"])
+    err = capsys.readouterr().err
+    assert code == 1
+    assert "revision" in err and "Traceback" not in err
