@@ -12,8 +12,7 @@ from emotive_gait.mocap.events import cycles, foot_events, path_frame
 FPS = 120.0
 SPEED = 0.6
 STRIDE_S = 1.0  # one left-to-left cycle: 0.5 s stance + 0.5 s swing
-SWAY_M = 0.002  # at 1 Hz the default 0.25 s window leaves ~0.14 rad of heading wobble per 15 mm
-BIG_SWAY_M = 0.015
+SWAY_M = 0.015
 CLEARANCE_M = 0.05
 FOOT_REST_Z = 0.08  # the ankle never reaches the floor, as in the real markers
 
@@ -72,11 +71,25 @@ def test_path_frame_forward_follows_travel_and_marks_turns():
     assert not pf2.turning[0] and not pf2.turning[-1]
 
 
-def test_a_stride_long_window_rejects_realistic_sway():
-    swaying = _straight_walker(BIG_SWAY_M)
-    pf = path_frame(swaying.pelvis, FPS, smooth_s=STRIDE_S)
-    assert np.allclose(pf.forward[120:-120], [1.0, 0.0, 0.0], atol=0.02)
-    assert not pf.turning.any()
+def test_a_quarter_second_window_mistakes_sway_for_turning():
+    pf = path_frame(straight.pelvis, FPS, smooth_s=0.25)
+    assert pf.turning.mean() > 0.3  # why the default window is about one stride
+
+
+def test_nan_foot_row_does_not_kill_events():
+    clean = foot_events(straight.left_foot, path_frame(straight.pelvis, FPS), FPS)
+    foot = straight.left_foot.copy()
+    foot[30] = np.nan  # mid-swing
+    ev = foot_events(foot, path_frame(straight.pelvis, FPS), FPS)
+    assert abs(len(ev.strikes) - len(clean.strikes)) <= 1 and len(ev.strikes) >= 4
+    assert not ev.stance[30]
+
+
+def test_noisy_in_place_motion_is_refused():
+    rng = np.random.default_rng(0)
+    pelvis = np.array([0.0, 0.0, 0.9]) + rng.normal(0.0, 0.001, (720, 3))
+    with pytest.raises(ValueError, match="forward travel"):
+        path_frame(pelvis, FPS)
 
 
 def test_path_frame_axes_are_orthonormal_and_to_path_projects():

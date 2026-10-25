@@ -3,9 +3,10 @@
 All positions are ``(T, 3)`` world coordinates in metres, +z up. The thresholds below are
 keyword defaults, frozen against the synthetic round trip in Task 3:
 
-``smooth_s`` (0.25 s)
+``smooth_s`` (1.0 s)
     Width of the moving-average window applied to the pelvis velocity before taking the
-    travel heading. It must span enough of a stride to average out lateral sway.
+    travel heading. About one stride, so lateral sway (one period per stride) averages out;
+    0.25 s flags most of a swaying straight walk as turning.
 ``yaw_rate_max`` (0.5 rad/s)
     A frame is ``turning`` where the heading of the path frame rotates faster than this.
 ``speed_frac`` (0.15)
@@ -37,6 +38,7 @@ class PathFrame:
     forward: np.ndarray  # (T, 3) unit, horizontal
     left: np.ndarray  # (T, 3) unit
     turning: np.ndarray  # (T,) bool
+    mean_speed: float = 0.0  # m/s, mean horizontal pelvis speed from the smoothed velocity
 
     def to_path(self, world: np.ndarray) -> np.ndarray:
         """Coordinates ``(forward, left, up)`` of ``world - origin`` for every frame."""
@@ -61,18 +63,19 @@ def path_frame(
     pelvis: np.ndarray,
     fps: float,
     *,
-    smooth_s: float = 0.25,
+    smooth_s: float = 1.0,
     yaw_rate_max: float = 0.5,
 ) -> PathFrame:
     """Build the heading frame from the smoothed horizontal pelvis velocity."""
     pelvis = np.asarray(pelvis, dtype=float)
     velocity = _horizontal_velocity(pelvis, fps)
-    if np.mean(np.linalg.norm(velocity, axis=1)) < MIN_FORWARD_SPEED:
-        raise ValueError("path frame needs forward travel")
     window = max(1, round(smooth_s * fps))
     smooth = uniform_filter1d(velocity, size=window, axis=0, mode="nearest")
     speed = np.linalg.norm(smooth, axis=1)
-    moving = speed > 1e-9
+    mean_speed = float(np.nanmean(speed)) if np.any(np.isfinite(speed)) else 0.0
+    if not mean_speed >= MIN_FORWARD_SPEED:
+        raise ValueError("path frame needs forward travel")
+    moving = np.nan_to_num(speed) > 1e-9
     forward = np.zeros_like(smooth)
     forward[moving] = smooth[moving] / speed[moving, None]
     # Frames with no travel keep the previous heading (or the first valid one).
@@ -83,7 +86,7 @@ def path_frame(
     left = np.cross([0.0, 0.0, 1.0], forward)
     yaw = np.unwrap(np.arctan2(forward[:, 1], forward[:, 0]))
     yaw_rate = np.gradient(yaw) * fps
-    return PathFrame(pelvis, forward, left, np.abs(yaw_rate) > yaw_rate_max)
+    return PathFrame(pelvis, forward, left, np.abs(yaw_rate) > yaw_rate_max, mean_speed)
 
 
 @dataclass(frozen=True)
@@ -112,9 +115,8 @@ def foot_events(
     """
     foot = np.asarray(foot, dtype=float)
     foot_speed = np.linalg.norm(_horizontal_velocity(foot, fps), axis=1)
-    pelvis_speed = np.mean(np.linalg.norm(_horizontal_velocity(frame.origin, fps), axis=1))
-    low = foot[:, 2] - np.percentile(foot[:, 2], 5) < height_band_m
-    stance = (foot_speed < speed_frac * pelvis_speed) & low
+    low = foot[:, 2] - np.nanpercentile(foot[:, 2], 5) < height_band_m
+    stance = (np.isfinite(foot_speed) & (foot_speed < speed_frac * frame.mean_speed)) & low
 
     padded = np.concatenate([[False], stance, [False]]).astype(np.int8)
     edges = np.diff(padded)
