@@ -11,6 +11,7 @@ import numpy as np
 from emotive_gait.robot.neck import build_with_neck, standing_qpos
 from emotive_gait.robot.profiles.g1 import G1_PROFILE, G1_PROFILE_WITH_NECK
 from emotive_gait.robot.roles import JointRole, RobotProfile
+from emotive_gait.robot.root import RootMode
 
 _STAND_KEYFRAME = "stand"
 
@@ -51,12 +52,20 @@ def _stand_qpos(model: mujoco.MjModel) -> np.ndarray:
     return np.array(model.qpos0, dtype=float)
 
 
-def load_robot(profile: RobotProfile | None = None, *, with_neck: bool = True) -> RobotModel:
+def load_robot(
+    profile: RobotProfile | None = None,
+    *,
+    with_neck: bool = True,
+    root: RootMode = RootMode.FREE,
+) -> RobotModel:
     """Load ``profile``'s robot (default: G1) and wrap it with role lookups.
 
     With ``with_neck`` the robot gets an injected pitch neck; ``profile=None`` then resolves to
-    ``G1_PROFILE_WITH_NECK``, otherwise to ``G1_PROFILE``.
+    ``G1_PROFILE_WITH_NECK``, otherwise to ``G1_PROFILE``. ``root`` constrains the pelvis (see
+    ``robot.root``); non-FREE roots need the neck path, which is the only one built from a spec.
     """
+    if root is not RootMode.FREE and not with_neck:
+        raise ValueError("non-FREE root modes require with_neck=True in this version")
     if profile is None:
         profile = G1_PROFILE_WITH_NECK if with_neck else G1_PROFILE
     try:
@@ -71,7 +80,7 @@ def load_robot(profile: RobotProfile | None = None, *, with_neck: bool = True) -
             "mujoco-menagerie extracts archives with tarfile's `filter=` argument."
         ) from exc
     if with_neck:
-        neck_model = build_with_neck(entry_xml)
+        neck_model = build_with_neck(entry_xml, root=root)
         return RobotModel(
             model=neck_model, profile=profile, stand_qpos=standing_qpos(model, neck_model)
         )

@@ -14,6 +14,8 @@ from dataclasses import dataclass
 import mujoco
 import numpy as np
 
+from emotive_gait.robot.root import RootMode, to_root_mode
+
 
 @dataclass(frozen=True)
 class NeckConfig:
@@ -176,14 +178,25 @@ def inject_neck(spec: mujoco.MjSpec, cfg: NeckConfig = DEFAULT_NECK) -> mujoco.M
 
 
 def build_with_neck(
-    entry_xml: str, cfg: NeckConfig = DEFAULT_NECK, *, offwidth: int = 960, offheight: int = 720
+    entry_xml: str,
+    cfg: NeckConfig = DEFAULT_NECK,
+    *,
+    offwidth: int = 960,
+    offheight: int = 720,
+    root: RootMode = RootMode.FREE,
 ) -> mujoco.MjModel:
-    """Compile ``entry_xml`` with a neck injected and an offscreen framebuffer of the given size."""
+    """Compile ``entry_xml`` with a neck, a root mode and an offscreen framebuffer of this size.
+
+    Neck and root are applied to one spec compiled once, so the framebuffer size survives.
+    """
     spec = mujoco.MjSpec.from_file(entry_xml)
     visual_global = getattr(spec.visual, "global")
     visual_global.offwidth = offwidth
     visual_global.offheight = offheight
     inject_neck(spec, cfg)
+    to_root_mode(spec, root)
+    for key in list(spec.keys):  # a changed root invalidates every stored keyframe
+        key.delete()
     return spec.compile()
 
 
@@ -194,7 +207,9 @@ def standing_qpos(src_model: mujoco.MjModel, new_model: mujoco.MjModel) -> np.nd
         raise KeyError("source model has no 'stand' keyframe")
     src_qpos = src_model.key_qpos[key]
     out = np.array(new_model.qpos0, dtype=float)
-    out[0:7] = src_qpos[0:7]  # free root: position + quaternion
+    if new_model.njnt and new_model.jnt_type[0] == mujoco.mjtJoint.mjJNT_FREE:
+        out[0:7] = src_qpos[0:7]  # free root: position + quaternion
+    # Otherwise the root is a slide or welded: its slide joint stays 0, the pelvis at spec pos.
     for j in range(src_model.njnt):
         if src_model.jnt_type[j] == mujoco.mjtJoint.mjJNT_FREE:
             continue
