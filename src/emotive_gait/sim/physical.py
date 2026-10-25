@@ -7,17 +7,18 @@ root mode is fixed when the robot is loaded (``load_robot(root=...)``).
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 import mujoco
 import numpy as np
 
-from emotive_gait.gait.generator import GaitTrajectory
+from emotive_gait.gait.generator import GaitTrajectory, generate
+from emotive_gait.gait.params import GaitParameters
 from emotive_gait.robot.loader import RobotModel
 from emotive_gait.robot.root import ROOT_SLIDE_JOINT, RootMode, to_root_mode
 from emotive_gait.sim.metrics import center_of_pressure, uprightness
 
-__all__ = ["RootMode", "SimResult", "simulate", "to_root_mode"]
+__all__ = ["RootMode", "SimResult", "project_for_root", "simulate", "to_root_mode"]
 
 _FALL_UPRIGHTNESS = 0.6
 # Constrained-root (Z_RAIL / WELD) failure criteria. On those roots the pelvis cannot rotate, so
@@ -37,7 +38,25 @@ class SimResult:
     pelvis_z: np.ndarray  # (N,) world z of the pelvis body
     uprightness: np.ndarray  # (N,)
     cop: np.ndarray  # (N, 2) world xy; NaN rows where no foot contact
+    played_params: GaitParameters  # the projected parameters actually simulated
     fail_reason: str | None = None  # which criterion fired; None when not fell
+
+
+def project_for_root(params: GaitParameters, mode: RootMode) -> GaitParameters:
+    """Zero the parameters a constrained root cannot express; unchanged when nothing differs.
+
+    ``FREE`` plays everything. ``Z_RAIL`` has no horizontal freedom, so ``step_length`` and
+    ``lateral_sway_amp`` are zeroed. ``WELD`` also cannot move vertically, so
+    ``com_bounce_amp`` is zeroed and ``com_height_scale`` forced to 1.0.
+    """
+    if mode is RootMode.FREE:
+        return params
+    changes: dict[str, float] = {"step_length": 0.0, "lateral_sway_amp": 0.0}
+    if mode is RootMode.WELD:
+        changes |= {"com_bounce_amp": 0.0, "com_height_scale": 1.0}
+    if all(getattr(params, k) == v for k, v in changes.items()):
+        return params
+    return replace(params, **changes)
 
 
 def _root_mode(model: mujoco.MjModel, pelvis: int) -> RootMode:
@@ -70,15 +89,24 @@ def simulate(
       pelvis z more than 15 cm below its value at the end of the ramp (checked after the ramp).
     """
     model = robot.model
-    data = mujoco.MjData(model)
-    data.qpos[:] = robot.stand_qpos
-    mujoco.mj_forward(model, data)
-
-    stand_ctrl = robot.stand_qpos[model.jnt_qposadr[model.actuator_trnid[:, 0]]].astype(float)
     pelvis = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, "pelvis")
     if pelvis < 0:
         raise ValueError("body 'pelvis' not found in model")
     mode = _root_mode(model, pelvis)
+    played = project_for_root(traj.params, mode)
+    if played is not traj.params:
+        traj = generate(played, robot, offsets=traj.offsets, overrides=traj.overrides)
+
+    start_qpos = robot.stand_qpos
+    if mode is RootMode.WELD:
+        # The welded pelvis sits at the nominal height, where the straight-legged stand pose
+        # would bury the feet; start from the trajectory's own phase-0 pose instead.
+        start_qpos = traj.qpos_at(robot, 0.0)
+    data = mujoco.MjData(model)
+    data.qpos[:] = start_qpos
+    mujoco.mj_forward(model, data)
+
+    stand_ctrl = start_qpos[model.jnt_qposadr[model.actuator_trnid[:, 0]]].astype(float)
     slide_adr: int | None = None
     slide_lo = slide_hi = 0.0
     if mode is RootMode.Z_RAIL:
@@ -147,5 +175,6 @@ def simulate(
         pelvis_z=pelvis_z[:done],
         uprightness=upright[:done],
         cop=cop[:done],
+        played_params=played,
         fail_reason=fail_reason,
     )

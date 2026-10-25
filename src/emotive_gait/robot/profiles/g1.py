@@ -43,6 +43,9 @@ G1_PROFILE = RobotProfile(
     scene_entry="scene",
     actuator_for=_ACTUATORS,
     sign_for={role: -1.0 if role.name.endswith("_ROLL_R") else 1.0 for role in _ACTUATORS},
+    nominal_pelvis_height=0.70,
+    foot_site_floor_height=0.0331,
+    foot_sites=("left_foot", "right_foot"),
 )
 
 G1_PROFILE_WITH_NECK = replace(

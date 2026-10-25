@@ -8,7 +8,7 @@ import mujoco
 import mujoco_menagerie
 import numpy as np
 
-from emotive_gait.robot.neck import build_with_neck, standing_qpos
+from emotive_gait.robot.neck import DEFAULT_NECK, build_model, standing_qpos
 from emotive_gait.robot.profiles.g1 import G1_PROFILE, G1_PROFILE_WITH_NECK
 from emotive_gait.robot.roles import JointRole, RobotProfile
 from emotive_gait.robot.root import RootMode
@@ -62,10 +62,9 @@ def load_robot(
 
     With ``with_neck`` the robot gets an injected pitch neck; ``profile=None`` then resolves to
     ``G1_PROFILE_WITH_NECK``, otherwise to ``G1_PROFILE``. ``root`` constrains the pelvis (see
-    ``robot.root``); non-FREE roots need the neck path, which is the only one built from a spec.
+    ``robot.root``); every ``(with_neck, root)`` pair works. On ``WELD`` the pelvis is placed at
+    ``profile.nominal_pelvis_height``.
     """
-    if root is not RootMode.FREE and not with_neck:
-        raise ValueError("non-FREE root modes require with_neck=True in this version")
     if profile is None:
         profile = G1_PROFILE_WITH_NECK if with_neck else G1_PROFILE
     try:
@@ -86,9 +85,10 @@ def load_robot(
             "  set MENAGERIE_ROOT=<absolute path to _menagerie>   (Windows)\n"
             "  export MENAGERIE_ROOT=<absolute path to _menagerie> (POSIX)"
         ) from exc
-    if with_neck:
-        neck_model = build_with_neck(entry_xml, root=root)
-        return RobotModel(
-            model=neck_model, profile=profile, stand_qpos=standing_qpos(model, neck_model)
+    if with_neck or root is not RootMode.FREE:
+        pelvis_z = profile.nominal_pelvis_height if root is RootMode.WELD else None
+        built = build_model(
+            entry_xml, neck=DEFAULT_NECK if with_neck else None, root=root, pelvis_z=pelvis_z
         )
+        return RobotModel(model=built, profile=profile, stand_qpos=standing_qpos(model, built))
     return RobotModel(model=model, profile=profile, stand_qpos=_stand_qpos(model))

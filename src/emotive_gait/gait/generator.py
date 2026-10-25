@@ -66,6 +66,16 @@ class GaitTrajectory:
     _offsets: tuple[tuple[JointRole, PeriodicCurve], ...] = ()
     _overrides: tuple[tuple[JointRole, PeriodicCurve], ...] = ()
 
+    @property
+    def offsets(self) -> Mapping[JointRole, PeriodicCurve]:
+        """Hand-authored additive curves, so a projected trajectory can be regenerated."""
+        return dict(self._offsets)
+
+    @property
+    def overrides(self) -> Mapping[JointRole, PeriodicCurve]:
+        """Hand-authored replacement curves, so a projected trajectory can be regenerated."""
+        return dict(self._overrides)
+
     def _procedural(self, phase: float, stand: dict[JointRole, float]) -> dict[JointRole, float]:
         p, e = self.params, self.params.expansiveness
         k = e * (_BASE_KNEE_AMPLITUDE + p.knee_flexion_bias)

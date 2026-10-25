@@ -10,7 +10,7 @@ from emotive_gait.robot.roles import JointRole
 from emotive_gait.robot.root import RootMode, to_root_mode
 from emotive_gait.sim import physical
 from emotive_gait.sim.kinematic import play_kinematic
-from emotive_gait.sim.physical import simulate
+from emotive_gait.sim.physical import project_for_root, simulate
 
 
 def test_kinematic_playback_never_integrates_physics():
@@ -42,11 +42,6 @@ def test_z_rail_root_has_no_quaternion():
 def test_weld_root_has_no_root_dof():
     r = load_robot(root=RootMode.WELD)
     assert r.model.nq == r.model.nv == load_robot(root=RootMode.Z_RAIL).model.nq - 1
-
-
-def test_non_free_root_requires_the_neck_path():
-    with pytest.raises(ValueError, match="with_neck"):
-        load_robot(with_neck=False, root=RootMode.Z_RAIL)
 
 
 def test_root_mode_keeps_the_offscreen_framebuffer():
@@ -186,3 +181,32 @@ def test_free_root_open_loop_is_flagged_as_a_fall_and_stops_early():
     assert len(res.pelvis_z) < round(6.0 / r.model.opt.timestep)
     assert res.uprightness[-1] < 0.6
     assert res.fail_reason is not None and res.fail_reason.startswith("uprightness")
+
+
+def test_z_rail_plays_an_in_place_projection():
+    r = load_robot(root=RootMode.Z_RAIL)
+    res = simulate(
+        r, generate(GaitParameters(step_length=0.3, lateral_sway_amp=0.02), r), duration=0.2
+    )
+    assert res.played_params.step_length == 0.0 and res.played_params.lateral_sway_amp == 0.0
+    assert res.played_params.com_bounce_amp == GaitParameters().com_bounce_amp
+
+
+def test_weld_projection_freezes_everything_the_pelvis_would_move_for():
+    p = project_for_root(
+        GaitParameters(
+            step_length=0.3, com_bounce_amp=0.03, com_height_scale=0.9, lateral_sway_amp=0.02
+        ),
+        RootMode.WELD,
+    )
+    assert (p.step_length, p.com_bounce_amp, p.lateral_sway_amp, p.com_height_scale) == (
+        0.0,
+        0.0,
+        0.0,
+        1.0,
+    )
+
+
+def test_free_root_is_not_projected():
+    p = GaitParameters(step_length=0.3)
+    assert project_for_root(p, RootMode.FREE) == p

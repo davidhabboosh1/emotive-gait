@@ -177,6 +177,32 @@ def inject_neck(spec: mujoco.MjSpec, cfg: NeckConfig = DEFAULT_NECK) -> mujoco.M
     return spec
 
 
+def build_model(
+    entry_xml: str,
+    *,
+    neck: NeckConfig | None,
+    root: RootMode,
+    pelvis_z: float | None,
+    offwidth: int = 960,
+    offheight: int = 720,
+) -> mujoco.MjModel:
+    """Compile ``entry_xml`` with an optional neck, a root mode and an offscreen framebuffer.
+
+    Neck and root are applied to one spec compiled once, so the framebuffer size survives.
+    ``pelvis_z`` re-heights a welded pelvis (see ``to_root_mode``).
+    """
+    spec = mujoco.MjSpec.from_file(entry_xml)
+    visual_global = getattr(spec.visual, "global")
+    visual_global.offwidth = offwidth
+    visual_global.offheight = offheight
+    if neck is not None:
+        inject_neck(spec, neck)
+    to_root_mode(spec, root, pelvis_z=pelvis_z)
+    for key in list(spec.keys):  # a changed root or joint set invalidates every stored keyframe
+        spec.delete(key)
+    return spec.compile()
+
+
 def build_with_neck(
     entry_xml: str,
     cfg: NeckConfig = DEFAULT_NECK,
@@ -184,20 +210,17 @@ def build_with_neck(
     offwidth: int = 960,
     offheight: int = 720,
     root: RootMode = RootMode.FREE,
+    pelvis_z: float | None = None,
 ) -> mujoco.MjModel:
-    """Compile ``entry_xml`` with a neck, a root mode and an offscreen framebuffer of this size.
-
-    Neck and root are applied to one spec compiled once, so the framebuffer size survives.
-    """
-    spec = mujoco.MjSpec.from_file(entry_xml)
-    visual_global = getattr(spec.visual, "global")
-    visual_global.offwidth = offwidth
-    visual_global.offheight = offheight
-    inject_neck(spec, cfg)
-    to_root_mode(spec, root)
-    for key in list(spec.keys):  # a changed root invalidates every stored keyframe
-        spec.delete(key)
-    return spec.compile()
+    """Compile ``entry_xml`` with a neck; a thin wrapper over :func:`build_model`."""
+    return build_model(
+        entry_xml,
+        neck=cfg,
+        root=root,
+        pelvis_z=pelvis_z,
+        offwidth=offwidth,
+        offheight=offheight,
+    )
 
 
 def standing_qpos(src_model: mujoco.MjModel, new_model: mujoco.MjModel) -> np.ndarray:

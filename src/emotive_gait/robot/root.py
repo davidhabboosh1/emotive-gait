@@ -10,6 +10,7 @@ from __future__ import annotations
 from enum import Enum
 
 import mujoco
+import numpy as np
 
 ROOT_SLIDE_JOINT = "root_slide_z"
 _PELVIS = "pelvis"
@@ -22,8 +23,13 @@ class RootMode(str, Enum):
     WELD = "weld"
 
 
-def to_root_mode(spec: mujoco.MjSpec, mode: RootMode) -> mujoco.MjSpec:
+def to_root_mode(
+    spec: mujoco.MjSpec, mode: RootMode, *, pelvis_z: float | None = None
+) -> mujoco.MjSpec:
     """Constrain the pelvis of ``spec`` per ``mode``, in place. ``FREE`` is a no-op.
+
+    ``pelvis_z`` re-heights the pelvis, and only on ``WELD`` (``Z_RAIL`` keeps the keyframe
+    height: the rail is free in z and the playback ramp lowers it).
 
     Keyframes are not touched here: removing the freejoint invalidates them, so the caller
     deletes them before compiling.
@@ -35,6 +41,10 @@ def to_root_mode(spec: mujoco.MjSpec, mode: RootMode) -> mujoco.MjSpec:
         raise KeyError(f"body {_PELVIS!r} not found")
     for joint in list(pelvis.joints):
         spec.delete(joint)
+    if mode is RootMode.WELD and pelvis_z is not None:
+        pos = np.array(pelvis.pos, dtype=float)
+        pos[2] = pelvis_z
+        pelvis.pos = pos
     if mode is RootMode.Z_RAIL:
         pelvis.add_joint(
             name=ROOT_SLIDE_JOINT,

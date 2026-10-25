@@ -4,6 +4,7 @@ import pytest
 from emotive_gait.robot.loader import ModelUnavailableError, load_robot
 from emotive_gait.robot.profiles.g1 import G1_PROFILE
 from emotive_gait.robot.roles import JointRole
+from emotive_gait.robot.root import RootMode
 
 
 def test_every_mapped_role_resolves_to_its_named_joint():
@@ -71,3 +72,31 @@ def test_unavailable_model_raises_actionable_error(monkeypatch, exc):
     assert "3.11.4" in msg
     assert "sparse-checkout" in msg
     assert "MENAGERIE_ROOT" in msg
+
+
+def test_profile_carries_the_nominal_height_and_foot_sites():
+    r = load_robot()
+    assert r.profile.nominal_pelvis_height == 0.70
+    assert r.profile.foot_sites == ("left_foot", "right_foot")
+
+
+def test_foot_site_floor_height_matches_the_stand_pose():
+    r = load_robot()
+    d = mujoco.MjData(r.model)
+    d.qpos[:] = r.stand_qpos
+    mujoco.mj_forward(r.model, d)
+    site = mujoco.mj_name2id(r.model, mujoco.mjtObj.mjOBJ_SITE, "left_foot")
+    assert d.site_xpos[site][2] == pytest.approx(r.profile.foot_site_floor_height, abs=1e-4)
+
+
+def test_weld_puts_the_pelvis_at_the_nominal_height():
+    r = load_robot(root=RootMode.WELD)
+    d = mujoco.MjData(r.model)
+    mujoco.mj_forward(r.model, d)
+    pelvis = mujoco.mj_name2id(r.model, mujoco.mjtObj.mjOBJ_BODY, "pelvis")
+    assert d.xpos[pelvis][2] == pytest.approx(0.70)
+
+
+def test_every_root_mode_builds_without_a_neck():
+    for mode in RootMode:
+        assert load_robot(with_neck=False, root=mode).model.nq > 0
