@@ -42,7 +42,8 @@ Dependency rules:
 - `emotion/` depends on `gait.params`; ONLY `emotion/model.py` additionally imports `robot.roles`
   and `robot.profiles.g1` (to drop cues the profile cannot show). Nothing in `emotion/` imports
   `gait.generator` or `sim/`.
-- `sim/` depends on all three; nothing imports `sim/` except `cli.py`.
+- `sim/` depends on `gait/` and `robot/` only, never `emotion/`; nothing imports `sim/` except
+  `cli.py`.
 
 ## Facts that bite
 
