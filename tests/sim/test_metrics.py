@@ -4,6 +4,7 @@ import pytest
 
 from emotive_gait.robot.loader import load_robot
 from emotive_gait.sim.metrics import (
+    _foot_contacts,
     center_of_pressure,
     is_upright,
     support_polygon,
@@ -71,20 +72,26 @@ def test_zmp_agrees_with_cop_on_flat_ground_when_standing():
     assert np.linalg.norm(cop - zmp) < 2e-3
 
 
-def test_cop_uses_real_contact_forces_not_a_scalar_vertical_estimate():
-    """The old calculate_moments ignored horizontal reaction and per-contact
-    normals; a one-footed stance is where that assumption visibly fails."""
+def test_zmp_equals_cop_under_horizontal_load():
+    """A sideways push makes feet carry friction; ground-origin ZMP must still equal CoP."""
     r = load_robot()
     d = mujoco.MjData(r.model)
     d.qpos[:] = r.stand_qpos
-    for _ in range(200):
+    torso = mujoco.mj_name2id(r.model, mujoco.mjtObj.mjOBJ_BODY, "torso_link")
+    d.xfrc_applied[torso, 0] = 40.0
+    for _ in range(300):
+        d.ctrl[:] = [
+            r.stand_qpos[r.model.jnt_qposadr[r.model.actuator_trnid[i, 0]]]
+            for i in range(r.model.nu)
+        ]
         mujoco.mj_step(r.model, d)
-    forces = np.zeros(6)
-    total = 0.0
-    for i in range(d.ncon):
-        mujoco.mj_contactForce(r.model, d, i, forces)
-        total += abs(forces[0])
-    assert total > 0.5 * r.model.body_subtreemass[0] * 9.81
+    fx = sum(f[0] for _, f, _ in _foot_contacts(r.model, d))
+    print(f"tangential Fx={fx:.2f}")
+    assert abs(fx) > 10.0
+    cop = center_of_pressure(r.model, d)
+    zmp = zero_moment_point(r.model, d)
+    print(f"cop={cop} zmp={zmp}")
+    assert zmp == pytest.approx(cop, abs=2e-3)
 
 
 def test_support_polygon_is_ordered_hull_of_foot_contacts():

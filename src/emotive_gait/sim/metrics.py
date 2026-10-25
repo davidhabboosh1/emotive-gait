@@ -31,12 +31,13 @@ def _foot_contacts(model: mujoco.MjModel, data: mujoco.MjData):
     wrench = np.zeros(6)
     for i in range(data.ncon):
         c = data.contact[i]
-        if c.geom1 == floor:
-            other = c.geom2
-        elif c.geom2 == floor:
-            other = c.geom1
-        else:
+        if floor not in (c.geom1, c.geom2):
             continue
+        # The contact frame's normal points from geom1 to geom2, so the force below is the
+        # force on geom2. That is the force the floor exerts on the foot only if the floor is
+        # geom1 (true while the floor is geom id 0); fail loudly if a model orders it otherwise.
+        assert c.geom1 == floor, "floor must be geom1 of its contacts"
+        other = c.geom2
         if int(model.geom_bodyid[other]) not in feet:
             continue
         mujoco.mj_contactForce(model, data, i, wrench)
@@ -58,20 +59,23 @@ def center_of_pressure(model: mujoco.MjModel, data: mujoco.MjData) -> np.ndarray
 
 
 def zero_moment_point(model: mujoco.MjModel, data: mujoco.MjData) -> np.ndarray | None:
-    """Point on the ground about which the horizontal ground-reaction moment vanishes."""
-    com = np.array(data.subtree_com[0], dtype=float)
+    """Ground point about which the horizontal ground-reaction moment vanishes.
+
+    Moments are taken about the ground origin, which stays exact under friction:
+    ``zmp = (-M_y / F_z, M_x / F_z)`` with ``M = sum(pos x f)``. The original project's
+    ``compute_zmp`` (moments about the CoM, ``x_com - M_y/F_z``) is the special case with no
+    horizontal ground force. Returns ``None`` without foot contact or with ``|F_z| ~ 0``.
+    """
     moment = np.zeros(3)
     f_z = 0.0
     n = 0
     for pos, force, _ in _foot_contacts(model, data):
-        moment += np.cross(pos - com, force)
+        moment += np.cross(pos, force)
         f_z += force[2]
         n += 1
     if n == 0 or abs(f_z) < _EPS:
         return None
-    zmp_x = com[0] - moment[1] / f_z
-    zmp_y = com[1] + moment[0] / f_z
-    return np.array([zmp_x, zmp_y])
+    return np.array([-moment[1] / f_z, moment[0] / f_z])
 
 
 def support_polygon(model: mujoco.MjModel, data: mujoco.MjData) -> np.ndarray:
