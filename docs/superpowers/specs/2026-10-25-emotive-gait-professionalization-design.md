@@ -439,7 +439,12 @@ documented mixing behaviour; graceful degradation when a role is absent.
 trajectories, exact placement, kinematic stimulus tier, prescribed-root forward variant.
 **Parameter feasibility monitoring is built here, not retrofitted** — IK will fail or produce
 grotesque poses at parameter extremes, and per-tick task residual must be monitored so a sample is
-clamped or flagged. Re-verify that G1 compiles under 3.17.
+clamped or flagged. **The 3.17 upgrade is a port, not a re-verify** (learned from PR #1's first CI
+run, which resolved an unbounded `mujoco>=3.2.0` to 3.17.0): `MjSpec.find_body` became
+`MjSpec.body`, and `MjsGeom.delete()` was removed, so `robot/neck.py`'s head-geom move and
+`robot/root.py` must be rewritten against the 3.17 `MjSpec` API before the pin
+(`mujoco>=3.2.0,<3.3`, added in that fix) can be raised. Re-run the Phase 0 mass, CoM and inertia
+checks (section 11) after the port.
 
 **Phase 5 — evaluation harness.** Randomized stimulus generation, forced-choice rating UI,
 recognition-rate reporting, point-light render mode via geom-group toggling. Then a small pilot
