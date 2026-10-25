@@ -21,8 +21,16 @@ emotive-gait evidence                       # every claim with its grounding and
 pytest
 ```
 
-`demo` also takes `--physics`, `--root {free,z-rail,weld}`, `--hold-speed`, `--gif` and
-`--dry-run`; see `emotive-gait demo --help`.
+`demo` also takes `--physics`, `--root {free,z-rail,xz-rail,weld}` (`xz-rail` is experimental,
+see Limitations), `--camera {tracking,fixed}` (the video camera follows the pelvis by default),
+`--hold-speed`, `--gif` and `--dry-run`; see `emotive-gait demo --help`.
+
+With `--physics` the CLI prints a report after the run: `root`, `fell`, `zmp_outside_frac`,
+`zmp_mean_margin_m`, `foot_slip_rms_m_s`, `pelvis_bob_m`, `pelvis_tracking_ptp_m`,
+`pelvis_held` and a `played_params:` line listing every parameter the chosen root changed
+before playing it. If the parameters are beyond what the robot's legs can reach (the IK
+feasibility check), the CLI prints one `warning: parameters exceed the robot's reach` line and
+still renders.
 
 ## Requirements
 
@@ -31,7 +39,8 @@ use and extracts it with `tarfile.extractall(filter=...)` (PEP 706), which needs
 or newer. If that step fails the loader raises an error naming the prefetch command above and
 the sparse-checkout fallback. On Python below 3.11.4 the `prefetch` command itself fails with a
 raw `TypeError` traceback (a `mujoco-menagerie` bug); run `emotive-gait demo` instead, which
-reports the same failure as an actionable message. MuJoCo 3.2.0 or newer.
+reports the same failure as an actionable message. MuJoCo 3.17.x (pinned `>=3.17,<3.18`);
+`mink` and `qpsolvers[daqp]` are installed with the package.
 
 ## Architecture
 
@@ -42,28 +51,50 @@ mass out of the torso.
 
 **`gait/`** defines `GaitParameters`, which are the same quantities the literature reports
 (cadence, step length, trunk and neck pitch, arm swing, ...). Joint trajectories are periodic
-C2 curves, and the in-place generator turns a parameter set into per-role angles over a gait
-cycle.
+C2 curves. `footsteps.py` computes foot and pelvis paths as pure functions of the parameters
+and the gait phase; `ik.py` solves those foot targets for leg joint angles with `mink` on a
+welded-root copy of the robot; the generator combines the IK legs with the spline-driven arms,
+trunk and neck into per-role angles over a gait cycle.
 
 **`emotion/`** runs evidence, then axes, then the model. The evidence module records signed
 directions (more, same, less) with a citation and a grounding level for each claim. Emotion
 intensities become activation, valence and tension, and those shift the parameters. The model
 encodes directions, not magnitudes; the gains are tuned, not cited.
 
-**`sim/`** has a kinematic tier that poses the robot with no physics (the source of stimuli
-for video) and a physical tier that steps position servos open loop with the pelvis on a
-vertical rail. ZMP and center-of-pressure are measured for instrumentation and never used for
-control.
+**`sim/`** has a kinematic tier that poses the robot with no physics and walks it forward with
+exact foot placement (the source of stimuli for video), and a physical tier that steps position
+servos open loop with the pelvis on a vertical rail. ZMP and center-of-pressure are measured
+for instrumentation and never used for control.
 
 ## Limitations
 
-- The physics tier is in-place stepping on a vertical rail. Open-loop stepping on a free
-  floating base falls within 0.74-2.25 s at every expressive amplitude we measured, and there
-  is no balance controller.
-- The gait is in-place in both tiers in this version. `step_length` and the derived `speed` are
-  modelled as parameters (the emotion model moves them, `--hold-speed` pins them, `evidence`
-  cites them) but are not yet rendered as forward motion; only cadence is visible. Forward
-  stride comes with the task-space IK phase.
+- The kinematic tier walks forward: the stance foot stays put in the world (under 1 mm) and
+  the pelvis advances 2 x `step_length` per gait cycle. With today's tuned gains sadness = 1.0
+  covers roughly 2 m in 6 s (about 0.33 m/s) and anger = 1.0 about 7 m (about 1.13 m/s); these
+  are outputs of the tuning, not acceptance targets.
+- The physics tier steps in place on the vertical (Z) rail with position servos, open loop, and
+  reports instead of controlling. Its report gives the ZMP margin, foot slip and pelvis
+  tracking against the commanded path. For example, the neutral gait for 3 s on the Z rail:
+  `zmp_outside_frac` 0.0042, `zmp_mean_margin_m` 0.0379, `foot_slip_rms_m_s` 0.024 / 0.029,
+  `pelvis_bob_m` 0.0545 (includes the commanded bounce), `pelvis_tracking_ptp_m` 0.0235
+  (uncommanded). A constrained root plays a projection of the parameters (`played_params:`
+  lists what changed): the Z rail zeroes `step_length` and `lateral_sway_amp`; the weld also
+  zeroes `com_bounce_amp` and fixes `com_height_scale` at 1.0; the free root plays everything
+  and falls.
+- `--root xz-rail`, a prescribed forward slide, is experimental and falls under stride: the
+  neutral gait loses foot contact (first gap at 0.074 s) and falls at about 0.54 s. A servoed
+  rail (kp 5000 to 100000, ramped) failed the same way, at 0.52 to 1.12 s. Forward walking is
+  therefore a kinematic-tier result; the physics tier is in place. It is kept as a measured
+  negative result.
+- Open-loop stepping on a free floating base falls within 0.74-2.25 s at every expressive
+  amplitude we measured, and there is no balance controller.
+- Lateral sway is lost on every rail. Soles are level in stance and may pitch in swing (worst
+  about 0.034 rad on neutral); there is no heel-to-toe roll.
+- `com_height_scale = 1.0` is a tuned 0.68 m pelvis walking height, below the straight-leg
+  0.79 m stand. Higher leaves anger's long steps out of reach and lower runs the ankle into its
+  pitch limit. Fear's crouch is faint (`com_height_scale` -0.02, about 1.4 cm) because the
+  G1's ankle range binds; deeper crouches fail the feasibility test. That is a robot
+  limitation, not an evidence claim.
 - Disgust and surprise have no gait kinematics in any source we found. They ship as placements
   on the arousal/valence plane, flagged `UNSOURCED`, and the CLI warns when you use them.
 - No recognition rate has been measured: nobody has yet checked that people read these gaits as

@@ -52,7 +52,7 @@ def test_root_mode_keeps_the_offscreen_framebuffer():
 
 
 # Local literals, not emotion.model.PRESET_PARAMS: that is Task 14 and this is Task 10.
-# These mirror the Phase 0 spike's crude presets.
+# These mirror the Phase 0 spike's crude presets, minus the retired knee bias.
 _PHASE0_PRESETS = {
     "neutral": GaitParameters(
         cadence=1.8,

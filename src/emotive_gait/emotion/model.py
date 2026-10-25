@@ -153,9 +153,9 @@ def modulate(
 
     Cues the profile cannot show are dropped (see :func:`unexpressible`). Amplitude parameters
     (``arm_swing_amp``, ``arm_abduction``, ``expansiveness``, ``com_bounce_amp``,
-    ``lateral_sway_amp``, ``step_height``, ``step_length``) are floored at 0.0: "less arm swing" saturates at
-    none, and a negative amplitude is a phase flip, not a smaller motion. When ``hold_speed``
-    is given, speed is pinned to it last, so posture cues survive.
+    ``lateral_sway_amp``, ``step_height``, ``step_length``) are floored at 0.0: "less arm swing"
+    saturates at none, and a negative amplitude is a phase flip, not a smaller motion. When
+    ``hold_speed`` is given, speed is pinned to it last, so posture cues survive.
     """
     deltas, _ = _plan(intensities, profile)
     result = replace(params, **{p: getattr(params, p) + d for p, d in deltas.items()})

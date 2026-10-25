@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "emotive-gait"
-version = "0.1.0"
+version = "0.2.0"
 description = "Emotion-modulated bipedal gait for a humanoid robot in MuJoCo"
 license = { file = "LICENSE" }
 readme = "README.md"
