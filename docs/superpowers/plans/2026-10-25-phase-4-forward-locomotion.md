@@ -139,7 +139,7 @@ Controller: push is the user's call; present "push for CI and merge the port alo
   - `def phase_at(params: GaitParameters, t: float) -> float` = `(t * params.cadence / 2) % 1`
   - Constants `SWING_X_EASING` (quintic smoothstep `6u^5 - 15u^4 + 10u^3`) and clearance profile `sin(pi*u)**3` (both C2 at `u = 0` and `u = 1`). Imports nothing from `robot/`.
 
-Timing per side: left swing is `phase in [0, sf)`, left stance `[sf, 1)`; the right foot uses `(phase + 0.5) % 1`. Stance local `u = (p - sf) / (1 - sf)`, `x = D/2 - D*u`. Swing local `u = p / sf`, `x = -D/2 + D*S(u)`, `z = step_height * sin(pi*u)**3`.
+Timing per side: left swing is `phase in [0, sf)`, left stance `[sf, 1)`; the right foot uses `(phase + 0.5) % 1`. Stance local `u = (p - sf) / (1 - sf)`, `x = D/2 - D*u`. Swing local `u = p / sf`, `x = -D/2 + 2*step_length*S(u) - step_length*(1 - double_support_frac)*u` (world-frame smoothstep displacement of `2*step_length` minus the pelvis travel during the swing; the end slope then equals the stance slope `-2*step_length` per unit phase, so x is C2 at both handoffs — ruling R5, which corrected an earlier `x = -D/2 + D*S(u)` whose zero end slope left a velocity jump), `z = step_height * sin(pi*u)**3`.
 
 - [ ] **Step 1: Write the failing tests**
 

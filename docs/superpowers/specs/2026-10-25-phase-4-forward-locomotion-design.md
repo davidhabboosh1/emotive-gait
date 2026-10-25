@@ -225,8 +225,12 @@ constraints):
   double-support windows.
 - Stance: foot x (pelvis frame) decreases linearly at `speed`. Over a stance it travels
   `step_length * (1 + double_support_frac)`, so the foot's x range is symmetric about zero.
-- Swing: x returns from the back of the range to the front with a C2 easing (zero velocity at
-  both ends so the handoff to stance is continuous); z rises to `step_height` at mid-swing and
+- Swing: x returns from the back of the range to the front with a C2 easing whose velocity is
+  zero at both ends **in the world frame**; in the pelvis frame the swing therefore inherits the
+  stance drift (pelvis-frame x = world easing minus the pelvis travel during the swing), so its
+  end slope equals the stance slope and the handoff is C2. (Corrected during execution, ruling
+  R5: an earlier wording put the zero velocity in the pelvis frame, which leaves a velocity jump
+  equal to the walking speed at every handoff.) z rises to `step_height` at mid-swing and
   returns to the floor, C2 at both ends. The sole stays level.
 - Feet y = `± feet_spacing / 2`, constant.
 - Pelvis (world): x = `speed * t`; z = `nominal_height * com_height_scale +
