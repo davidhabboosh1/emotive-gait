@@ -3,13 +3,16 @@ import numpy as np
 import pytest
 
 from emotive_gait.robot.loader import load_robot
+from emotive_gait.robot.root import RootMode
 from emotive_gait.sim.metrics import (
     _foot_contacts,
     center_of_pressure,
+    foot_contact_flags,
     is_upright,
     support_polygon,
     uprightness,
     zero_moment_point,
+    zmp_margin,
 )
 
 
@@ -103,3 +106,26 @@ def test_support_polygon_is_ordered_hull_of_foot_contacts():
     x, y = hull[:, 0], hull[:, 1]
     area = 0.5 * np.sum(x * np.roll(y, -1) - np.roll(x, -1) * y)
     assert area > 0
+
+
+def test_zmp_margin_is_positive_when_standing_still_on_both_feet():
+    r = load_robot(root=RootMode.Z_RAIL)
+    d = _settle(r)  # settled standing pose with both feet on the floor
+    m = zmp_margin(r.model, d)
+    assert m is not None and m > 0.02
+
+
+def test_zmp_margin_is_none_without_three_contact_points():
+    r = load_robot(root=RootMode.Z_RAIL)
+    d = mujoco.MjData(r.model)
+    d.qpos[:] = r.stand_qpos
+    slide = mujoco.mj_name2id(r.model, mujoco.mjtObj.mjOBJ_JOINT, "root_slide_z")
+    d.qpos[r.model.jnt_qposadr[slide]] = 0.3  # feet 30 cm in the air
+    mujoco.mj_forward(r.model, d)
+    assert zmp_margin(r.model, d) is None
+    assert foot_contact_flags(r.model, d) == (False, False)
+
+
+def test_foot_contact_flags_are_both_true_when_standing():
+    r = load_robot(root=RootMode.Z_RAIL)
+    assert foot_contact_flags(r.model, _settle(r)) == (True, True)

@@ -128,3 +128,10 @@ def test_infeasible_parameters_warn_but_still_render(capsys):
 def test_xz_rail_is_a_root_choice(capsys):
     assert main(["demo", "--physics", "--no-video", "--root", "xz-rail", "--duration", "0.5"]) == 0
     assert "root: xz-rail" in capsys.readouterr().out
+
+
+def test_physics_prints_the_gait_report(capsys):
+    assert main(["demo", "--physics", "--no-video", "--duration", "1"]) == 0
+    out = capsys.readouterr().out
+    assert "zmp_outside_frac:" in out and "foot_slip_rms_m_s:" in out
+    assert "pelvis_tracking_ptp_m:" in out

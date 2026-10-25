@@ -193,7 +193,7 @@ def _demo(args: argparse.Namespace) -> int:
     from emotive_gait.robot.loader import load_robot as _load_robot
     from emotive_gait.robot.root import RootMode
     from emotive_gait.sim.kinematic import play_kinematic
-    from emotive_gait.sim.physical import simulate
+    from emotive_gait.sim.physical import simulate, summarize
     from emotive_gait.sim.render import (
         CameraSpec,
         FfmpegUnavailableError,
@@ -244,6 +244,15 @@ def _demo(args: argparse.Namespace) -> int:
             if res.fell:
                 print(f"fail_reason: {res.fail_reason}")
             print(f"pelvis bob (m): {bob:.4f}")
+            rep = summarize(res, timestep=sim_robot.model.opt.timestep)
+            held = " (pelvis held)" if rep.pelvis_held else ""
+            print(f"zmp_outside_frac: {rep.zmp_outside_frac:.4f}{held}")
+            print(f"zmp_mean_margin_m: {rep.zmp_mean_margin_m:.4f}{held}")
+            left, right = rep.foot_slip_rms_m_s
+            print(f"foot_slip_rms_m_s: {left:.4f} {right:.4f}")
+            print(f"pelvis_bob_m: {rep.pelvis_bob_m:.4f}")
+            print(f"pelvis_tracking_ptp_m: {rep.pelvis_tracking_ptp_m:.4f}")
+            print(f"pelvis_held: {rep.pelvis_held}")
             if args.no_video:
                 return 0
         frames = render_frames(

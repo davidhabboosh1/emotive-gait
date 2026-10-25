@@ -94,6 +94,47 @@ def support_polygon(model: mujoco.MjModel, data: mujoco.MjData) -> np.ndarray:
         return pts
 
 
+def zmp_margin(model: mujoco.MjModel, data: mujoco.MjData) -> float | None:
+    """Signed distance (m) from the ZMP to the nearest edge of the support polygon.
+
+    Positive inside, negative outside. ``None`` without a ZMP or with fewer than three
+    support-polygon vertices (no area to be inside of).
+    """
+    zmp = zero_moment_point(model, data)
+    hull = support_polygon(model, data)
+    if zmp is None or len(hull) < 3:
+        return None
+    nxt = np.roll(hull, -1, axis=0)
+    # Shoelace area; ConvexHull is counter-clockwise in 2-D, guard against other orderings.
+    if float(np.sum(hull[:, 0] * nxt[:, 1] - nxt[:, 0] * hull[:, 1])) < 0:
+        hull = hull[::-1]
+        nxt = np.roll(hull, -1, axis=0)
+    edge = nxt - hull
+    length = np.linalg.norm(edge, axis=1)
+    if np.any(length < _EPS):
+        return None
+    rel = zmp - hull
+    # The left of a counter-clockwise edge is inside, so inside distances are positive.
+    signed = (edge[:, 0] * rel[:, 1] - edge[:, 1] * rel[:, 0]) / length
+    return float(signed.min())
+
+
+def foot_contact_flags(model: mujoco.MjModel, data: mujoco.MjData) -> tuple[bool, bool]:
+    """``(left, right)``: that foot has a floor contact."""
+    left, right = (_body_id(model, n) for n in _FOOT_BODIES)
+    floor = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_GEOM, _FLOOR_GEOM)
+    hit = {left: False, right: False}
+    for i in range(data.ncon):
+        c = data.contact[i]
+        if floor not in (c.geom1, c.geom2):
+            continue
+        for g in (c.geom1, c.geom2):
+            b = int(model.geom_bodyid[g])
+            if b in hit:
+                hit[b] = True
+    return hit[left], hit[right]
+
+
 def uprightness(model: mujoco.MjModel, data: mujoco.MjData, *, body: str = "torso_link") -> float:
     """World-z component of ``body``'s own z-axis: 1 upright, 0 horizontal, -1 inverted."""
     return float(data.xmat[_body_id(model, body)].reshape(3, 3)[2, 2])
