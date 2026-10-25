@@ -47,7 +47,7 @@ Dependency rules:
 
 ## Facts that bite
 
-- **MuJoCo is pinned to `>=3.2.0,<3.3`, and the pin is load-bearing.** The first CI run resolved an unbounded `>=3.2.0` to 3.17.0, where the `MjSpec` API has changed: `MjSpec.find_body` is now `MjSpec.body`, and `MjsGeom.delete()` no longer exists — so `robot/neck.py` (which moves the head geoms off the torso) and `robot/root.py` break on import of a built model. Every other call they make (`first_geom`/`next_geom`, `.geoms`, `meshname`, `getattr(visual, "global")`, `keys`) still exists on 3.17. Porting to 3.17 is Phase 4 work, done together with `mink`; do not raise the pin without porting both files and re-running the Phase 0 mass/inertia checks.
+- **MuJoCo is pinned to `>=3.17,<3.18`, and the pin is load-bearing.** `robot/neck.py` and `robot/root.py` use the 3.17 `MjSpec` API: `spec.body(name)` (was `find_body`) and `spec.delete(obj)` (was `geom/joint/key.delete()`). Raising the upper bound is a deliberate re-verify: port any further `MjSpec` changes and use `tests/robot/test_neck.py` (total mass 33.3411, torso remainder, CoM) as the mass/inertia gate.
 
 - Load the menagerie `scene`, never `g1`: the bare model has no floor.
 - Neck injection deletes the model's keyframe, so the standing pose is rebuilt by joint name

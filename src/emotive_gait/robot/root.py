@@ -30,11 +30,11 @@ def to_root_mode(spec: mujoco.MjSpec, mode: RootMode) -> mujoco.MjSpec:
     """
     if mode is RootMode.FREE:
         return spec
-    pelvis = spec.find_body(_PELVIS)
+    pelvis = spec.body(_PELVIS)
     if pelvis is None:
         raise KeyError(f"body {_PELVIS!r} not found")
     for joint in list(pelvis.joints):
-        joint.delete()
+        spec.delete(joint)
     if mode is RootMode.Z_RAIL:
         pelvis.add_joint(
             name=ROOT_SLIDE_JOINT,

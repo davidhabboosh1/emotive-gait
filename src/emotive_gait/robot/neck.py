@@ -101,7 +101,7 @@ def _subtract_child_inertia(
 
 def inject_neck(spec: mujoco.MjSpec, cfg: NeckConfig = DEFAULT_NECK) -> mujoco.MjSpec:
     """Add a ``head_link`` body on a pitch hinge under ``cfg.parent_body``, in place."""
-    torso = spec.find_body(cfg.parent_body)
+    torso = spec.body(cfg.parent_body)
     if torso is None:
         raise KeyError(f"body {cfg.parent_body!r} not found")
     if not torso.explicitinertial:
@@ -133,7 +133,7 @@ def inject_neck(spec: mujoco.MjSpec, cfg: NeckConfig = DEFAULT_NECK) -> mujoco.M
             material=src.material,
             density=0.0,  # inertia is explicit; do not double count
         )
-        src.delete()
+        spec.delete(src)
 
     m_r = _subtract_child_inertia(torso, cfg.mass, head_com, np.asarray(cfg.diaginertia))
     if not math.isclose(m_r, cfg.parent_mass_after, abs_tol=1e-6):
@@ -173,7 +173,7 @@ def inject_neck(spec: mujoco.MjSpec, cfg: NeckConfig = DEFAULT_NECK) -> mujoco.M
 
     # Adding a joint changes nq, which invalidates every stored keyframe.
     for key in list(spec.keys):
-        key.delete()
+        spec.delete(key)
     return spec
 
 
@@ -196,7 +196,7 @@ def build_with_neck(
     inject_neck(spec, cfg)
     to_root_mode(spec, root)
     for key in list(spec.keys):  # a changed root invalidates every stored keyframe
-        key.delete()
+        spec.delete(key)
     return spec.compile()
 
 

@@ -10,10 +10,9 @@ license = { file = "LICENSE" }
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
-    # Pinned to the 3.2.x line this code was verified on. MjSpec's API changed by
-    # 3.17 (find_body -> body; MjsGeom.delete() removed), which breaks neck.py and
-    # root.py. The upgrade is Phase 4 work, alongside mink. See CLAUDE.md.
-    "mujoco>=3.2.0,<3.3",
+    # Pinned to the 3.17 line this code was verified on (MjSpec: body(), spec.delete(obj)).
+    # Raising the upper bound is a deliberate re-verify; see CLAUDE.md.
+    "mujoco>=3.17,<3.18",
     # Exact pin: the wheel carries the model registry, so this also pins the G1 model OID
     # (ad24af3fa9bc1a99e37291e656fb85e445da6158) that NeckConfig's mass constants assume.
     "mujoco-menagerie==2026.10.4",
