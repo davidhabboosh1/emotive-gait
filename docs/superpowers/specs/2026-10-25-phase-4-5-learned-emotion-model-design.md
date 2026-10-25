@@ -1,7 +1,7 @@
 # Phase 4.5 — Learned Emotion Model: Design
 
 **Date:** 2026-10-25
-**Status:** awaiting approval
+**Status:** approved 2026-10-25
 **Parent:** `2026-10-25-emotive-gait-professionalization-design.md` (the professionalization design),
 sections 2, 4.4, 7 and Appendix A. This document refines the phase the user inserted between
 Phase 4 (forward locomotion) and Phase 5 (evaluation harness). Where it differs from the parent,
@@ -496,14 +496,16 @@ hashes are the instructions.
 **Reproducibility claim:** anyone with the manifest's files reproduces the committed artefact
 bit-for-bit up to floating-point noise, with one command, on CPU, in minutes.
 
-**Who downloads, and when (USER DECISION, pending).** The fit (step 7 of section 10) needs
-100STYLE (1.47 GB), the CMU files and BML's PTD archive (264 MB) on the author's disk. The
-design *assumes* the build session runs `fetch` for all three before step 7, including BML,
-because its download is open and the PACO question concerns committing derived numbers, not
-local use; raw data stay git-ignored either way. If the user prefers to download themselves, or
-to hold BML until the lab replies, step 7 becomes a user-run step: the build session ships the
-pipeline with the synthetic tests green and the fit is run and committed afterwards. The plan
-must carry both branches until the user answers.
+**Who downloads, and when (user decision, 2026-10-25).** The build session downloads
+everything: the CMU files and BML's PTD archive (264 MB) through `fetch`, which also verifies
+hashes. BML is downloaded before the PACO reply because its download is open and the licence
+question concerns committing derived numbers, not local use; raw data stay git-ignored. The user
+has already downloaded `100STYLE.zip` (1.47 GB) to their Downloads folder, so `fetch` must accept
+an existing local archive (`fetch --from <path>` copies or moves it into `data/raw/` and hashes
+it) rather than downloading it again. The fit (step 7 of section 10) therefore runs inside the
+build session. The only manual steps left to the user are the PACO email and, if a download
+fails for reasons the session cannot fix (a blocked host, a changed URL), fetching that one file
+by hand; `fetch` prints the exact URL and expected hash so that is a copy-paste task.
 
 ### 4.7 Documentation
 
