@@ -38,10 +38,17 @@ def test_stance_foot_moves_back_at_walking_speed():
     assert (x1 - x0) / dt == pytest.approx(-P.speed, rel=1e-3)
 
 
-def test_foot_x_range_is_half_the_travel_each_way():
+def test_foot_x_runs_between_half_travel_each_way_with_bounded_overshoot():
+    # Swing x inherits the stance drift (C1 handoff), so it overshoots +-D/2 slightly near the
+    # swing ends; the handoff values themselves are exactly +-D/2.
+    half = foot_travel(P) / 2
+    sf = swing_fraction(P)
+    assert foot_point(P, 0.0, Side.LEFT).x == pytest.approx(-half)
+    assert foot_point(P, sf, Side.LEFT).x == pytest.approx(half)
+    assert foot_point(P, sf - 1e-12, Side.LEFT).x == pytest.approx(half)
     xs = [foot_point(P, ph, Side.LEFT).x for ph in np.linspace(0, 1, 2001)]
-    assert max(xs) == pytest.approx(foot_travel(P) / 2, abs=1e-6)
-    assert min(xs) == pytest.approx(-foot_travel(P) / 2, abs=1e-6)
+    assert half <= max(xs) <= 1.15 * half
+    assert -1.15 * half <= min(xs) <= -half
 
 
 def test_swing_apex_is_step_height_and_stance_is_on_the_floor():
@@ -63,8 +70,17 @@ def test_paths_are_c2_at_every_handoff(ph):
 
             left2 = (g(ph - h) - 2 * g(ph - 2 * h) + g(ph - 3 * h)) / h**2
             right2 = (g(ph + 3 * h) - 2 * g(ph + 2 * h) + g(ph + h)) / h**2
-            assert g(ph - h) == pytest.approx(g(ph + h), abs=5e-3)
+            assert g(ph - 1e-9) == pytest.approx(g(ph + 1e-9), abs=1e-6)
+            left1 = (g(ph - h) - g(ph - 2 * h)) / h
+            right1 = (g(ph + 2 * h) - g(ph + h)) / h
+            assert left1 == pytest.approx(right1, abs=1e-2)  # first derivative continuous
             assert left2 == pytest.approx(right2, abs=0.5)  # second derivative continuous
+
+
+def test_in_stance_at_the_exact_boundaries():
+    assert foot_point(P, swing_fraction(P), Side.LEFT).in_stance
+    assert not foot_point(P, 1.0, Side.LEFT).in_stance  # wraps to swing start
+    assert not foot_point(P, 0.5, Side.RIGHT).in_stance
 
 
 def test_in_place_when_step_length_is_zero():

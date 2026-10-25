@@ -35,7 +35,7 @@ class FootPoint:
     in_stance: bool
 
 
-def SWING_X_EASING(u: float) -> float:
+def smoothstep5(u: float) -> float:
     """Quintic smoothstep ``6u^5 - 15u^4 + 10u^3``: C2 at u = 0 and u = 1."""
     return u**3 * (10.0 + u * (-15.0 + 6.0 * u))
 
@@ -59,8 +59,15 @@ def foot_point(params: GaitParameters, phase: float, side: Side) -> FootPoint:
     half = foot_travel(params) / 2.0
     if p < sf:
         u = p / sf
+        # World frame: the swing foot advances 2*step_length with a smoothstep profile, while the
+        # pelvis advances step_length*(1 - ds) during the swing; pelvis-frame x is world x minus
+        # pelvis travel. Endpoints stay -D/2 and +D/2 and the end slope (-2*step_length per unit
+        # phase) equals the stance slope, so x is C1 (and C2) at both handoffs.
+        length = params.step_length
         return FootPoint(
-            x=-half + 2.0 * half * SWING_X_EASING(u),
+            x=-half
+            + 2.0 * length * smoothstep5(u)
+            - length * (1.0 - params.double_support_frac) * u,
             z=params.step_height * _clearance(u),
             in_stance=False,
         )
