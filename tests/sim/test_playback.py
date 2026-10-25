@@ -244,3 +244,32 @@ def test_kinematic_playback_rejects_a_constrained_root():
     r = load_robot(root=RootMode.Z_RAIL)
     with pytest.raises(ValueError, match="FREE"):
         next(iter(play_kinematic(r, generate(GaitParameters(), r), duration=0.1, fps=10)))
+
+
+def test_xz_rail_has_two_slide_dofs():
+    r = load_robot(root=RootMode.XZ_RAIL)
+    assert r.model.nq == r.model.nv == load_robot(root=RootMode.Z_RAIL).model.nq + 1
+
+
+def test_xz_rail_forward_stride_loses_foot_contact_open_loop():
+    """Measured negative result: neutral on XZ_RAIL falls at 0.540 s on lost foot contact.
+
+    The first no-contact step is at 0.074 s and 25.2 % of the final 0.5 s window has no foot on
+    the floor. The servoed-rail variant (kp 5000-100000, ramped command) failed the same way at
+    0.52-1.12 s, so forward walking stays a kinematic-tier result and the physics tier is in place.
+    """
+    r = load_robot(root=RootMode.XZ_RAIL)
+    p = GaitParameters()
+    res = simulate(r, generate(p, r), duration=4.0)
+    assert res.fell and res.fail_reason.startswith("foot contact lost")
+    assert 0.0 < res.fell_at < 1.0
+    assert res.played_params.step_length == p.step_length
+    assert res.played_params.lateral_sway_amp == 0.0
+    # The prescribed x tracks exactly up to the fall.
+    assert res.root_x[-1] == pytest.approx(p.speed * res.fell_at, abs=0.02)
+
+
+def test_xz_rail_reports_a_fall_on_an_absurd_gait():
+    r = load_robot(root=RootMode.XZ_RAIL)
+    res = simulate(r, generate(GaitParameters(cadence=8.0, step_length=1.0), r), duration=3.0)
+    assert res.fell and res.fail_reason.startswith(("foot contact lost", "rail stop"))

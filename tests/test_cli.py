@@ -123,3 +123,8 @@ def test_infeasible_parameters_warn_but_still_render(capsys):
     )
     err = capsys.readouterr().err
     assert code == 0 and "exceed the robot's reach" in err
+
+
+def test_xz_rail_is_a_root_choice(capsys):
+    assert main(["demo", "--physics", "--no-video", "--root", "xz-rail", "--duration", "0.5"]) == 0
+    assert "root: xz-rail" in capsys.readouterr().out

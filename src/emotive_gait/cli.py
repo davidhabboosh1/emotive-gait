@@ -16,7 +16,7 @@ from emotive_gait.emotion.evidence import EVIDENCE, UNSOURCED_EMOTIONS, Emotion
 from emotive_gait.emotion.model import IntensityError, modulate
 from emotive_gait.gait.params import GaitParameters, SpeedConstraintError
 
-_ROOTS = {"free": "FREE", "z-rail": "Z_RAIL", "weld": "WELD"}
+_ROOTS = {"free": "FREE", "z-rail": "Z_RAIL", "xz-rail": "XZ_RAIL", "weld": "WELD"}
 _DIRECTION = {1: "+", 0: "0", -1: "-"}
 
 
@@ -75,7 +75,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "--root",
         choices=sorted(_ROOTS),
         default="z-rail",
-        help="pelvis constraint for --physics (default z-rail)",
+        help="pelvis constraint for --physics (default z-rail; xz-rail (experimental: falls under stride))",
     )
     d.add_argument(
         "--camera",
