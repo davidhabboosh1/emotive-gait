@@ -5,7 +5,11 @@ frame, so the solve runs on a WELD-rooted robot whose pelvis never moves. The ta
 site, relative to the pelvis origin, is ``(foot.x, +-feet_spacing/2 - dy, floor - (nominal *
 com_height_scale + dz) + foot.z)``: lateral sway and vertical bounce of the pelvis appear as the
 opposite displacement of the feet. The target orientation is the orientation of the site at the
-seed pose (a level sole).
+seed pose (a level sole): level in stance; swing pitch is emergent, not modelled. Orientation is
+a hard task in stance (``STANCE_ORIENTATION_COST``) and a soft preference in swing
+(``SWING_ORIENTATION_COST``), so a lifted foot behind the body may plantarflex as at toe-off
+instead of driving the ankle into its dorsiflexion limit (rulings R7/R9: a level lifted sole
+behind the body exceeds the G1 ankle range, so swing tilt is traded for foot position).
 
 The seed is ``SEED_LEG_POSE`` (bent hips, knees and ankles), not the stand keyframe: the stand
 pose has straight knees, a singular configuration from which the differential QP cannot flex the
@@ -38,6 +42,9 @@ IK_DT = 0.05
 POSITION_TOL_M = 0.002
 ORIENTATION_TOL_RAD = 0.01
 LIMIT_MARGIN_RAD = 1e-3
+POSITION_COST = 10.0
+STANCE_ORIENTATION_COST = 5.0  # hard: the sole is level in stance
+SWING_ORIENTATION_COST = 0.1  # soft: swing pitch is emergent, not modelled
 
 SEED_LEG_POSE: Mapping[JointRole, float] = MappingProxyType(
     {
@@ -71,6 +78,9 @@ _SIDES = ((Side.LEFT, 1.0), (Side.RIGHT, -1.0))  # order matches RobotProfile.fo
 
 @dataclass(frozen=True)
 class FeasibilityReport:
+    """Measured after the solve. Position error is over all samples; orientation error is over
+    stance samples only (level in stance; swing pitch is emergent, not modelled)."""
+
     max_foot_position_error_m: float
     max_foot_orientation_error_rad: float
     roles_at_limit: tuple[JointRole, ...]
@@ -91,18 +101,20 @@ class LegCycle:
     report: FeasibilityReport
 
 
-_WELD_CACHE: dict[str, RobotModel] = {}
+_WELD_CACHE: dict[tuple[str, bool], RobotModel] = {}
 
 
 def weld_robot_for(profile: RobotProfile) -> RobotModel:
-    """The WELD-rooted robot for ``profile``, built once per ``profile.name``.
+    """The WELD-rooted robot for ``profile``, built once per ``(profile.name, has neck)``.
 
     A dict rather than ``functools.cache``: profiles hold dicts and are not hashable.
     """
-    robot = _WELD_CACHE.get(profile.name)
+    with_neck = profile.has(JointRole.NECK_PITCH)
+    key = (profile.name, with_neck)
+    robot = _WELD_CACHE.get(key)
     if robot is None:
-        robot = load_robot(profile, with_neck=profile.has(JointRole.NECK_PITCH), root=RootMode.WELD)
-        _WELD_CACHE[profile.name] = robot
+        robot = load_robot(profile, with_neck=with_neck, root=RootMode.WELD)
+        _WELD_CACHE[key] = robot
     return robot
 
 
@@ -145,11 +157,13 @@ def solve_leg_cycle(
 
     phases = np.arange(n_samples) / n_samples
     targets = np.empty((n_samples, 2, 3))
+    stance = np.empty((n_samples, 2), dtype=bool)
     for k, phase in enumerate(phases):
         dy, dz = pelvis_offset(params, float(phase))
         drop = profile.nominal_pelvis_height * params.com_height_scale + dz
         for i, (side, sign) in enumerate(_SIDES):
             foot = foot_point(params, float(phase), side)
+            stance[k, i] = foot.in_stance
             targets[k, i] = pelvis_pos + (
                 foot.x,
                 sign * params.feet_spacing / 2.0 - dy,
@@ -159,7 +173,9 @@ def solve_leg_cycle(
     cfg = mink.Configuration(model)
     cfg.update(seed)
     feet = [
-        mink.FrameTask(s, "site", position_cost=10.0, orientation_cost=5.0)
+        mink.FrameTask(
+            s, "site", position_cost=POSITION_COST, orientation_cost=STANCE_ORIENTATION_COST
+        )
         for s in profile.foot_sites
     ]
     posture = mink.PostureTask(model, cost=1e-3)
@@ -173,6 +189,9 @@ def solve_leg_cycle(
         for k in range(n_samples):
             for i, task in enumerate(feet):
                 task.set_target(mink.SE3.from_rotation_and_translation(rotations[i], targets[k, i]))
+                task.set_orientation_cost(
+                    STANCE_ORIENTATION_COST if stance[k, i] else SWING_ORIENTATION_COST
+                )
             for _ in range(iterations):
                 v = mink.solve_ik(cfg, tasks, IK_DT, QP_SOLVER, damping=1e-4, limits=limits)
                 cfg.integrate_inplace(v, IK_DT)
@@ -189,7 +208,8 @@ def solve_leg_cycle(
             err = float(np.linalg.norm(scratch.site_xpos[sid] - targets[k, i]))
             pos_err[k] = max(pos_err[k], err)
             actual = scratch.site_xmat[sid].reshape(3, 3)
-            ori_err = max(ori_err, _rotation_error(level[i], actual))
+            if stance[k, i]:
+                ori_err = max(ori_err, _rotation_error(level[i], actual))
         for role in LEG_ROLES:
             lo, hi = ranges[role]
             q = kept[k, adr[role]]

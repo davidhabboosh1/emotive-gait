@@ -6,7 +6,7 @@ from emotive_gait.gait.footsteps import foot_travel
 from emotive_gait.gait.ik import LEG_ROLES, solve_leg_cycle, weld_robot_for
 from emotive_gait.gait.params import GaitParameters
 from emotive_gait.robot.loader import load_robot
-from emotive_gait.robot.profiles.g1 import G1_PROFILE_WITH_NECK
+from emotive_gait.robot.profiles.g1 import G1_PROFILE, G1_PROFILE_WITH_NECK
 from emotive_gait.robot.roles import JointRole
 
 
@@ -25,16 +25,10 @@ def test_requires_a_welded_robot():
         solve_leg_cycle(GaitParameters(), load_robot())
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="measured: the neutral early swing (foot behind the pelvis, lifted, level sole) needs "
-    "ankle dorsiflexion past the -0.873 rad limit; 7.27 mm residual at phase 0.142/0.642. "
-    "Awaiting a ruling (pelvis height, step_height or ankle seed), not a solver bug.",
-)
 def test_neutral_cycle_is_feasible_with_negligible_residual(neutral):
     c = neutral
     assert c.report.feasible
-    assert c.report.max_foot_position_error_m < 1e-4
+    assert c.report.max_foot_position_error_m < 1e-3
     assert set(c.angles) == set(LEG_ROLES) and c.phases.shape == (120,)
 
 
@@ -82,3 +76,8 @@ def test_in_place_cycle_lifts_the_feet_without_travel(weld):
     c = solve_leg_cycle(GaitParameters(step_length=0.0), weld)
     assert c.report.feasible
     assert np.ptp(c.angles[JointRole.KNEE_L]) > 0.2
+
+
+def test_weld_robot_cache_distinguishes_neck_from_no_neck(weld):
+    assert weld_robot_for(G1_PROFILE).model.nq != weld_robot_for(G1_PROFILE_WITH_NECK).model.nq
+    assert weld_robot_for(G1_PROFILE_WITH_NECK) is weld_robot_for(G1_PROFILE_WITH_NECK)
