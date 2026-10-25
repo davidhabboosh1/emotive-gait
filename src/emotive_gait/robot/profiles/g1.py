@@ -1,11 +1,15 @@
 """Unitree G1 (MuJoCo Menagerie ``unitree_g1``) role mapping.
 
-Every G1 actuator carries the same name as the joint it drives. The model has no neck, so
-``NECK_PITCH`` is deliberately unmapped here.
+Every G1 actuator carries the same name as the joint it drives. The stock model has no neck,
+so ``G1_PROFILE`` leaves ``NECK_PITCH`` unmapped; ``G1_PROFILE_WITH_NECK`` maps it to the joint
+that :mod:`emotive_gait.robot.neck` injects.
 """
 
 from __future__ import annotations
 
+from dataclasses import replace
+
+from emotive_gait.robot.neck import NeckConfig
 from emotive_gait.robot.roles import JointRole, RobotProfile
 
 _ACTUATORS = {
@@ -39,4 +43,10 @@ G1_PROFILE = RobotProfile(
     scene_entry="scene",
     actuator_for=_ACTUATORS,
     sign_for={role: -1.0 if role.name.endswith("_ROLL_R") else 1.0 for role in _ACTUATORS},
+)
+
+G1_PROFILE_WITH_NECK = replace(
+    G1_PROFILE,
+    actuator_for={**G1_PROFILE.actuator_for, JointRole.NECK_PITCH: NeckConfig().joint_name},
+    sign_for={**G1_PROFILE.sign_for, JointRole.NECK_PITCH: 1.0},
 )

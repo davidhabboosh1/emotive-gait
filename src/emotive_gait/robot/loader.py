@@ -8,7 +8,8 @@ import mujoco
 import mujoco_menagerie
 import numpy as np
 
-from emotive_gait.robot.profiles.g1 import G1_PROFILE
+from emotive_gait.robot.neck import build_with_neck, standing_qpos
+from emotive_gait.robot.profiles.g1 import G1_PROFILE, G1_PROFILE_WITH_NECK
 from emotive_gait.robot.roles import JointRole, RobotProfile
 
 _STAND_KEYFRAME = "stand"
@@ -50,14 +51,22 @@ def _stand_qpos(model: mujoco.MjModel) -> np.ndarray:
     return np.array(model.qpos0, dtype=float)
 
 
-def load_robot(profile: RobotProfile | None = None, *, with_neck: bool = False) -> RobotModel:
-    """Load ``profile``'s robot (default: G1) and wrap it with role lookups."""
-    if with_neck:
-        raise NotImplementedError("with_neck=True is provided by Task 5 (neck injection)")
+def load_robot(profile: RobotProfile | None = None, *, with_neck: bool = True) -> RobotModel:
+    """Load ``profile``'s robot (default: G1) and wrap it with role lookups.
+
+    With ``with_neck`` the robot gets an injected pitch neck; ``profile=None`` then resolves to
+    ``G1_PROFILE_WITH_NECK``, otherwise to ``G1_PROFILE``.
+    """
     if profile is None:
-        profile = G1_PROFILE
+        profile = G1_PROFILE_WITH_NECK if with_neck else G1_PROFILE
     try:
-        model = mujoco_menagerie.get(profile.name).model(profile.scene_entry)
+        robot = mujoco_menagerie.get(profile.name)
+        model = robot.model(profile.scene_entry)
+        if with_neck:
+            neck_model = build_with_neck(str(robot.xml(profile.scene_entry)))
+            return RobotModel(
+                model=neck_model, profile=profile, stand_qpos=standing_qpos(model, neck_model)
+            )
     except (OSError, TypeError, mujoco_menagerie.MenagerieError) as exc:
         raise ModelUnavailableError(
             f"Could not load robot model {profile.name!r}: {exc}. "

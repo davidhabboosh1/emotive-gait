@@ -56,11 +56,6 @@ def test_mirrored_roll_ranges_are_read_per_side():
     assert hi_r == pytest.approx(1.5882, abs=1e-4)
 
 
-def test_with_neck_not_yet_implemented():
-    with pytest.raises(NotImplementedError, match="Task 5"):
-        load_robot(with_neck=True)
-
-
 @pytest.mark.parametrize("exc", [OSError("no network"), TypeError("filter")])
 def test_unavailable_model_raises_actionable_error(monkeypatch, exc):
     import mujoco_menagerie
