@@ -33,14 +33,27 @@ def test_anger_speeds_up_and_flexes_the_elbows():
     assert q.speed > p.speed and q.elbow_flexion > p.elbow_flexion
 
 
+# Two kinds of direction-0 claim. These are "no change" findings: the source measured the cue
+# against neutral and found no effect, so the model must not move it. Every other direction-0
+# claim means "not reported vs neutral" (e.g. only compared with another emotion): the evidence
+# is silent, so the model is free there and the claim stays exempt.
+NO_CHANGE = {(Emotion.ANGER, "neck_pitch"), (Emotion.ANGER, "knee_flexion_bias")}
+
+
 def test_modulation_direction_agrees_with_every_grounded_claim():
     p = GaitParameters()
     for emotion in GROUNDED_EMOTIONS:
         q = modulate(p, {emotion: 1.0}, G1_PROFILE_WITH_NECK)
         for c in claims_for(emotion):
-            if c.direction == 0 or not hasattr(p, c.parameter):
+            if not hasattr(p, c.parameter):
                 continue
             delta = getattr(q, c.parameter) - getattr(p, c.parameter)
+            if (emotion, c.parameter) in NO_CHANGE:
+                assert c.direction == 0, f"{emotion}.{c.parameter} is no longer a no-change claim"
+                assert abs(delta) < 1e-9, f"{emotion}.{c.parameter} moved by {delta} ({c.citation})"
+                continue
+            if c.direction == 0:
+                continue
             assert delta * c.direction >= 0, f"{emotion}.{c.parameter} contradicts {c.citation}"
 
 

@@ -40,7 +40,8 @@ AXIS_GAINS: Mapping[str, tuple[str, float]] = MappingProxyType(
 """Parameter delta per unit of the named axis: ``parameter -> (axis, gain)``. Tuned, not cited.
 
 Only the three-axis structure is literature-backed. Fear's cadence and neck_pitch are
-overridden by ``CATEGORY_OFFSETS``; re-check the claim cross-check test if a gain changes.
+overridden by ``CATEGORY_OFFSETS``, and anger's neck_pitch offset cancels its valence term;
+re-check the claim cross-check test if a gain changes.
 """
 
 _PARAMETER_ROLES: Mapping[str, tuple[JointRole, ...]] = MappingProxyType(

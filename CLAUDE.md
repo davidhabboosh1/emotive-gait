@@ -66,7 +66,9 @@ Dependency rules:
   `FREE`; constrained roots fall on rail-stop contact, lost foot contact or a 15 cm pelvis drop
   (`SimResult.fail_reason` says which).
 - Emotion is applied to PARAMETERS, never to joint angles. The generator clamps to joint range last.
-- Fear has four category offsets (`knee_flexion_bias`, `elbow_swing_ratio`, `cadence`, `neck_pitch`), two of which (cadence, neck_pitch) override the axes, because it breaks a pure three-axis mapping.
+- Fear has four category offsets (`knee_flexion_bias`, `elbow_swing_ratio`, `cadence`, `neck_pitch`), two of which (cadence, neck_pitch) override the axes, because it breaks a pure three-axis mapping. Anger has one offset, `neck_pitch = -0.135`, that
+  exactly cancels its valence-driven head drop (the evidence says no head change); it must track
+  `AXIS_GAINS["neck_pitch"]` and anger's valence weight.
 - No claim may state a magnitude in degrees; claims are signed directions with a grounding level.
 - Disgust and surprise are unsourced. Keep them flagged and keep the CLI warning.
 - Physics is open loop with position servos. ZMP/CoP are instrumentation, never control. A free

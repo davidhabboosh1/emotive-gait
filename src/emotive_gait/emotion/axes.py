@@ -54,7 +54,14 @@ exact negatives so that mixing them cancels to neutral.
 """
 
 _OFFSETS: dict[Emotion, Mapping[str, float]] = {
-    Emotion.ANGER: MappingProxyType({}),
+    Emotion.ANGER: MappingProxyType(
+        {
+            # Cancels the valence contribution (AXIS_GAINS["neck_pitch"] -0.45 x anger valence
+            # weight -0.30 = +0.135, head down) because the evidence reports no consistent head
+            # change for anger. Must track both of those numbers if either changes.
+            "neck_pitch": -0.135,
+        }
+    ),
     Emotion.DISGUST: MappingProxyType({}),
     Emotion.FEAR: MappingProxyType(
         {
@@ -82,7 +89,9 @@ design Appendix A.6. Fear has negative activation but fast cadence, and negative
 valence but an erect head, so two of its cues cannot come from the axes and are
 carried as offsets sized to override them. Fear's knee flexion and elbow swing
 ratio, and sadness's elbow swing ratio and lateral sway, are likewise not
-expressible on any axis. Emotions without offsets map to an empty mapping.
+expressible on any axis. Anger's neck_pitch offset exists only to cancel its valence
+contribution, since the evidence reports no head change for anger. Emotions without offsets
+map to an empty mapping.
 """
 
 
