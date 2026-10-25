@@ -81,3 +81,7 @@ class RobotProfile:
             return self.actuator_for[role]
         except KeyError:
             raise MissingRoleError(role, self.name) from None
+
+    def sign(self, role: JointRole) -> float:
+        """Mirroring multiplier for ``role``; a role absent from ``sign_for`` means no mirroring."""
+        return self.sign_for.get(role, 1.0)

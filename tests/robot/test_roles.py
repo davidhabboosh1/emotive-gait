@@ -54,3 +54,17 @@ def test_mirror_is_involution_and_midline_roles_are_fixed():
     ):
         assert role.mirror() is role
     assert JointRole.HIP_ROLL_L.mirror() is JointRole.HIP_ROLL_R
+
+
+def test_sign_returns_configured_value():
+    p = RobotProfile(
+        name="t",
+        scene_entry="scene",
+        actuator_for={JointRole.ELBOW_R: "e"},
+        sign_for={JointRole.ELBOW_R: -1.0},
+    )
+    assert p.sign(JointRole.ELBOW_R) == -1.0
+
+
+def test_sign_of_absent_role_means_no_mirroring():
+    assert _profile().sign(JointRole.NECK_PITCH) == 1.0
