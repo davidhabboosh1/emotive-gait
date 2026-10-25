@@ -36,6 +36,16 @@ class PeriodicCurve:
             self, "_spline", CubicSpline(phase, value, bc_type="periodic")
         )
 
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, PeriodicCurve):
+            return NotImplemented
+        return np.array_equal(self.knots_phase, other.knots_phase) and np.array_equal(
+            self.knots_value, other.knots_value
+        )
+
+    def __hash__(self) -> int:
+        return hash((tuple(self.knots_phase.tolist()), tuple(self.knots_value.tolist())))
+
     @classmethod
     def from_knots(cls, phase: Sequence[float], value: Sequence[float]) -> PeriodicCurve:
         p = np.asarray(phase, dtype=float)

@@ -51,3 +51,27 @@ def test_explicit_matching_closing_knot_is_accepted():
 def test_invalid_phases_are_rejected(phase):
     with pytest.raises(ValueError):
         PeriodicCurve.from_knots(phase, [0.0] * len(phase))
+
+
+def _curve(values=(0.0, 1.0, 0.0, -1.0)):
+    return PeriodicCurve.from_knots([0.0, 0.25, 0.5, 0.75], list(values))
+
+
+def test_curves_with_identical_knots_are_equal():
+    a, b = _curve(), _curve()
+    assert a == b
+    assert hash(a) == hash(b)
+
+
+def test_curves_with_different_knots_are_not_equal():
+    assert _curve() != _curve((0.0, 2.0, 0.0, -1.0))
+
+
+def test_equality_does_not_raise_against_other_types():
+    assert (_curve() == 42) is False
+
+
+def test_curve_is_usable_as_dict_key_and_set_member():
+    a, b = _curve(), _curve()
+    assert {a: "x"}[b] == "x"
+    assert b in {a}
