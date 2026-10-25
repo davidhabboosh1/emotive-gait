@@ -171,12 +171,16 @@ between folds.
 
 **Coverage, stated plainly.** Anger rests on BML (30 actors) plus one 100STYLE actor; without
 BML it rests on one actor and is `thin` (section 4.5). Happiness and sadness have BML plus
-100STYLE plus three to four CMU subjects. Fear has only CMU single trials, and after checking the
-subject pages (2026-10-25) fewer than first thought: subject 142 has no normal or neutral walk,
-so it is excluded under the per-actor-neutral rule, and subjects 91 and 105 carry identical trial
-lists and count as one performer. Fear is therefore one or two actors, labelled `thin` whatever
-happens, stored and used with its actor count printed in place of an interval, and enters no
-headline number (section 4.3). Disgust and surprise have nothing and stay analytic (section 4.5).
+100STYLE plus three to four CMU subjects. Fear: the CMU side is thinner than first thought (checked
+2026-10-25: subject 142 has no normal or neutral walk, so it is excluded under the
+per-actor-neutral rule, and subjects 91 and 105 are byte-identical uploads of one performer), but
+the downloaded BML PTD archive carries a fifth style code, `af`, for walks by 7 of the 30 actors
+(ale, jan, jua, lin, mac, pet, she; two records each), which neither the data page nor the 2006
+paper lists and whose meaning the archive's key does not state. It is mapped to fear as a
+`mapped` row with that caveat recorded in the manifest. Fear is therefore one CMU performer in the
+committable tier (`thin`, actor count in place of an interval, no headline number) and 8 actors
+once BML is committable (`fitted`). The user's permission email named anger, happiness and
+sadness; the aggregates requested are the same in kind, so a follow-up is the user's choice. Disgust and surprise have nothing and stay analytic (section 4.5).
 
 **The two licence tiers are a switch, not a fork.** `emotive-gait fit` fits on every dataset
 present under `data/raw/` whose manifest entry is marked `committable: true`. BML's entry ships
