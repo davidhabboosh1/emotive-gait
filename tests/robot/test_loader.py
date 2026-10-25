@@ -69,3 +69,4 @@ def test_unavailable_model_raises_actionable_error(monkeypatch, exc):
     msg = str(e.value)
     assert "python -m mujoco_menagerie prefetch unitree_g1" in msg
     assert "3.11.4" in msg
+    assert "sparse-checkout" in msg

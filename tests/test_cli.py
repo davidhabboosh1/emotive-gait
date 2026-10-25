@@ -58,3 +58,12 @@ def test_dry_run_prints_parameters_without_writing(tmp_path, capsys):
     assert main(["demo", "--emotion", "sadness=1.0", "--dry-run", "--out", str(out)]) == 0
     assert "cadence" in capsys.readouterr().out
     assert not out.exists()
+
+
+def test_unusable_out_path_is_an_environment_failure(tmp_path, capsys):
+    blocker = tmp_path / "f.txt"
+    blocker.write_text("x")
+    code = main(["demo", "--duration", "0.2", "--out", str(blocker / "x.mp4")])
+    err = capsys.readouterr().err
+    assert code == 1
+    assert err.strip() and "Traceback" not in err

@@ -192,6 +192,9 @@ def _demo(args: argparse.Namespace) -> int:
     except (ModelUnavailableError, FfmpegUnavailableError) as exc:
         _err(str(exc))
         return 2
+    except (subprocess.CalledProcessError, RuntimeError, OSError) as exc:
+        _err(f"environment failure: {exc}")
+        return 1
     return 0
 
 
@@ -211,6 +214,7 @@ def _evidence() -> int:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    """Run the CLI. Exit codes: 0 success, 1 environment failure, 2 user-input error."""
     parser = _build_parser()
     try:
         args = parser.parse_args(argv)

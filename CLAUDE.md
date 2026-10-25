@@ -23,11 +23,11 @@ ruff check .
 ruff format --check .
 ```
 
-CI runs `ruff check .`, `ruff format --check .` and `pytest -q`. `docs/archive` is excluded from ruff.
+CI runs `ruff check .`, `ruff format --check .` and `pytest -q`. `docs/archive` (archived transcript) and `docs/superpowers` (fenced Python in the design/plan docs) are excluded from ruff.
 
 ## Architecture
 
-Four layers, depending downward only: `robot/` -> `gait/` -> `emotion/` -> `sim/`, with `cli.py` on top.
+Four layers plus `cli.py` on top:
 
 - `robot/`: semantic `JointRole`s, the G1 profile (role -> actuator name), the model loader, neck
   injection, root modes (`FREE`, `Z_RAIL`, `WELD`).
@@ -35,9 +35,14 @@ Four layers, depending downward only: `robot/` -> `gait/` -> `emotion/` -> `sim/
 - `emotion/`: `evidence.py` (claims), `axes.py` (intensities -> axes), `model.py` (axes -> parameters).
 - `sim/`: `kinematic.py`, `physical.py`, `metrics.py` (ZMP/CoP/uprightness), `render.py`.
 
-The one sanctioned crossing: `emotion/model.py` imports `robot.roles` and `robot.profiles.g1`, to
-drop cues the profile cannot show. Nothing else in `emotion/` or `gait/` imports `robot/`, and
-nothing below `sim/` imports it.
+Dependency rules:
+
+- `robot/` is the base layer and imports nothing from the other three.
+- `gait/` depends on `robot/` (the generator needs `RobotModel` and `JointRole`).
+- `emotion/` depends on `gait.params`; ONLY `emotion/model.py` additionally imports `robot.roles`
+  and `robot.profiles.g1` (to drop cues the profile cannot show). Nothing in `emotion/` imports
+  `gait.generator` or `sim/`.
+- `sim/` depends on all three; nothing imports `sim/` except `cli.py`.
 
 ## Facts that bite
 
@@ -56,16 +61,16 @@ nothing below `sim/` imports it.
 - The leg constants in `generator.py` are calibrated against the Z-rail survival test
   (`test_z_rail_survives_six_seconds_on_every_preset`). Changing one is a physics decision.
 - Emotion is applied to PARAMETERS, never to joint angles. The generator clamps to joint range last.
-- Fear needs two category offsets (cadence, neck_pitch) because it breaks a pure three-axis mapping.
+- Fear has four category offsets (`knee_flexion_bias`, `elbow_swing_ratio`, `cadence`, `neck_pitch`), two of which (cadence, neck_pitch) override the axes, because it breaks a pure three-axis mapping.
 - No claim may state a magnitude in degrees; claims are signed directions with a grounding level.
 - Disgust and surprise are unsourced. Keep them flagged and keep the CLI warning.
 - Physics is open loop with position servos. ZMP/CoP are instrumentation, never control. A free
   floating base falls in 0.74-2.25 s, which is why the supported physics tier is the Z-rail.
-- Forward stride is kinematic-only; the in-place generator does not step forward.
+- Stride is rendered nowhere yet (both tiers are in-place): `step_length`/`speed` are modelled but not shown until the task-space IK phase.
 
 ## Conventions
 
-- `emotive-gait demo` returns 2 with a stderr message on user-input errors and never lets a
+- `emotive-gait demo` returns 2 on user-input errors and 1 on environment failures (ffmpeg, disk), always with a stderr message, and never lets a
   traceback escape `main`.
 - Design and plan documents live under `docs/superpowers/`; do not edit the design doc.
 - `docs/archive/` is unmaintained history.

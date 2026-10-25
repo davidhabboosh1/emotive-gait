@@ -58,8 +58,10 @@ control.
 - The physics tier is in-place stepping on a vertical rail. Open-loop stepping on a free
   floating base falls within 0.74-2.25 s at every expressive amplitude we measured, and there
   is no balance controller.
-- Forward stride exists only in the kinematic tier. Physical forward walking needs task-space
-  IK, which is a later phase.
+- The gait is in-place in both tiers in this version. `step_length` and the derived `speed` are
+  modelled as parameters (the emotion model moves them, `--hold-speed` pins them, `evidence`
+  cites them) but are not yet rendered as forward motion; only cadence is visible. Forward
+  stride comes with the task-space IK phase.
 - Disgust and surprise have no gait kinematics in any source we found. They ship as placements
   on the arousal/valence plane, flagged `UNSOURCED`, and the CLI warns when you use them.
 - No recognition rate has been measured: nobody has yet checked that people read these gaits as

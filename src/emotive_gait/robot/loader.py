@@ -77,7 +77,11 @@ def load_robot(
             f"Could not load robot model {profile.name!r}: {exc}. "
             f"Fetch it with `python -m mujoco_menagerie prefetch {profile.name}`; "
             "the first download requires Python >= 3.11.4 (3.12 recommended) because "
-            "mujoco-menagerie extracts archives with tarfile's `filter=` argument."
+            "mujoco-menagerie extracts archives with tarfile's `filter=` argument. "
+            "If prefetch is not possible, clone the model directly:\n"
+            "  git clone --filter=blob:none --no-checkout --depth 1 "
+            "https://github.com/google-deepmind/mujoco_menagerie.git _menagerie\n"
+            f"  cd _menagerie && git sparse-checkout set {profile.name} && git checkout"
         ) from exc
     if with_neck:
         neck_model = build_with_neck(entry_xml, root=root)
