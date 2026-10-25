@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 
 from emotive_gait.mocap.events import cycles, foot_events, path_frame
-from mocap.walker import FPS, make_arc_pelvis, straight_walker
+from mocap.walker import FPS, extremum_offset_s, make_arc_pelvis, straight_walker
 
 straight = straight_walker()
 arc_pelvis = make_arc_pelvis()
@@ -54,13 +54,20 @@ def test_path_frame_axes_are_orthonormal_and_to_path_projects():
 
 
 def test_strikes_and_toe_offs_match_the_synthetic_schedule():
+    # Position-extremum rule: the extremum of the foot's forward position relative to the
+    # pelvis is where foot speed equals pelvis speed. On the cubic smoothstep swing (0.6 m in
+    # 0.5 s, pelvis 0.6 m/s) foot speed is 7.2 u (1 - u) m/s, equal to 0.6 at
+    # u = (1 - sqrt(2/3)) / 2 = 0.0918, i.e. 0.0459 s = 5.5 frames into the swing (toe-off reads
+    # late) and 5.5 frames before its end (strike reads early). So strikes stay 120 frames
+    # apart, and toe-off minus strike is the 60-frame stance plus 2 x 5.5 = 71 frames.
+    offset = extremum_offset_s(0.5) * FPS
+    assert offset == pytest.approx(5.5, abs=0.05)
     pf = path_frame(straight.pelvis, FPS)
     ev = foot_events(straight.left_foot, pf, FPS)
     assert len(ev.strikes) >= 5
-    assert np.allclose(ev.strikes[1:] - ev.strikes[:-1], 120, atol=6)  # one stride per second
+    assert np.allclose(ev.strikes[1:] - ev.strikes[:-1], 120, atol=1)  # one stride per second
     assert len(ev.toe_offs) >= 5
-    # smoothstep ends are slow
-    assert np.allclose(ev.toe_offs - ev.strikes[: len(ev.toe_offs)], 60, atol=6)
+    assert np.allclose(ev.toe_offs - ev.strikes[: len(ev.toe_offs)], 60 + 2 * offset, atol=1.5)
     assert ev.stance.dtype == bool and ev.stance.shape == (len(straight.pelvis),)
 
 

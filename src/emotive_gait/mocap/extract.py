@@ -1,29 +1,34 @@
 """Per-cycle gait measurements from a :class:`SkeletonClip` (NumPy and SciPy only).
 
 Every landmark track is low-pass filtered (zero-lag Butterworth; NaN gaps are bridged for the
-filter and restored after): at ``EVENT_FILTER_HZ`` for timing, so marker noise cannot break a
-stance run, and at the lighter ``FILTER_HZ`` for the measurements, so swing peaks and arm swing
-keep their amplitude. The pelvis gives the path frame and each foot (toe when present, else
-ankle) its events (Task 2); the frame is then rebuilt with a heading window of one measured
-stride (the median cycle), which cancels the lateral sway. A cycle is two consecutive left
-strikes with one right strike between; it is skipped when it touches a ``turning`` frame, and
-as ``irregular`` when a foot does not swing exactly once in it or its duration is further than
-``MAX_CYCLE_DEVIATION`` from the median. Within a cycle, with ``(forward, left, up)`` the path
-frame axes ("detrended" removes the straight line through the cycle's end values):
+filter and restored after): at ``EVENT_FILTER_HZ`` for timing and at the lighter ``FILTER_HZ``
+for the measurements, so swing peaks and arm swing keep their amplitude. The pelvis gives the
+path frame and each foot (toe when present, else ankle) its events (``events.foot_events``,
+the position-extremum rule); the frame is then rebuilt with a heading window of one measured
+stride (the median cycle), which cancels the lateral sway, and the events are found again in
+it. A cycle is two consecutive left strikes with one right strike between; it is discarded as
+``turning`` when its heading changes by more than ``MAX_CYCLE_TURN_RAD`` from start to end,
+and as ``irregular`` when a foot does not swing exactly once in it or its duration is further
+than ``MAX_CYCLE_DEVIATION`` from the median. One usable cycle is enough for a summary.
+Within a cycle, with ``(forward, left, up)`` the path frame axes ("detrended" removes the
+straight line through the cycle's end values; a foot's placement is its mean position over
+the middle 50 % of the stance that a strike starts):
 
 =====================  ======================================================================
 ``cadence``            steps/s: 2 / cycle duration.
-``speed``              horizontal pelvis displacement over the cycle / cycle duration (m/s).
-``step_length``        half the horizontal pelvis displacement over the cycle (m), so
-                       ``speed == step_length * cadence``.
+``speed``              mean path-frame pelvis speed: pelvis displacement along the cycle's
+                       mean ``forward`` axis / cycle duration (m/s); a consistency check on
+                       ``step_length * cadence``.
+``step_length``        forward distance (cycle-mean ``forward`` axis) between successive
+                       contralateral foot placements at strike, the cycle's two steps
+                       averaged (m).
 ``step_height``        foot (toe, else ankle) peak swing height above the median height of
                        the same foot in stance during the cycle (m); both feet averaged.
 ``double_support_frac`` per step (strike to the next contralateral strike), the fraction of
                        frames with both feet in stance; the cycle's two steps averaged.
 ``swing_fraction``     fraction of the cycle a foot is not in stance; both feet averaged.
 ``feet_spacing``       mean ``|ankle_L - ankle_R|`` along the cycle's mean ``left`` axis (m).
-``pelvis_height``      mean pelvis z minus the mean stance-ankle z, plus the ankle's
-                       5th-percentile height (the same ankle term as :func:`leg_length`).
+``pelvis_height``      mean pelvis z over the cycle (m).
 ``com_bounce_amp``     half peak-to-peak of the detrended pelvis z.
 ``lateral_sway_amp``   half peak-to-peak of the detrended pelvis displacement along the
                        cycle's mean ``left`` axis.
@@ -53,6 +58,7 @@ import warnings
 from collections import Counter
 from collections.abc import Mapping
 from dataclasses import dataclass, fields, replace
+from itertools import pairwise
 
 import numpy as np
 from scipy.signal import butter, filtfilt
@@ -64,7 +70,8 @@ EVENT_FILTER_HZ = 6.0  # low-pass cutoff for the tracks that give the path frame
 FILTER_HZ = 12.0  # low-pass cutoff for the tracks that give the measurements
 FILTER_ORDER = 2  # applied forward and backward, so the effective order is 4
 MAX_CYCLE_DEVIATION = 0.25  # a cycle further than this from the median duration is irregular
-MIN_CYCLES = 2  # a clip with fewer usable cycles summarises to zero cycles
+MAX_CYCLE_TURN_RAD = 0.35  # a cycle whose heading changes by more than this is turning
+CYCLE_REASONS = ("turning", "irregular")  # reasons counted per discarded cycle
 
 L = Landmark
 _TIMING = (L.PELVIS, L.ANKLE_L, L.ANKLE_R, L.TOE_L, L.TOE_R)
@@ -238,11 +245,18 @@ def _nanmedian(values: np.ndarray) -> float:
     return float(np.median(a)) if a.size else math.nan
 
 
-def _ankle_floor_height(tracks: Mapping[Landmark, np.ndarray]) -> float:
-    """The ankle's 5th-percentile z, left and right averaged (shared with ``leg_length``)."""
-    return _nanmean(
-        [_nanpercentile(tracks[a][:, 2], 5) for a in (L.ANKLE_L, L.ANKLE_R) if a in tracks]
-    )
+def _placement(foot: np.ndarray, stance: np.ndarray, strike: int) -> np.ndarray:
+    """Mean position of ``foot`` over the middle 50 % of the stance run starting at ``strike``.
+
+    Exact on a stationary foot and robust to the human ankle rolling through stance.
+    """
+    after = np.flatnonzero(~stance[strike:])
+    stop = strike + (int(after[0]) if after.size else len(stance) - strike)
+    length = stop - strike
+    middle = foot[strike + length // 4 : strike + max(1, (3 * length) // 4)]
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", RuntimeWarning)
+        return np.nanmean(middle, axis=0)
 
 
 def _nanpercentile(values: np.ndarray, q: float) -> float:
@@ -263,30 +277,34 @@ def _measure_cycle(
     window = slice(s, e + 1)
     duration = (e - s) / fps
     pelvis = tracks[L.PELVIS]
-    travel = pelvis[e, :2] - pelvis[s, :2]
-    displacement = float(np.hypot(*travel))
     left_ev, right_ev = events
+    forward_axis = frame.forward[window].mean(axis=0)
+    forward_axis /= np.linalg.norm(forward_axis)
     stance = (left_ev.stance[window], right_ev.stance[window])
 
     mid = int(right_ev.strikes[(right_ev.strikes > s) & (right_ev.strikes < e)][0])
     both = left_ev.stance & right_ev.stance
     double_support = 0.5 * (both[s:mid].mean() + both[mid:e].mean())
+    placements = [
+        _placement(feet[0], left_ev.stance, s),
+        _placement(feet[1], right_ev.stance, mid),
+        _placement(feet[0], left_ev.stance, e),
+    ]
+    steps = [float((b - a) @ forward_axis) for a, b in pairwise(placements)]
 
     ankles = (tracks[L.ANKLE_L], tracks[L.ANKLE_R])
     left_axis = frame.left[window].mean(axis=0)
     left_axis /= np.linalg.norm(left_axis)
     lateral = (ankles[0][window] - ankles[1][window]) @ left_axis
-    stance_ankle_z = _nanmean([_nanmedian(a[window, 2][st]) for a, st in zip(ankles, stance)])
-    pelvis_height = _nanmean(pelvis[window, 2]) - stance_ankle_z + _ankle_floor_height(tracks)
     sway = (pelvis[window] - pelvis[s]) @ left_axis
 
     return GaitMeasurement(
         cadence=2.0 / duration,
-        step_length=displacement / 2.0,
+        step_length=_nanmean(steps),
         step_height=_nanmean([_step_height(f[window, 2], st) for f, st in zip(feet, stance)]),
         double_support_frac=float(double_support),
         feet_spacing=_nanmean(np.abs(lateral)),
-        pelvis_height=pelvis_height,
+        pelvis_height=_nanmean(pelvis[window, 2]),
         com_bounce_amp=_detrended_half_ptp(pelvis[window, 2]),
         lateral_sway_amp=_detrended_half_ptp(sway),
         trunk_pitch=_nanmean(angles.trunk[window]),
@@ -297,7 +315,7 @@ def _measure_cycle(
         elbow_swing_ratio=_nanmean(
             [_swing_ratio(a[window], b[window]) for a, b in zip(angles.arm, angles.elbow)]
         ),
-        speed=displacement / duration,
+        speed=float((pelvis[e] - pelvis[s]) @ forward_axis) / duration,
         swing_fraction=_nanmean([1.0 - st.mean() for st in stance]),
         start_frame=s,
         end_frame=e,
@@ -326,8 +344,6 @@ def _extract(clip: SkeletonClip, landmarks: LandmarkMap) -> tuple[list[GaitMeasu
     tracks = {k: _lowpass(v, fps, FILTER_HZ) for k, v in raw.items()}
     timing = {k: _lowpass(v, fps, EVENT_FILTER_HZ) for k, v in raw.items() if k in _TIMING}
     try:
-        # Events need only the frame's mean speed; the heading and the turning flags are then
-        # rebuilt with a window of one measured stride, which cancels the lateral sway exactly.
         frame = path_frame(timing[L.PELVIS], fps)
     except ValueError:
         reasons["no forward travel"] += 1
@@ -342,13 +358,22 @@ def _extract(clip: SkeletonClip, landmarks: LandmarkMap) -> tuple[list[GaitMeasu
     if not pairs:
         reasons["no complete cycle"] += 1
         return [], reasons
+    # Rebuild the frame with a heading window of one measured stride (cancels the lateral sway
+    # exactly), then find the events again in it.
+    stride = float(np.median([e - s for s, e in pairs]))
+    frame = path_frame(timing[L.PELVIS], fps, smooth_s=stride / fps)
+    events = (foot_events(timing_feet[0], frame, fps), foot_events(timing_feet[1], frame, fps))
+    pairs = cycles(*events)
+    if not pairs:
+        reasons["no complete cycle"] += 1
+        return [], reasons
     typical = float(np.median([e - s for s, e in pairs]))
-    frame = path_frame(timing[L.PELVIS], fps, smooth_s=typical / fps)
+    heading = np.unwrap(np.arctan2(frame.forward[:, 1], frame.forward[:, 0]))
     frame = replace(frame, origin=tracks[L.PELVIS])
     angles = _angles(tracks, frame)
     out = []
     for s, e in pairs:
-        if frame.turning[s : e + 1].any():
+        if abs(heading[e] - heading[s]) > MAX_CYCLE_TURN_RAD:
             reasons["turning"] += 1
             continue
         if not _regular(s, e, events, typical):
@@ -389,14 +414,9 @@ def _mean(measurements: list[GaitMeasurement]) -> GaitMeasurement:
 
 
 def summarise(clip: SkeletonClip, landmarks: LandmarkMap) -> ClipSummary:
-    """Mean over the usable cycles; fewer than ``MIN_CYCLES`` gives a zero-cycle summary."""
+    """Mean over the usable cycles; one complete non-turning cycle is enough."""
     kept, reasons = _extract(clip, landmarks)
-    n_discarded = reasons["turning"]
-    if len(kept) < MIN_CYCLES:
-        if kept:
-            reasons[f"fewer than {MIN_CYCLES} cycles"] += len(kept)
-            n_discarded += len(kept)
-        kept = []
+    n_discarded = sum(reasons[r] for r in CYCLE_REASONS)
     return ClipSummary(
         mean=_mean(kept),
         n_cycles=len(kept),

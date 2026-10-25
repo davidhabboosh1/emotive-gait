@@ -1,8 +1,9 @@
 """Synthetic walkers shared by the event and extraction tests (0.6 m/s, 120 Hz).
 
 ``straight`` and ``make_arc_pelvis`` are Task 2's pelvis-and-feet fixtures. ``full_walker`` adds
-hips, knees, a trunk, a head and arms with known posture, and a 0.6 s stance (0.4 s quintic
-swing, as the generator's) so each step has 0.2 of double support.
+hips, knees, a trunk, a head and arms with known posture, and a 0.6 s stance (0.4 s cubic
+swing) so each step has 0.2 of double support by schedule. ``bend`` maps a straight clip onto
+a curved path without moving a stance foot.
 """
 
 from __future__ import annotations
@@ -29,21 +30,12 @@ class Walker:
     right_foot: np.ndarray
 
 
-def foot_track(
-    t: np.ndarray, offset_s: float, y: float, swing_s: float = 0.5, *, quintic: bool = False
-) -> np.ndarray:
-    """Smoothstep swing for the first ``swing_s`` of each cycle, then stance (fixed world x).
-
-    ``quintic`` uses the generator's C2 smoothstep (``gait.footsteps.smoothstep5``), whose
-    swing foot eases into and out of stance as the G1's does, instead of the cubic.
-    """
+def foot_track(t: np.ndarray, offset_s: float, y: float, swing_s: float = 0.5) -> np.ndarray:
+    """Cubic smoothstep swing for the first ``swing_s`` of each cycle, then stance (fixed x)."""
     u = (t - offset_s) / STRIDE_S
     cycle = np.floor(u)
     swing = np.clip((u - cycle) * STRIDE_S / swing_s, 0.0, 1.0)
-    if quintic:
-        smooth = swing**3 * (10.0 + swing * (-15.0 + 6.0 * swing))
-    else:
-        smooth = swing * swing * (3.0 - 2.0 * swing)
+    smooth = swing * swing * (3.0 - 2.0 * swing)
     x = SPEED * STRIDE_S * (cycle + smooth)
     z = FOOT_REST_Z + CLEARANCE_M * np.sin(np.pi * swing)
     return np.stack([x, np.full_like(t, y), z], axis=1)
@@ -115,8 +107,8 @@ def full_walker(seconds: float = 6.0) -> FullWalker:
     n = len(t)
     pelvis = _pelvis(t, SWAY_M)
     ankles = {
-        "l": foot_track(t, 0.0, FOOT_Y, SWING_S, quintic=True),
-        "r": foot_track(t, STRIDE_S / 2, -FOOT_Y, SWING_S, quintic=True),
+        "l": foot_track(t, 0.0, FOOT_Y, SWING_S),
+        "r": foot_track(t, STRIDE_S / 2, -FOOT_Y, SWING_S),
     }
     neck = pelvis + TRUNK_M * _up_at(TRUNK_PITCH, n)
     head = neck + HEAD_M * _up_at(TRUNK_PITCH + NECK_PITCH, n)
@@ -149,3 +141,33 @@ def full_walker(seconds: float = 6.0) -> FullWalker:
         landmarks={Landmark(name): name for name in names},
         double_support=(STRIDE_S - 2 * SWING_S) / STRIDE_S,
     )
+
+
+def extremum_offset_s(swing_s: float) -> float:
+    """Time from swing start (or before swing end) to the position extremum of the foot.
+
+    The position-extremum rule (``events.foot_events``) finds the extremum of the foot's forward
+    position relative to the pelvis, i.e. where the foot's speed equals the pelvis speed. The
+    cubic smoothstep foot covers ``SPEED * STRIDE_S`` in ``swing_s``, so its speed is
+    ``SPEED * STRIDE_S / swing_s * 6 u (1 - u)``; equal to ``SPEED`` where
+    ``u (1 - u) = swing_s / (6 STRIDE_S)``, the smaller root ``u = (1 - sqrt(1 - 4c)) / 2``.
+    """
+    c = swing_s / (6.0 * STRIDE_S)
+    return swing_s * (1.0 - np.sqrt(1.0 - 4.0 * c)) / 2.0
+
+
+def bend(positions: np.ndarray, start_m: float, length_m: float, angle: float) -> np.ndarray:
+    """Map world ``x`` to arc length along a path that turns by ``angle`` over ``length_m``.
+
+    The path is straight before ``start_m`` and after ``start_m + length_m``; world ``y`` is the
+    offset along the path's left normal, so a stance foot (fixed x, y) stays fixed.
+    """
+    grid = np.linspace(positions[..., 0].min() - 1.0, positions[..., 0].max() + 1.0, 20001)
+    heading = angle * np.clip((grid - start_m) / length_m, 0.0, 1.0)
+    step = np.diff(grid, prepend=grid[0])
+    cx = np.cumsum(np.cos(heading) * step)
+    cy = np.cumsum(np.sin(heading) * step)
+    x, y = positions[..., 0], positions[..., 1]
+    h = np.interp(x, grid, heading)
+    px, py = np.interp(x, grid, cx), np.interp(x, grid, cy)
+    return np.stack([px - y * np.sin(h), py + y * np.cos(h), positions[..., 2]], axis=-1)

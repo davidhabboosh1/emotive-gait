@@ -13,7 +13,7 @@ from emotive_gait.gait.scaling import MEASURED_FIELDS, to_gait_parameters
 from emotive_gait.mocap.extract import GaitMeasurement, extract_cycles, leg_length, summarise
 from emotive_gait.mocap.normalise import normalise, ratio_delta
 from emotive_gait.mocap.skeleton import Landmark
-from mocap.walker import FPS, full_walker
+from mocap.walker import FPS, SWING_S, bend, extremum_offset_s, full_walker
 
 walker = full_walker()
 summary = summarise(walker.clip, walker.landmarks)
@@ -29,8 +29,13 @@ def test_cadence_step_length_and_double_support_from_the_schedule():
     assert m.cadence == pytest.approx(2.0, rel=0.02)  # two steps per 1 s cycle
     assert m.step_length == pytest.approx(0.3, rel=0.02)  # 0.6 m per cycle
     assert m.speed == pytest.approx(0.6, rel=0.02)
-    assert m.double_support_frac == pytest.approx(walker.double_support, abs=0.05)
-    assert m.swing_fraction == pytest.approx(0.4, abs=0.05)
+    # The position-extremum rule reads each stance longer than the 0.6 s schedule by the time
+    # from swing start (and before swing end) to where foot speed equals pelvis speed:
+    # stance 0.6 + 2 x 0.0287 = 0.657 s, so double support per 0.5 s step is 2 x 0.657 - 1.
+    stance = 1.0 - SWING_S + 2.0 * extremum_offset_s(SWING_S)
+    assert stance == pytest.approx(0.657, abs=0.001)
+    assert m.double_support_frac == pytest.approx(2.0 * stance - 1.0, abs=0.05)
+    assert m.swing_fraction == pytest.approx(1.0 - stance, abs=0.05)
 
 
 def test_posture_angles_follow_the_construction():
@@ -113,11 +118,47 @@ def test_too_short_clip_summarises_to_zero_cycles_with_a_reason():  # Review Foc
     assert s.n_cycles == 0 and math.isnan(s.mean.cadence) and sum(s.discard_reasons.values()) >= 1
 
 
-def test_one_cycle_is_not_enough():  # Review Focus 2: fewer than two complete cycles
+def test_one_complete_cycle_is_summarised():
     one = _with_positions(walker.clip.positions[: int(2.3 * FPS)])
-    assert len(extract_cycles(one, walker.landmarks)) == 1
     s = summarise(one, walker.landmarks)
-    assert s.n_cycles == 0 and s.n_discarded == 1 and math.isnan(s.mean.step_length)
+    assert s.n_cycles == 1 and s.n_discarded == 0
+    assert s.mean.step_length == pytest.approx(0.3, rel=0.02)
+
+
+def test_a_cycle_over_a_turn_is_discarded_and_straight_cycles_are_kept():
+    # Straight, then a 90-degree left turn over 0.9 m (1.5 s), then straight again.
+    start, length = 1.5, 0.9
+    turned = summarise(
+        _with_positions(bend(walker.clip.positions, start, length, math.pi / 2)), walker.landmarks
+    )
+    assert turned.discard_reasons.get("turning", 0) >= 1
+    kept = extract_cycles(
+        _with_positions(bend(walker.clip.positions, start, length, math.pi / 2)), walker.landmarks
+    )
+    assert len(kept) >= 2 and turned.n_cycles == len(kept)
+    pelvis_x = walker.clip.positions[:, walker.clip.joint_names.index("pelvis"), 0]
+    for c in kept:  # no kept cycle lies mostly on the turn
+        x = pelvis_x[c.start_frame : c.end_frame]
+        assert ((x > start) & (x < start + length)).mean() < 0.5
+    # A cycle whose feet are all on a straight stretch measures as on the straight walk (the
+    # one next to the turn places a foot on the curve, so its steps are legitimately shorter).
+    clear = [
+        c
+        for c in kept
+        if pelvis_x[c.end_frame] + 0.2 < start or pelvis_x[c.start_frame] - 0.2 > start + length
+    ]
+    assert len(clear) >= 2
+    assert all(c.step_length == pytest.approx(0.3, rel=0.02) for c in clear)
+
+
+def test_n_discarded_counts_every_discarded_cycle():
+    # Freezing the whole body for 40 frames inside one cycle makes it 33 % long: irregular.
+    pos = walker.clip.positions
+    frozen = np.concatenate([pos[:300], np.repeat(pos[300:301], 40, axis=0), pos[300:]])
+    s = summarise(_with_positions(frozen), walker.landmarks)
+    assert s.discard_reasons.get("irregular", 0) >= 1
+    cycle_level = s.discard_reasons.get("irregular", 0) + s.discard_reasons.get("turning", 0)
+    assert s.n_discarded == cycle_level and s.n_cycles >= 3
 
 
 def test_turning_throughout_summarises_to_zero_cycles():  # Review Focus 2
