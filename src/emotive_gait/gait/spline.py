@@ -28,8 +28,10 @@ class PeriodicCurve:
     _spline: CubicSpline = field(init=False, repr=False, compare=False)
 
     def __post_init__(self) -> None:
-        phase = np.asarray(self.knots_phase, dtype=float)
-        value = np.asarray(self.knots_value, dtype=float)
+        phase = np.array(self.knots_phase, dtype=float, copy=True)
+        value = np.array(self.knots_value, dtype=float, copy=True)
+        phase.flags.writeable = False
+        value.flags.writeable = False
         object.__setattr__(self, "knots_phase", phase)
         object.__setattr__(self, "knots_value", value)
         object.__setattr__(
@@ -63,6 +65,9 @@ class PeriodicCurve:
                 raise NonPeriodicKnotsError(
                     f"closing knot at phase 1.0 has value {v[-1]} but first value is {v[0]}"
                 )
+            # Within tolerance: snap to exactly v[0] so SciPy's strict periodic check passes.
+            v = v.copy()
+            v[-1] = v[0]
         else:
             p = np.append(p, 1.0)
             v = np.append(v, v[0])

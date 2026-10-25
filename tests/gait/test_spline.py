@@ -75,3 +75,25 @@ def test_curve_is_usable_as_dict_key_and_set_member():
     a, b = _curve(), _curve()
     assert {a: "x"}[b] == "x"
     assert b in {a}
+
+
+def test_closing_knot_within_tolerance_is_snapped():
+    c = PeriodicCurve.from_knots([0.0, 0.5, 1.0], [0.0, 1.0, 1e-13])
+    assert c(1.0) == pytest.approx(c(0.0))
+
+
+def test_knot_arrays_are_read_only():
+    c = _curve()
+    with pytest.raises(ValueError):
+        c.knots_value[0] = 99.0
+
+
+def test_mutating_input_arrays_does_not_affect_curve():
+    phase = np.array([0.0, 0.25, 0.5, 0.75])
+    value = np.array([0.0, 1.0, 0.0, -1.0])
+    c = PeriodicCurve.from_knots(phase, value)
+    h, y0 = hash(c), c(0.0)
+    phase[1] = 0.3
+    value[0] = 99.0
+    assert hash(c) == h
+    assert c(0.0) == pytest.approx(y0)
