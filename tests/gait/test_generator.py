@@ -244,6 +244,20 @@ def test_arms_follow_the_opposite_hip():
     assert np.abs(arm_l).max() == pytest.approx(GaitParameters().arm_swing_amp, rel=1e-3)
 
 
+def test_static_gait_has_no_arm_swing():
+    """The hip curve of a static gait is solver noise; it must not drive a full arm swing."""
+    static = GaitParameters(
+        step_length=0.0, step_height=0.0, com_bounce_amp=0.0, lateral_sway_amp=0.0
+    )
+    t = generate(static, load_robot())
+    v = [
+        t.angles_at(float(p))[JointRole.SHOULDER_PITCH_L]
+        for p in np.linspace(0, 1, 32, endpoint=False)
+    ]
+    assert all(math.isfinite(x) for x in v)
+    assert max(v) - min(v) < 1e-3
+
+
 def test_in_place_gait_still_swings_the_arms():
     t = generate(GaitParameters(step_length=0.0), load_robot())
     v = [

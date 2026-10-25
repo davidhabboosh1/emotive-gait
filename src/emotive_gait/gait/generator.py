@@ -4,7 +4,8 @@ The legs come from task-space IK (``gait.ik``): one cycle of foot targets from
 ``gait.footsteps`` is solved on a welded robot and each leg role is fitted with a periodic C2
 spline. The upper body is procedural: each arm follows the OPPOSITE leg's solved hip-pitch curve,
 mean-removed and normalised by its peak deviation, so ``arm_swing_amp`` is the arm's amplitude
-whatever the stride (an in-place gait still swings its arms).
+whatever the stride (an in-place gait still swings its arms). The swing fades in with the hip
+excursion below ``_HIP_SWING_FULL``, so a static gait does not swing its arms on solver noise.
 
 Composition order (design 4.3.1): solved legs and procedural upper body, then a per-role override
 replaces or an offset adds, then the result is clamped to the joint range last.
@@ -29,7 +30,10 @@ from emotive_gait.robot.roles import JointRole
 
 T = TypeVar("T")
 
-_PEAK_EPS = 1e-9
+# Arm swing is a reaction to leg swing: it fades in linearly up to this peak hip-pitch excursion
+# (rad) and is full above it. Every walking preset exceeds 0.1 rad, so arm_swing_amp is the arm
+# amplitude there; a static gait (whose hip curve is only solver noise) gets no arm swing.
+_HIP_SWING_FULL = 0.1
 
 _ARM_PITCH = {
     JointRole.SHOULDER_PITCH_L: JointRole.HIP_PITCH_R,
@@ -56,6 +60,7 @@ class GaitTrajectory:
     # of equality and hashing, so the trajectory is a true value type.
     _legs: tuple[tuple[JointRole, PeriodicCurve], ...] = ()
     _nominal_height: float = 0.0
+    _hip_norm: tuple[tuple[JointRole, tuple[float, float]], ...] = ()  # (mean, peak) per hip
     _ranges: tuple[tuple[JointRole, tuple[float, float]], ...] = ()
     _stand: tuple[tuple[JointRole, float], ...] = ()
     _signs: tuple[tuple[JointRole, float], ...] = ()
@@ -91,13 +96,14 @@ class GaitTrajectory:
 
         signs = dict(self._signs)
         legs = dict(self._legs)
+        hip_norm = dict(self._hip_norm)
         out = dict(stand)
         for role, curve in legs.items():
             out[role] = float(curve(phase))
         for arm, hip in _ARM_PITCH.items():
             # Contralateral: the arm follows the OPPOSITE leg's hip, normalised so that
             # arm_swing_amp is the arm amplitude whatever the stride.
-            out[arm] = stand[arm] + arm_swing * _normalised_swing(legs.get(hip), phase)
+            out[arm] = stand[arm] + arm_swing * _arm_drive(legs.get(hip), hip_norm.get(hip), phase)
         for roll in _ROLL:
             out[roll] = signs[roll] * abduction
         for elbow, arm in _ELBOW_FOR_ARM.items():
@@ -141,20 +147,28 @@ class GaitTrajectory:
         return ctrl
 
 
-def _normalised_swing(curve: PeriodicCurve | None, phase: float) -> float:
-    """``curve`` at ``phase``, mean-removed and divided by its peak absolute deviation.
-
-    Mean and peak are taken over the solved samples (the knots, without the closing one). Zero
-    when the curve is absent or flat (peak below 1e-9).
-    """
-    if curve is None:
-        return 0.0
+def _hip_norm(curve: PeriodicCurve) -> tuple[float, float]:
+    """``(mean, peak absolute deviation)`` of a hip curve over its solved samples (the knots)."""
     samples = curve.knots_value[:-1]
     mean = float(samples.mean())
-    peak = float(np.abs(samples - mean).max())
-    if peak < _PEAK_EPS:
+    return mean, float(np.abs(samples - mean).max())
+
+
+def _arm_drive(
+    curve: PeriodicCurve | None, norm: tuple[float, float] | None, phase: float
+) -> float:
+    """The hip curve mean-removed and divided by its peak, faded by the hip excursion.
+
+    Zero when the curve is absent or exactly flat; ``min(1, peak / _HIP_SWING_FULL)`` keeps
+    solver noise on a static gait from being amplified into a full arm swing.
+    """
+    if curve is None or norm is None:
         return 0.0
-    return (float(curve(phase)) - mean) / peak
+    mean, peak = norm
+    if peak == 0.0:
+        return 0.0
+    scale = min(1.0, peak / _HIP_SWING_FULL)
+    return scale * (float(curve(phase)) - mean) / peak
 
 
 def generate(
@@ -174,17 +188,16 @@ def generate(
     roles = tuple(r for r in JointRole if profile.has(r))
     solved = replace(params, step_height=params.expansiveness * params.step_height)
     cycle = solve_leg_cycle(solved, weld_robot_for(profile))
+    legs = {
+        role: PeriodicCurve.from_knots(cycle.phases, cycle.angles[role]) for role in cycle.angles
+    }
     return GaitTrajectory(
         roles=roles,
         params=params,
         feasibility=cycle.report,
-        _legs=_pairs(
-            {
-                role: PeriodicCurve.from_knots(cycle.phases, cycle.angles[role])
-                for role in cycle.angles
-            }
-        ),
+        _legs=_pairs(legs),
         _nominal_height=float(profile.nominal_pelvis_height),
+        _hip_norm=_pairs({hip: _hip_norm(legs[hip]) for hip in _ARM_PITCH.values() if hip in legs}),
         _ranges=_pairs({r: tuple(float(x) for x in robot.joint_range(r)) for r in roles}),
         _stand=_pairs(
             {r: float(robot.stand_qpos[robot.qpos_adr(r)]) for r in roles}

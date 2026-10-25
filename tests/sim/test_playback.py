@@ -102,7 +102,7 @@ def test_z_rail_survives_six_seconds_on_every_preset(preset):
     after the 0.5 s startup ramp, so the settle from the standing pose is not counted.
 
     Calibration (Phase 4 Task 5, nominal height 0.68 m): post-ramp peak-to-peak deviation was
-    neutral 2.45, sad 2.79, angry 4.91 and happy 3.52 cm; the mean (sag) was about -1 cm on
+    neutral 2.46, sad 2.80, angry 5.01 and happy 3.60 cm; the mean (sag) was about -1 cm on
     every preset; angry had no foot contact on 1.13% of steps, the others on none. The
     angry/happy excess over 3 cm survived a 0-120 ms lag shift of the commanded path, so it is
     real servo-compliant leg bounce at 2.3-2.7 steps/s, not measurement lag. The 0.06 m bound
@@ -118,9 +118,13 @@ def test_z_rail_survives_six_seconds_on_every_preset(preset):
     assert res.cop.shape == (n, 2)
     post = math.ceil(0.5 / r.model.opt.timestep)
     played = generate(res.played_params, r)  # the same projection simulate played
+    # pelvis_z[k] is sampled after mj_step, i.e. at time (k + 1) * dt.
     dt = r.model.opt.timestep
     expected = np.array(
-        [played.root_offset_at(phase_at(res.played_params, k * dt))[2] for k in range(post, n)]
+        [
+            played.root_offset_at(phase_at(res.played_params, (k + 1) * dt))[2]
+            for k in range(post, n)
+        ]
     )
     dev = res.pelvis_z[post:] - expected
     assert np.ptp(dev) < 0.06, f"{preset} uncommanded pelvis oscillation {np.ptp(dev):.4f} m"
