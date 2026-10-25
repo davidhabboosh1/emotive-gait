@@ -1,7 +1,11 @@
+import math
+
 import numpy as np
 import pytest
 
+from emotive_gait.gait.footsteps import swing_fraction
 from emotive_gait.gait.generator import generate
+from emotive_gait.gait.ik import N_SAMPLES
 from emotive_gait.gait.params import GaitParameters
 from emotive_gait.gait.spline import PeriodicCurve
 from emotive_gait.robot.loader import load_robot
@@ -9,10 +13,17 @@ from emotive_gait.robot.roles import JointRole
 
 
 def test_legs_are_antiphase_and_arms_contralateral():
+    """Solved hip curves are not zero-mean sinusoids, so antiphase is a half-cycle shift.
+
+    Contralateral (each arm follows the opposite hip) is ``test_arms_follow_the_opposite_hip``.
+    """
     t = generate(GaitParameters(), load_robot())
-    a = t.angles_at(0.25)
-    assert a[JointRole.HIP_PITCH_L] * a[JointRole.HIP_PITCH_R] < 0
-    assert a[JointRole.HIP_PITCH_L] * a[JointRole.SHOULDER_PITCH_L] < 0
+    for ph in np.linspace(0.0, 0.5, 16, endpoint=False):
+        a, b = t.angles_at(float(ph)), t.angles_at(float(ph) + 0.5)
+        assert a[JointRole.HIP_PITCH_L] == pytest.approx(b[JointRole.HIP_PITCH_R], abs=1e-3)
+        assert a[JointRole.SHOULDER_PITCH_L] == pytest.approx(
+            b[JointRole.SHOULDER_PITCH_R], abs=1e-3
+        )
 
 
 def test_cycle_is_continuous_across_the_phase_wrap():
@@ -24,7 +35,8 @@ def test_cycle_is_continuous_across_the_phase_wrap():
 def test_cycle_is_continuous_at_the_stance_to_swing_handoff():
     """The easier boundary to get wrong than the phase wrap."""
     t = generate(GaitParameters(), load_robot())
-    for ph in (0.5, 0.0):
+    sf = swing_fraction(GaitParameters())
+    for ph in (sf, 0.5 + sf, 0.0, 0.5):
         for role, v in t.angles_at(ph - 1e-6).items():
             assert v == pytest.approx(t.angles_at(ph + 1e-6)[role], abs=1e-4)
 
@@ -45,6 +57,9 @@ def test_expansiveness_scales_procedural_amplitude_only():
         return max(v) - min(v)
 
     assert amp(big, JointRole.SHOULDER_PITCH_L) > amp(base, JointRole.SHOULDER_PITCH_L)
+    assert generate(GaitParameters(expansiveness=1.5), r).params.step_length == (
+        GaitParameters().step_length
+    )
 
 
 def test_offsets_are_additive_and_overrides_replace():
@@ -87,7 +102,7 @@ def test_absent_role_is_skipped_not_raised():
         GaitParameters(trunk_pitch=3.0),
         GaitParameters(trunk_pitch=-3.0),
         GaitParameters(arm_swing_amp=9.0),
-        GaitParameters(knee_flexion_bias=5.0),
+        GaitParameters(step_length=0.75),
         GaitParameters(expansiveness=1.5, arm_swing_amp=3.0),
     ],
 )
@@ -115,10 +130,14 @@ def test_qpos_and_ctrl_use_robot_layout_without_mutating_stand_pose():
         assert c[r.ctrl_index(role)] == pytest.approx(v)
 
 
-def _elbow_ptp(r, **kw):
+def _ptp(r, role, **kw):
     t = generate(GaitParameters(**kw), r)
-    v = [t.angles_at(float(p))[JointRole.ELBOW_L] for p in np.linspace(0, 1, 32, endpoint=False)]
+    v = [t.angles_at(float(p))[role] for p in np.linspace(0, 1, 32, endpoint=False)]
     return max(v) - min(v)
+
+
+def _elbow_ptp(r, **kw):
+    return _ptp(r, JointRole.ELBOW_L, **kw)
 
 
 def test_elbow_swing_ratio_zero_holds_the_elbow_constant():
@@ -129,7 +148,10 @@ def test_elbow_swing_ratio_scales_elbow_oscillation():
     r = load_robot()
     kw = {"arm_swing_amp": 0.4, "elbow_flexion": 0.8}
     p0, p5, p1 = (_elbow_ptp(r, elbow_swing_ratio=x, **kw) for x in (0.0, 0.5, 1.0))
-    assert p1 == pytest.approx(0.8, abs=1e-3)
+    # Elbow swing / shoulder swing = elbow_swing_ratio. The shoulder peak-to-peak is not
+    # 2 * arm_swing_amp: the solved hip curve it follows is asymmetric about its mean.
+    shoulder = _ptp(r, JointRole.SHOULDER_PITCH_L, elbow_swing_ratio=1.0, **kw)
+    assert p1 == pytest.approx(shoulder, abs=1e-3)
     assert p1 > p5 > p0
 
 
@@ -137,6 +159,9 @@ def test_expansiveness_scales_elbow_swing_too():
     r = load_robot()
     assert _elbow_ptp(r, elbow_swing_ratio=1.0, expansiveness=1.4) > _elbow_ptp(
         r, elbow_swing_ratio=1.0, expansiveness=1.0
+    )
+    assert generate(GaitParameters(expansiveness=1.5), r).params.step_length == (
+        GaitParameters().step_length
     )
 
 
@@ -185,3 +210,51 @@ def test_override_past_range_is_still_clamped():
 def test_offset_past_range_is_still_clamped():
     t = generate(GaitParameters(), load_robot(), offsets={JointRole.WAIST_PITCH: _flat(2.0)})
     assert t.angles_at(0.3)[JointRole.WAIST_PITCH] == pytest.approx(0.52)
+
+
+def test_every_preset_is_feasible():
+    from emotive_gait.emotion.evidence import Emotion
+    from emotive_gait.emotion.model import PRESET_PARAMS, modulate
+    from emotive_gait.robot.profiles.g1 import G1_PROFILE_WITH_NECK
+
+    r = load_robot()
+    cases = dict(PRESET_PARAMS)
+    cases |= {e.value: modulate(GaitParameters(), {e: 1.0}, G1_PROFILE_WITH_NECK) for e in Emotion}
+    for name, p in cases.items():
+        rep = generate(p, r).feasibility
+        assert rep.feasible, f"{name}: {rep}"
+
+
+def test_infeasible_stride_is_flagged_not_rescaled():
+    r = load_robot()
+    t = generate(GaitParameters(step_length=0.75), r)
+    assert not t.feasibility.feasible and t.params.step_length == 0.75
+
+
+def test_arms_follow_the_opposite_hip():
+    t = generate(GaitParameters(), load_robot())
+    # The solver's own sample grid: the peak deviation is taken over the solved samples, and a
+    # coarser grid misses a sharp hip peak by a few tenths of a percent.
+    ph = np.arange(N_SAMPLES) / N_SAMPLES
+    hip_r = np.array([t.angles_at(p)[JointRole.HIP_PITCH_R] for p in ph])
+    hip_r -= hip_r.mean()
+    arm_l = np.array([t.angles_at(p)[JointRole.SHOULDER_PITCH_L] for p in ph])
+    arm_l -= arm_l.mean()
+    assert np.corrcoef(hip_r, arm_l)[0, 1] > 0.99
+    assert np.abs(arm_l).max() == pytest.approx(GaitParameters().arm_swing_amp, rel=1e-3)
+
+
+def test_in_place_gait_still_swings_the_arms():
+    t = generate(GaitParameters(step_length=0.0), load_robot())
+    v = [
+        t.angles_at(float(p))[JointRole.SHOULDER_PITCH_L]
+        for p in np.linspace(0, 1, 32, endpoint=False)
+    ]
+    assert max(v) - min(v) > 0.1 and all(math.isfinite(x) for x in v)
+
+
+def test_root_path_carries_crouch_bounce_and_forward_travel():
+    r = load_robot()
+    t = generate(GaitParameters(com_height_scale=0.9, com_bounce_amp=0.02), r)
+    assert t.root_offset_at(0.0)[2] == pytest.approx(0.68 * 0.9 + 0.02)
+    assert t.root_x_at(2.0) == pytest.approx(2.0 * t.params.speed)

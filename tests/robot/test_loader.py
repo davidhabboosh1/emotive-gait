@@ -76,7 +76,7 @@ def test_unavailable_model_raises_actionable_error(monkeypatch, exc):
 
 def test_profile_carries_the_nominal_height_and_foot_sites():
     r = load_robot()
-    assert r.profile.nominal_pelvis_height == 0.70
+    assert r.profile.nominal_pelvis_height == 0.68
     assert r.profile.foot_sites == ("left_foot", "right_foot")
 
 
@@ -94,7 +94,7 @@ def test_weld_puts_the_pelvis_at_the_nominal_height():
     d = mujoco.MjData(r.model)
     mujoco.mj_forward(r.model, d)
     pelvis = mujoco.mj_name2id(r.model, mujoco.mjtObj.mjOBJ_BODY, "pelvis")
-    assert d.xpos[pelvis][2] == pytest.approx(0.70)
+    assert d.xpos[pelvis][2] == pytest.approx(0.68)
 
 
 def test_every_root_mode_builds_without_a_neck():

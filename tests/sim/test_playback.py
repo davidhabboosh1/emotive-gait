@@ -3,6 +3,7 @@ import math
 import numpy as np
 import pytest
 
+from emotive_gait.gait.footsteps import phase_at
 from emotive_gait.gait.generator import generate
 from emotive_gait.gait.params import GaitParameters
 from emotive_gait.robot.loader import load_robot
@@ -88,28 +89,24 @@ _PHASE0_PRESETS = {
 }
 
 
-_ANGRY_XFAIL = pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "On mujoco 3.17.0 the angry preset fails at 1.362 s with 'foot contact lost on 25% of "
-        "a 0.5 s window'; it passed on 3.2.5. The mass/CoM/inertia gate is unchanged. The "
-        "joint-space leg generator this test calibrates is replaced by the IK legs in Phase 4 "
-        "Task 5, where the test is recalibrated and this xfail is removed."
-    ),
-)
-
-
-@pytest.mark.parametrize(
-    "preset",
-    [pytest.param(k, marks=_ANGRY_XFAIL) if k == "angry" else k for k in _PHASE0_PRESETS],
-)
+@pytest.mark.parametrize("preset", list(_PHASE0_PRESETS))
 def test_z_rail_survives_six_seconds_on_every_preset(preset):
     """Measured in Phase 0. The free root fell at 0.74-2.25 s; the Z-rail did not.
 
     On the rail the pelvis cannot rotate, so ``not fell`` comes from the constrained-root
-    criteria (rail stop, foot contact, pelvis drop); the bob and contact bounds below are what
-    the generator's leg constants are calibrated against. The ``angry`` case is a strict xfail
-    on mujoco 3.17 (contact-threshold drift); see ``_ANGRY_XFAIL``.
+    criteria (rail stop, foot contact, pelvis drop). The IK places the feet so that, with the
+    soles on the floor, the pelvis sits at ``nominal * com_height_scale + dz``: the commanded
+    pelvis path is known, so the instrument measures the deviation from it (tracking error),
+    which is what a raw bob bound measured while the bounce was inert. Its peak-to-peak bounds
+    uncommanded oscillation and its mean bounds servo sag under gravity. Everything is measured
+    after the 0.5 s startup ramp, so the settle from the standing pose is not counted.
+
+    Calibration (Phase 4 Task 5, nominal height 0.68 m): post-ramp peak-to-peak deviation was
+    neutral 2.45, sad 2.79, angry 4.91 and happy 3.52 cm; the mean (sag) was about -1 cm on
+    every preset; angry had no foot contact on 1.13% of steps, the others on none. The
+    angry/happy excess over 3 cm survived a 0-120 ms lag shift of the commanded path, so it is
+    real servo-compliant leg bounce at 2.3-2.7 steps/s, not measurement lag. The 0.06 m bound
+    is the spec's bob bound applied to the deviation.
     """
     r = load_robot(root=RootMode.Z_RAIL)
     res = simulate(r, generate(_PHASE0_PRESETS[preset], r), duration=6.0)
@@ -119,18 +116,23 @@ def test_z_rail_survives_six_seconds_on_every_preset(preset):
     assert n == round(6.0 / r.model.opt.timestep)
     assert res.uprightness.shape == (n,)
     assert res.cop.shape == (n, 2)
-    bob = res.pelvis_z.max() - res.pelvis_z.min()
-    assert bob < 0.06, f"{preset} pelvis bob {bob:.4f} m"
-    no_contact = np.isnan(res.cop[:, 0]).mean()
+    post = math.ceil(0.5 / r.model.opt.timestep)
+    played = generate(res.played_params, r)  # the same projection simulate played
+    dt = r.model.opt.timestep
+    expected = np.array(
+        [played.root_offset_at(phase_at(res.played_params, k * dt))[2] for k in range(post, n)]
+    )
+    dev = res.pelvis_z[post:] - expected
+    assert np.ptp(dev) < 0.06, f"{preset} uncommanded pelvis oscillation {np.ptp(dev):.4f} m"
+    assert abs(dev.mean()) < 0.05, f"{preset} pelvis sag {dev.mean():.4f} m"
+    no_contact = np.isnan(res.cop[post:, 0]).mean()
     assert no_contact < 0.25, f"{preset} had no foot contact on {no_contact:.1%} of steps"
 
 
 def test_z_rail_detects_collapse():
     """An absurd gait drives the pelvis down the rail with the feet off the floor."""
     r = load_robot(root=RootMode.Z_RAIL)
-    absurd = GaitParameters(
-        cadence=6, knee_flexion_bias=3, trunk_pitch=3, arm_swing_amp=3, expansiveness=2
-    )
+    absurd = GaitParameters(cadence=6, step_height=0.5, trunk_pitch=3, expansiveness=2)
     res = simulate(r, generate(absurd, r), duration=6.0)
     assert res.fell
     assert res.fail_reason is not None
