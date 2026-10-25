@@ -1,3 +1,6 @@
+import math
+
+import numpy as np
 import pytest
 
 from emotive_gait.gait.generator import generate
@@ -84,15 +87,36 @@ _PHASE0_PRESETS = {
 
 @pytest.mark.parametrize("preset", list(_PHASE0_PRESETS))
 def test_z_rail_survives_six_seconds_on_every_preset(preset):
-    """Measured in Phase 0. The free root fell at 0.74-2.25 s; the Z-rail did not."""
+    """Measured in Phase 0. The free root fell at 0.74-2.25 s; the Z-rail did not.
+
+    On the rail the pelvis cannot rotate, so ``not fell`` comes from the constrained-root
+    criteria (rail stop, foot contact, pelvis drop); the bob and contact bounds below are what
+    the generator's leg constants are calibrated against.
+    """
     r = load_robot(root=RootMode.Z_RAIL)
     res = simulate(r, generate(_PHASE0_PRESETS[preset], r), duration=6.0)
-    assert not res.fell, f"{preset} fell at {res.fell_at}"
-    assert res.fell_at is None
+    assert not res.fell, f"{preset} fell at {res.fell_at}: {res.fail_reason}"
+    assert res.fell_at is None and res.fail_reason is None
     n = len(res.pelvis_z)
     assert n == round(6.0 / r.model.opt.timestep)
     assert res.uprightness.shape == (n,)
     assert res.cop.shape == (n, 2)
+    bob = res.pelvis_z.max() - res.pelvis_z.min()
+    assert bob < 0.06, f"{preset} pelvis bob {bob:.4f} m"
+    no_contact = np.isnan(res.cop[:, 0]).mean()
+    assert no_contact < 0.25, f"{preset} had no foot contact on {no_contact:.1%} of steps"
+
+
+def test_z_rail_detects_collapse():
+    """An absurd gait drives the pelvis down the rail with the feet off the floor."""
+    r = load_robot(root=RootMode.Z_RAIL)
+    absurd = GaitParameters(
+        cadence=6, knee_flexion_bias=3, trunk_pitch=3, arm_swing_amp=3, expansiveness=2
+    )
+    res = simulate(r, generate(absurd, r), duration=6.0)
+    assert res.fell
+    assert res.fail_reason is not None
+    assert 0.0 < res.fell_at < 6.0
 
 
 def test_ramp_avoids_the_startup_yank():
@@ -101,12 +125,33 @@ def test_ramp_avoids_the_startup_yank():
     assert not simulate(r, t, duration=1.0, ramp=0.5).fell
 
 
-def test_fall_is_detected_by_uprightness_not_height():
-    """A crouch lowers the pelvis without falling; only tipping is a fall."""
+def _post_ramp_mean_pelvis_z(r, res, ramp=0.5):
+    return float(res.pelvis_z[math.ceil(ramp / r.model.opt.timestep) :].mean())
+
+
+def test_crouch_and_neutral_do_not_fall_on_the_z_rail():
     r = load_robot(root=RootMode.Z_RAIL)
-    res = simulate(r, generate(GaitParameters(knee_flexion_bias=0.5), r), duration=2.0)
-    assert not res.fell
-    assert res.pelvis_z.min() < res.pelvis_z[0]
+    for bias in (0.5, 0.0):
+        res = simulate(r, generate(GaitParameters(knee_flexion_bias=bias), r), duration=2.0)
+        assert not res.fell, f"knee_flexion_bias={bias}: {res.fail_reason}"
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "Final-fix-wave I1.3 premise does not hold for this generator: knee_flexion_bias "
+        "scales the swing-knee amplitude, not a stance crouch. Measured post-ramp mean pelvis z "
+        "over 2 s: bias 0.5 -> 0.8038 m, bias 0.0 -> 0.7979 m (crouch is 5.9 mm HIGHER). "
+        "Making it pass changes the leg constants, a physics decision outside this wave."
+    ),
+)
+def test_crouch_lowers_the_pelvis_at_least_3cm_below_neutral():
+    r = load_robot(root=RootMode.Z_RAIL)
+    crouch, neutral = (
+        simulate(r, generate(GaitParameters(knee_flexion_bias=b), r), duration=2.0)
+        for b in (0.5, 0.0)
+    )
+    assert _post_ramp_mean_pelvis_z(r, crouch) <= _post_ramp_mean_pelvis_z(r, neutral) - 0.03
 
 
 def test_free_root_open_loop_is_flagged_as_a_fall_and_stops_early():
@@ -117,3 +162,4 @@ def test_free_root_open_loop_is_flagged_as_a_fall_and_stops_early():
     assert 0.0 < res.fell_at < 6.0
     assert len(res.pelvis_z) < round(6.0 / r.model.opt.timestep)
     assert res.uprightness[-1] < 0.6
+    assert res.fail_reason is not None and res.fail_reason.startswith("uprightness")

@@ -23,7 +23,7 @@ from emotive_gait.robot.roles import JointRole
 T = TypeVar("T")
 
 _BASE_KNEE_AMPLITUDE = 0.25
-# Task 10's Z-rail survival test (test_z_rail_survives_six_seconds_on_every_preset) was
+# The Z-rail bob and contact bounds in test_z_rail_survives_six_seconds_on_every_preset were
 # calibrated against exactly these leg values: changing them is a physics decision, not a
 # tuning tweak.
 _HIP_PITCH_OFFSET = -0.10

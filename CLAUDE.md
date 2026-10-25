@@ -58,8 +58,13 @@ Dependency rules:
 - Seven `GaitParameters` fields are inert in the in-place generator and must not be read there:
   `step_length`, `step_height`, `double_support_frac`, `feet_spacing`, `com_height_scale`,
   `com_bounce_amp`, `lateral_sway_amp`. They exist for a future stepping generator.
-- The leg constants in `generator.py` are calibrated against the Z-rail survival test
-  (`test_z_rail_survives_six_seconds_on_every_preset`). Changing one is a physics decision.
+- The leg constants in `generator.py` are calibrated against the Z-rail bob and contact bounds
+  (pelvis bob < 6 cm, no-foot-contact steps < 25%) in
+  `test_z_rail_survives_six_seconds_on_every_preset`. Changing one is a physics decision.
+- On `Z_RAIL`/`WELD` the pelvis cannot rotate, so uprightness is floored at cos(0.52)^2 = 0.753
+  by the waist limits and can never signal a fall. `simulate` uses uprightness < 0.6 only on
+  `FREE`; constrained roots fall on rail-stop contact, lost foot contact or a 15 cm pelvis drop
+  (`SimResult.fail_reason` says which).
 - Emotion is applied to PARAMETERS, never to joint angles. The generator clamps to joint range last.
 - Fear has four category offsets (`knee_flexion_bias`, `elbow_swing_ratio`, `cadence`, `neck_pitch`), two of which (cadence, neck_pitch) override the axes, because it breaks a pure three-axis mapping.
 - No claim may state a magnitude in degrees; claims are signed directions with a grounding level.

@@ -67,3 +67,10 @@ def test_unusable_out_path_is_an_environment_failure(tmp_path, capsys):
     err = capsys.readouterr().err
     assert code == 1
     assert err.strip() and "Traceback" not in err
+
+
+def test_physics_summary_names_the_fail_reason(capsys):
+    code = main(["demo", "--physics", "--no-video", "--root", "free", "--duration", "3"])
+    out = capsys.readouterr().out
+    assert code == 0
+    assert "fell: True" in out and "fail_reason: uprightness" in out

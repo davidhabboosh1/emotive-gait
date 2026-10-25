@@ -173,6 +173,8 @@ def _demo(args: argparse.Namespace) -> int:
             print(f"root: {args.root}")
             print(f"fell: {res.fell}")
             print(f"fell_at: {res.fell_at if res.fell else 'n/a'}")
+            if res.fell:
+                print(f"fail_reason: {res.fail_reason}")
             print(f"pelvis bob (m): {bob:.4f}")
             if args.no_video:
                 return 0
