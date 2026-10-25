@@ -1,0 +1,9 @@
+#!OML:ASF two_bone.asf
+:FULLY-SPECIFIED
+:DEGREES
+1
+root 0 0 0 0 0 0
+lfemur 0
+2
+root 0 0 0 0 0 0
+lfemur 90
