@@ -63,8 +63,12 @@ inertia checks as the regression gate.
 - **Balance or feedback control of any kind.** The physics tier stays open loop with position
   servos. ZMP and centre of pressure (CoP) remain instrumentation.
 - **Free-base walking under physics.** Measured impossible open loop in Phase 0; not revisited.
-- **Heel-toe foot roll.** Feet stay level through swing and stance (flat-foot walking). Design
-  risk 9.3 stands and is reported, not solved.
+- **Heel-toe foot roll.** The sole is level whenever the foot is in stance (flat-foot
+  contact); during swing the sole orientation is a soft preference, so the foot may pitch as
+  the ankle limit demands (corrected during execution, ruling R7: forcing a level sole on a
+  lifted foot behind the body pins the ankle pitch at its limit, exactly where a human
+  plantarflexes at toe-off). No heel-toe roll is modelled. Design risk 9.3 stands and is
+  reported, not solved.
 - **Turning, uneven ground, or any path other than a straight line along world +X.**
 - **A learned or optimized gait.** The foot and pelvis paths are closed-form curves of the
   parameters, exactly as the joint curves were.
