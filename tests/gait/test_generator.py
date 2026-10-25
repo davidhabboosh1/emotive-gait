@@ -41,7 +41,8 @@ def test_expansiveness_scales_procedural_amplitude_only():
     big = generate(GaitParameters(expansiveness=1.4), r)
 
     def amp(t, role):
-        return max(abs(t.angles_at(p)[role]) for p in np.linspace(0, 1, 64))
+        v = [t.angles_at(p)[role] for p in np.linspace(0, 1, 64)]
+        return max(v) - min(v)
 
     assert amp(big, JointRole.SHOULDER_PITCH_L) > amp(base, JointRole.SHOULDER_PITCH_L)
 
@@ -144,3 +145,40 @@ def test_elbow_oscillates_in_phase_with_its_own_shoulder():
         assert (a[JointRole.ELBOW_L] - p.elbow_flexion) * (
             a[JointRole.SHOULDER_PITCH_L] - stand
         ) > 0
+
+
+def _flat(v):
+    return PeriodicCurve.from_knots([0.0, 0.5], [v, v])
+
+
+def test_trajectories_with_different_overrides_are_not_equal():
+    r, p = load_robot(), GaitParameters()
+    flat = _flat(0.2)
+    assert generate(p, r) != generate(p, r, overrides={JointRole.ELBOW_L: flat})
+    assert generate(p, r) != generate(p, r, offsets={JointRole.ELBOW_L: flat})
+
+
+def test_identical_generation_is_equal_and_hash_equal():
+    r, p = load_robot(), GaitParameters()
+    a = generate(p, r, offsets={JointRole.ELBOW_L: _flat(0.2)})
+    b = generate(p, r, offsets={JointRole.ELBOW_L: _flat(0.2)})
+    assert a == b
+    assert hash(a) == hash(b)
+
+
+def test_trajectory_captured_state_is_immutable():
+    t = generate(GaitParameters(), load_robot(), offsets={JointRole.ELBOW_L: _flat(0.2)})
+    for name in ("_ranges", "_stand", "_signs", "_offsets", "_overrides"):
+        assert isinstance(getattr(t, name), tuple)
+
+
+def test_override_past_range_is_still_clamped():
+    t = generate(
+        GaitParameters(), load_robot(), overrides={JointRole.WAIST_PITCH: _flat(2.0)}
+    )
+    assert t.angles_at(0.3)[JointRole.WAIST_PITCH] == pytest.approx(0.52)
+
+
+def test_offset_past_range_is_still_clamped():
+    t = generate(GaitParameters(), load_robot(), offsets={JointRole.WAIST_PITCH: _flat(2.0)})
+    assert t.angles_at(0.3)[JointRole.WAIST_PITCH] == pytest.approx(0.52)
