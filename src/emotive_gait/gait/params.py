@@ -45,9 +45,7 @@ class GaitParameters:
     def speed(self) -> float:
         return self.step_length * self.cadence
 
-    def with_speed(
-        self, target: float, mode: SpeedMode = SpeedMode.PROPORTIONAL
-    ) -> GaitParameters:
+    def with_speed(self, target: float, mode: SpeedMode = SpeedMode.PROPORTIONAL) -> GaitParameters:
         mode = SpeedMode(mode)
         # Validate first so no division or sqrt can produce NaN/ZeroDivisionError.
         for name, value in (

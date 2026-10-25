@@ -83,7 +83,9 @@ def support_polygon(model: mujoco.MjModel, data: mujoco.MjData) -> np.ndarray:
 
     With fewer than three distinct points the points are returned as-is.
     """
-    pts = np.array([pos[:2] for pos, _, _ in _foot_contacts(model, data)], dtype=float).reshape(-1, 2)
+    pts = np.array([pos[:2] for pos, _, _ in _foot_contacts(model, data)], dtype=float).reshape(
+        -1, 2
+    )
     if len(np.unique(pts, axis=0)) < 3:
         return pts
     try:

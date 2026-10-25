@@ -47,14 +47,38 @@ def test_root_mode_keeps_the_offscreen_framebuffer():
 # These mirror the Phase 0 spike's crude presets; knee_flexion_bias is relative to the
 # generator's 0.25 baseline knee amplitude.
 _PHASE0_PRESETS = {
-    "neutral": GaitParameters(cadence=1.8, arm_swing_amp=0.30, elbow_flexion=1.28,
-                              trunk_pitch=0.00, neck_pitch=0.00, knee_flexion_bias=0.0),
-    "sad":     GaitParameters(cadence=1.0, arm_swing_amp=0.08, elbow_flexion=1.05,
-                              trunk_pitch=0.32, neck_pitch=0.70, knee_flexion_bias=-0.11),
-    "angry":   GaitParameters(cadence=2.7, arm_swing_amp=0.60, elbow_flexion=1.85,
-                              trunk_pitch=0.18, neck_pitch=-0.10, knee_flexion_bias=0.13),
-    "happy":   GaitParameters(cadence=2.3, arm_swing_amp=0.62, elbow_flexion=0.95,
-                              trunk_pitch=-0.12, neck_pitch=-0.35, knee_flexion_bias=0.11),
+    "neutral": GaitParameters(
+        cadence=1.8,
+        arm_swing_amp=0.30,
+        elbow_flexion=1.28,
+        trunk_pitch=0.00,
+        neck_pitch=0.00,
+        knee_flexion_bias=0.0,
+    ),
+    "sad": GaitParameters(
+        cadence=1.0,
+        arm_swing_amp=0.08,
+        elbow_flexion=1.05,
+        trunk_pitch=0.32,
+        neck_pitch=0.70,
+        knee_flexion_bias=-0.11,
+    ),
+    "angry": GaitParameters(
+        cadence=2.7,
+        arm_swing_amp=0.60,
+        elbow_flexion=1.85,
+        trunk_pitch=0.18,
+        neck_pitch=-0.10,
+        knee_flexion_bias=0.13,
+    ),
+    "happy": GaitParameters(
+        cadence=2.3,
+        arm_swing_amp=0.62,
+        elbow_flexion=0.95,
+        trunk_pitch=-0.12,
+        neck_pitch=-0.35,
+        knee_flexion_bias=0.11,
+    ),
 }
 
 

@@ -1,4 +1,5 @@
 """C2-continuous periodic curves over normalized gait phase."""
+
 from __future__ import annotations
 
 from collections.abc import Sequence
@@ -34,9 +35,7 @@ class PeriodicCurve:
         value.flags.writeable = False
         object.__setattr__(self, "knots_phase", phase)
         object.__setattr__(self, "knots_value", value)
-        object.__setattr__(
-            self, "_spline", CubicSpline(phase, value, bc_type="periodic")
-        )
+        object.__setattr__(self, "_spline", CubicSpline(phase, value, bc_type="periodic"))
 
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, PeriodicCurve):

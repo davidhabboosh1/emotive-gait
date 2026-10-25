@@ -64,9 +64,14 @@ def test_expansiveness_does_not_rescale_hand_authored_offsets():
     flat = PeriodicCurve.from_knots([0.0, 0.5], [0.2, 0.2])
 
     def d(e):
-        with_offset = generate(GaitParameters(expansiveness=e), r, offsets={JointRole.ELBOW_L: flat})
+        with_offset = generate(
+            GaitParameters(expansiveness=e), r, offsets={JointRole.ELBOW_L: flat}
+        )
         without = generate(GaitParameters(expansiveness=e), r)
-        return with_offset.angles_at(0.3)[JointRole.ELBOW_L] - without.angles_at(0.3)[JointRole.ELBOW_L]
+        return (
+            with_offset.angles_at(0.3)[JointRole.ELBOW_L]
+            - without.angles_at(0.3)[JointRole.ELBOW_L]
+        )
 
     assert d(1.0) == pytest.approx(d(1.5))
 
@@ -173,9 +178,7 @@ def test_trajectory_captured_state_is_immutable():
 
 
 def test_override_past_range_is_still_clamped():
-    t = generate(
-        GaitParameters(), load_robot(), overrides={JointRole.WAIST_PITCH: _flat(2.0)}
-    )
+    t = generate(GaitParameters(), load_robot(), overrides={JointRole.WAIST_PITCH: _flat(2.0)})
     assert t.angles_at(0.3)[JointRole.WAIST_PITCH] == pytest.approx(0.52)
 
 
