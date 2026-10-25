@@ -1,4 +1,5 @@
 import dataclasses
+import math
 
 import pytest
 
@@ -48,6 +49,11 @@ def test_hold_modes_pin_the_named_quantity():
     ],
 )
 def test_degenerate_speed_constraints_raise_not_nan(cadence, step_length, target, mode):
+    if not (math.isfinite(cadence) and math.isfinite(step_length)):
+        # Non-finite fields can no longer be constructed (GaitParameters.__post_init__).
+        with pytest.raises(ValueError, match="finite"):
+            GaitParameters(cadence=cadence, step_length=step_length)
+        return
     p = GaitParameters(cadence=cadence, step_length=step_length)
     with pytest.raises(SpeedConstraintError):
         p.with_speed(target, mode)
@@ -93,3 +99,16 @@ def test_from_yaml_missing_keys_take_defaults(tmp_path):
     f = tmp_path / "g.yaml"
     f.write_text("cadence: 2.0\n")
     assert GaitParameters.from_yaml(f) == GaitParameters(cadence=2.0)
+
+
+@pytest.mark.parametrize("bad", [float("nan"), float("inf"), float("-inf")])
+def test_non_finite_fields_are_rejected(bad):
+    with pytest.raises(ValueError, match="trunk_pitch"):
+        GaitParameters(trunk_pitch=bad)
+
+
+def test_from_yaml_rejects_nan(tmp_path):
+    f = tmp_path / "g.yaml"
+    f.write_text("cadence: .nan\n")
+    with pytest.raises(ValueError, match="cadence"):
+        GaitParameters.from_yaml(f)

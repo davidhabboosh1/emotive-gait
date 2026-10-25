@@ -56,6 +56,15 @@ _PARAMETER_ROLES: Mapping[str, tuple[JointRole, ...]] = MappingProxyType(
 )
 # Parameters absent here are whole-body timing/amplitude and are never unexpressible.
 
+_NONNEGATIVE_AMPLITUDES = (
+    "arm_swing_amp",
+    "arm_abduction",
+    "expansiveness",
+    "com_bounce_amp",
+    "lateral_sway_amp",
+    "step_height",
+)
+
 
 def _validate(intensities: Mapping[Emotion, float]) -> dict[Emotion, float]:
     clean: dict[Emotion, float] = {}
@@ -121,11 +130,20 @@ def modulate(
 ) -> GaitParameters:
     """Return ``params`` shifted by the given emotion intensities.
 
-    Cues the profile cannot show are dropped (see :func:`unexpressible`). When
-    ``hold_speed`` is given, speed is pinned to it last, so posture cues survive.
+    Cues the profile cannot show are dropped (see :func:`unexpressible`). Amplitude parameters
+    (``arm_swing_amp``, ``arm_abduction``, ``expansiveness``, ``com_bounce_amp``,
+    ``lateral_sway_amp``, ``step_height``) are floored at 0.0: "less arm swing" saturates at
+    none, and a negative amplitude is a phase flip, not a smaller motion. When ``hold_speed``
+    is given, speed is pinned to it last, so posture cues survive.
     """
     deltas, _ = _plan(intensities, profile)
     result = replace(params, **{p: getattr(params, p) + d for p, d in deltas.items()})
+    # "Less arm swing" saturates at none: a negative amplitude is a phase flip (e.g. ipsilateral
+    # arm swing), not a smaller motion. Only negative values are touched, so a value that is
+    # already >= 0 passes through bit-exact.
+    floored = {f: 0.0 for f in _NONNEGATIVE_AMPLITUDES if getattr(result, f) < 0.0}
+    if floored:
+        result = replace(result, **floored)
     if hold_speed is not None:
         result = result.with_speed(hold_speed, speed_mode)
     return result

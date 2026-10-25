@@ -96,7 +96,32 @@ def test_preset_keys():
     assert set(PRESET_PARAMS) == {"neutral", "sad", "angry", "happy"}
 
 
-def test_every_preset_produces_finite_in_range_parameters():
+def test_every_preset_produces_finite_parameters():
     for name, p in PRESET_PARAMS.items():
         for f in dataclasses.fields(p):
             assert math.isfinite(getattr(p, f.name)), f"{name}.{f.name}"
+
+
+_AMPLITUDES = (
+    "arm_swing_amp",
+    "arm_abduction",
+    "expansiveness",
+    "com_bounce_amp",
+    "lateral_sway_amp",
+    "step_height",
+)
+
+
+def test_amplitudes_saturate_at_zero_instead_of_flipping_phase():
+    q = modulate(
+        GaitParameters(),
+        {Emotion.FEAR: 1.0, Emotion.SADNESS: 1.0, Emotion.DISGUST: 1.0},
+        G1_PROFILE_WITH_NECK,
+    )
+    assert q.arm_swing_amp == 0.0
+
+
+def test_every_preset_has_non_negative_amplitudes():
+    for name, p in PRESET_PARAMS.items():
+        for field in _AMPLITUDES:
+            assert getattr(p, field) >= 0.0, f"{name}.{field}"

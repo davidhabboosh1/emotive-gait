@@ -41,6 +41,13 @@ class GaitParameters:
     elbow_swing_ratio: float = 0.5
     expansiveness: float = 1.0
 
+    def __post_init__(self) -> None:
+        # Finiteness only, deliberately no range checks: a NaN or inf would pass straight
+        # through the generator's clamp (min/max with NaN) into the servos.
+        bad = [f.name for f in fields(self) if not math.isfinite(getattr(self, f.name))]
+        if bad:
+            raise ValueError(f"gait parameter(s) must be finite: {', '.join(bad)}")
+
     @property
     def speed(self) -> float:
         return self.step_length * self.cadence
