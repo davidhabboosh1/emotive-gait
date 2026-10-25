@@ -1,3 +1,5 @@
+import itertools
+
 import mujoco
 import pytest
 
@@ -34,16 +36,23 @@ def test_both_head_geoms_move_to_the_new_body():
     assert {int(r.model.geom_group[g]) for g in on_head} == {2, 3}
 
 
-def test_commanding_neck_pitch_moves_the_head_down():
+def test_positive_neck_pitch_tilts_gaze_down():
+    # Use the head's +x (gaze) axis z-component, not CoM height: CoM z peaks near q=0 and falls
+    # on both sides, so it cannot detect an inverted sign. gaze_z is strictly monotonic in q.
     r = load_robot(with_neck=True)
     d = mujoco.MjData(r.model)
     d.qpos[:] = r.stand_qpos
-    mujoco.mj_forward(r.model, d)
     head = mujoco.mj_name2id(r.model, mujoco.mjtObj.mjOBJ_BODY, "head_link")
-    z_up = d.xipos[head][2]  # CoM: xpos is the hinge itself and cannot move
-    d.qpos[r.qpos_adr(JointRole.NECK_PITCH)] = 0.8
-    mujoco.mj_forward(r.model, d)
-    assert d.xipos[head][2] < z_up
+    adr = r.qpos_adr(JointRole.NECK_PITCH)
+    lo, hi = r.joint_range(JointRole.NECK_PITCH)
+    gaze_z = []
+    for q in (lo, -0.2, 0.0, 0.2, 0.5, hi):
+        d.qpos[adr] = q
+        mujoco.mj_forward(r.model, d)
+        gaze_z.append(float(d.xmat[head].reshape(3, 3)[2, 0]))
+    assert all(a > b for a, b in itertools.pairwise(gaze_z))
+    assert gaze_z[0] > 0  # negative limit looks up
+    assert gaze_z[-1] < 0  # positive limit looks down
 
 
 def test_standing_pose_survives_the_keyframe_rebuild():
