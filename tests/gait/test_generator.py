@@ -2,6 +2,7 @@ import math
 
 import numpy as np
 import pytest
+from conftest import PHASE0_PRESETS
 
 from emotive_gait.gait.footsteps import swing_fraction
 from emotive_gait.gait.generator import generate
@@ -219,6 +220,7 @@ def test_every_preset_is_feasible():
 
     r = load_robot()
     cases = dict(PRESET_PARAMS)
+    cases |= {f"phase0_{k}": v for k, v in PHASE0_PRESETS.items()}
     cases |= {e.value: modulate(GaitParameters(), {e: 1.0}, G1_PROFILE_WITH_NECK) for e in Emotion}
     for name, p in cases.items():
         rep = generate(p, r).feasibility
@@ -272,3 +274,20 @@ def test_root_path_carries_crouch_bounce_and_forward_travel():
     t = generate(GaitParameters(com_height_scale=0.9, com_bounce_amp=0.02), r)
     assert t.root_offset_at(0.0)[2] == pytest.approx(0.68 * 0.9 + 0.02)
     assert t.root_x_at(2.0) == pytest.approx(2.0 * t.params.speed)
+
+
+def test_every_preset_keeps_full_arm_swing_under_every_projection():
+    from emotive_gait.emotion.model import PRESET_PARAMS
+    from emotive_gait.robot.root import RootMode
+    from emotive_gait.sim.physical import project_for_root
+
+    r = load_robot()
+    for name, p in PRESET_PARAMS.items():
+        for mode in RootMode:
+            t = generate(project_for_root(p, mode), r)
+            ph = np.arange(N_SAMPLES) / N_SAMPLES
+            sh = np.array([t.angles_at(float(x))[JointRole.SHOULDER_PITCH_L] for x in ph])
+            peak = float(np.abs(sh - sh.mean()).max())
+            print(f"{name} {mode.value}: shoulder peak {peak:.4f}")
+            want = p.arm_swing_amp * p.expansiveness
+            assert peak == pytest.approx(want, abs=1e-3), f"{name} {mode.value}"

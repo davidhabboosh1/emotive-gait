@@ -50,7 +50,7 @@ posture cue in the literature, so the loader injects a pitch neck joint and spli
 mass out of the torso.
 
 **`gait/`** defines `GaitParameters`, which are the same quantities the literature reports
-(cadence, step length, trunk and neck pitch, arm swing, ...). Joint trajectories are periodic
+(cadence, step length, trunk and neck pitch, arm swing, ...). In-place projections (constrained roots) keep the full arm swing. Joint trajectories are periodic
 C2 curves. `footsteps.py` computes foot and pelvis paths as pure functions of the parameters
 and the gait phase; `ik.py` solves those foot targets for leg joint angles with `mink` on a
 welded-root copy of the robot; the generator combines the IK legs with the spline-driven arms,
@@ -82,7 +82,7 @@ for instrumentation and never used for control.
   zeroes `com_bounce_amp` and fixes `com_height_scale` at 1.0; the experimental `xz-rail` zeroes only `lateral_sway_amp`; the free root plays everything
   and falls.
 - `--root xz-rail`, a prescribed forward slide, is experimental and falls under stride: the
-  neutral gait loses foot contact (first gap at 0.074 s) and falls at about 0.54 s. A servoed
+  neutral gait loses foot contact (first gap at 0.074 s with the default 0.5 s joint ramp; with no ramp the first gap is at 0.33 s and the fall at 0.552 s) and falls at about 0.54 s. A servoed
   rail (kp 5000 to 100000, ramped) failed the same way, at 0.52 to 1.12 s. Forward walking is
   therefore a kinematic-tier result; the physics tier is in place. It is kept as a measured
   negative result.

@@ -78,7 +78,7 @@ Dependency rules:
   ankle pitch limit (13.6 mm); 0.68 solves every preset to <= 0.065 mm. The preset feasibility
   test is the arbiter.
 - IK is seeded from a bent-knee pose (hip -0.2, knee 0.4, ankle -0.2): the keyframe's straight
-  knee is a Jacobian singularity. `generate()` costs about 0.6 s (two warm-started IK laps of ~0.3 s each; design doc
+  knee is a Jacobian singularity. `generate()` costs a few tenths of a second (two warm-started IK laps; design doc
   section 9), so tests share
   trajectories instead of regenerating.
 - Sole orientation is a hard task (level) in stance and a soft preference (cost 0.1) in swing;
@@ -89,14 +89,15 @@ Dependency rules:
   still renders.
 - `expansiveness` scales `arm_swing_amp`, `arm_abduction` and `step_height`, never
   `step_length` (speed = step_length * cadence is canonical). Arms follow the opposite hip's
-  normalised pitch and fade out below 0.1 rad hip excursion, so a static gait has no arm swing.
+  normalised pitch and fade out below 0.02 rad hip excursion (every preset exceeds it, even in its in-place projection),
+  so a static gait has no arm swing.
 - `feet_spacing` defaults to 0.20 m.
 - Physics plays a recorded projection of the parameters (`played_params`, printed by the CLI):
   `Z_RAIL` zeroes `step_length` and `lateral_sway_amp`; `WELD` also zeroes `com_bounce_amp` and
   forces `com_height_scale` 1.0 (pelvis welded at 0.68 m); `XZ_RAIL` (experimental) zeroes only
   `lateral_sway_amp`; `FREE` plays everything and falls.
 - `XZ_RAIL` is EXPERIMENTAL and a measured negative result: a prescribed forward slide (no
-  servo lag) still loses foot contact on neutral (first gap 0.074 s) and falls at about 0.54 s,
+  servo lag) still loses foot contact on neutral (first gap 0.074 s with the default 0.5 s joint ramp; with no ramp the first gap is at 0.33 s and the fall at 0.552 s) and falls at about 0.54 s,
   and a servoed rail (kp 5000-100000, ramped) failed the same way at 0.52-1.12 s. Forward
   walking is a kinematic-tier result; the physics tier is in place. Sway is lost on every rail.
 - The Z-rail survival gate is the deviation of pelvis z from the commanded path (peak-to-peak

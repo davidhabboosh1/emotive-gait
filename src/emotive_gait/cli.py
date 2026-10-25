@@ -274,7 +274,7 @@ def _demo(args: argparse.Namespace) -> int:
             print(f"wrote {_to_gif(out)}")
     except (ModelUnavailableError, FfmpegUnavailableError) as exc:
         _err(str(exc))
-        return 2
+        return 1
     except _ModelRevisionError as exc:
         _err(str(exc))
         return 1

@@ -3,6 +3,7 @@ import math
 import mujoco
 import numpy as np
 import pytest
+from conftest import PHASE0_PRESETS
 
 from emotive_gait.gait.footsteps import Side, foot_point, phase_at
 from emotive_gait.gait.generator import generate
@@ -51,41 +52,7 @@ def test_root_mode_keeps_the_offscreen_framebuffer():
     assert (r.model.vis.global_.offwidth, r.model.vis.global_.offheight) == (960, 720)
 
 
-# Local literals, not emotion.model.PRESET_PARAMS: that is Task 14 and this is Task 10.
-# These mirror the Phase 0 spike's crude presets, minus the retired knee bias.
-_PHASE0_PRESETS = {
-    "neutral": GaitParameters(
-        cadence=1.8,
-        arm_swing_amp=0.30,
-        elbow_flexion=1.28,
-        trunk_pitch=0.00,
-        neck_pitch=0.00,
-    ),
-    "sad": GaitParameters(
-        cadence=1.0,
-        arm_swing_amp=0.08,
-        elbow_flexion=1.05,
-        trunk_pitch=0.32,
-        neck_pitch=0.70,
-    ),
-    "angry": GaitParameters(
-        cadence=2.7,
-        arm_swing_amp=0.60,
-        elbow_flexion=1.85,
-        trunk_pitch=0.18,
-        neck_pitch=-0.10,
-    ),
-    "happy": GaitParameters(
-        cadence=2.3,
-        arm_swing_amp=0.62,
-        elbow_flexion=0.95,
-        trunk_pitch=-0.12,
-        neck_pitch=-0.35,
-    ),
-}
-
-
-@pytest.mark.parametrize("preset", list(_PHASE0_PRESETS))
+@pytest.mark.parametrize("preset", list(PHASE0_PRESETS))
 def test_z_rail_survives_six_seconds_on_every_preset(preset):
     """Measured in Phase 0. The free root fell at 0.74-2.25 s; the Z-rail did not.
 
@@ -105,7 +72,7 @@ def test_z_rail_survives_six_seconds_on_every_preset(preset):
     is the spec's bob bound applied to the deviation.
     """
     r = load_robot(root=RootMode.Z_RAIL)
-    res = simulate(r, generate(_PHASE0_PRESETS[preset], r), duration=6.0)
+    res = simulate(r, generate(PHASE0_PRESETS[preset], r), duration=6.0)
     assert not res.fell, f"{preset} fell at {res.fell_at}: {res.fail_reason}"
     assert res.fell_at is None and res.fail_reason is None
     n = len(res.pelvis_z)
@@ -168,7 +135,7 @@ def test_crouch_lowers_the_pelvis_at_least_3cm_below_neutral():
 def test_free_root_open_loop_is_flagged_as_a_fall_and_stops_early():
     """The reason the Z-rail exists: with no feedback a free base tips over."""
     r = load_robot(root=RootMode.FREE)
-    res = simulate(r, generate(_PHASE0_PRESETS["angry"], r), duration=6.0)
+    res = simulate(r, generate(PHASE0_PRESETS["angry"], r), duration=6.0)
     assert res.fell
     assert 0.0 < res.fell_at < 6.0
     assert len(res.pelvis_z) < round(6.0 / r.model.opt.timestep)
@@ -254,7 +221,8 @@ def test_xz_rail_has_two_slide_dofs():
 def test_xz_rail_forward_stride_loses_foot_contact_open_loop():
     """Measured negative result: neutral on XZ_RAIL falls at 0.540 s on lost foot contact.
 
-    The first no-contact step is at 0.074 s and 25.2 % of the final 0.5 s window has no foot on
+    The first no-contact step is at 0.074 s (with the default 0.5 s joint ramp; with no ramp the
+    first gap is at 0.33 s and the fall at 0.552 s) and 25.2 % of the final 0.5 s window has no foot on
     the floor. The servoed-rail variant (kp 5000-100000, ramped command) failed the same way at
     0.52-1.12 s, so forward walking stays a kinematic-tier result and the physics tier is in place.
     """
@@ -281,7 +249,10 @@ def test_report_on_the_z_rail_has_finite_numbers_and_no_slip_claim():
     rep = summarize(res)
     assert 0.0 <= rep.zmp_outside_frac <= 1.0 and math.isfinite(rep.zmp_mean_margin_m)
     assert all(s < 0.05 for s in rep.foot_slip_rms_m_s)  # in place: feet do not slide
-    assert 0.0 <= rep.pelvis_tracking_ptp_m <= rep.pelvis_bob_m
+    # Tracking error cannot exceed the raw bob plus the full commanded bounce.
+    assert (
+        0.0 <= rep.pelvis_tracking_ptp_m <= rep.pelvis_bob_m + 2 * res.played_params.com_bounce_amp
+    )
     assert not rep.pelvis_held
 
 

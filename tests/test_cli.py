@@ -138,3 +138,14 @@ def test_physics_prints_the_gait_report(capsys):
     line = next(ln for ln in out.splitlines() if ln.startswith("played_params:"))
     assert "step_length=0.0" in line
     assert "pelvis bob (m)" not in out
+
+
+@pytest.mark.requires_gl
+def test_missing_ffmpeg_is_an_environment_failure(tmp_path, capsys, monkeypatch):
+    monkeypatch.setattr("shutil.which", lambda *a, **k: None)
+    out = tmp_path / "v.mp4"
+    code = main(
+        ["demo", "--duration", "0.2", "--width", "320", "--height", "240", "--out", str(out)]
+    )
+    assert code == 1
+    assert "ffmpeg" in capsys.readouterr().err

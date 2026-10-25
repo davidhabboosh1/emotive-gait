@@ -21,7 +21,7 @@ _X_RANGE = (-1.0, 20.0)
 
 class RootMode(str, Enum):
     """``XZ_RAIL`` is experimental: a prescribed forward slide, and the open-loop legs lose floor
-    contact at neutral (first gap at 0.074 s, falls at about 0.54 s); it is kept as a measured
+    contact at neutral (first gap at 0.074 s with the default 0.5 s joint ramp, at 0.33 s with none, with the fall at 0.552 s; falls at about 0.54 s by default); it is kept as a measured
     negative result."""
 
     FREE = "free"

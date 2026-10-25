@@ -3,7 +3,7 @@ import numpy as np
 import pytest
 
 from emotive_gait.gait.footsteps import foot_travel
-from emotive_gait.gait.ik import LEG_ROLES, solve_leg_cycle, weld_robot_for
+from emotive_gait.gait.ik import LEG_ROLES, SEED_LEG_POSE, solve_leg_cycle, weld_robot_for
 from emotive_gait.gait.params import GaitParameters
 from emotive_gait.robot.loader import load_robot
 from emotive_gait.robot.profiles.g1 import G1_PROFILE, G1_PROFILE_WITH_NECK
@@ -81,3 +81,16 @@ def test_in_place_cycle_lifts_the_feet_without_travel(weld):
 def test_weld_robot_cache_distinguishes_neck_from_no_neck(weld):
     assert weld_robot_for(G1_PROFILE).model.nq != weld_robot_for(G1_PROFILE_WITH_NECK).model.nq
     assert weld_robot_for(G1_PROFILE_WITH_NECK) is weld_robot_for(G1_PROFILE_WITH_NECK)
+
+
+def test_level_sole_target_is_level(weld):
+    seed = np.array(weld.stand_qpos, dtype=float)
+    for role, value in SEED_LEG_POSE.items():
+        seed[weld.qpos_adr(role)] = value
+    data = mujoco.MjData(weld.model)
+    data.qpos[:] = seed
+    mujoco.mj_forward(weld.model, data)
+    for site in weld.profile.foot_sites:
+        sid = mujoco.mj_name2id(weld.model, mujoco.mjtObj.mjOBJ_SITE, site)
+        z_axis = data.site_xmat[sid].reshape(3, 3)[:, 2]
+        np.testing.assert_allclose(z_axis, (0.0, 0.0, 1.0), atol=1e-6)

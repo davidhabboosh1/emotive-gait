@@ -31,9 +31,10 @@ from emotive_gait.robot.roles import JointRole
 T = TypeVar("T")
 
 # Arm swing is a reaction to leg swing: it fades in linearly up to this peak hip-pitch excursion
-# (rad) and is full above it. Every walking preset exceeds 0.1 rad, so arm_swing_amp is the arm
-# amplitude there; a static gait (whose hip curve is only solver noise) gets no arm swing.
-_HIP_SWING_FULL = 0.1
+# (rad) and is full above it. Every preset under every root projection (minimum hip peak 0.071
+# rad, in-place WELD sadness) exceeds 0.02 rad, so arm_swing_amp is the arm amplitude there; a
+# static gait (hip noise ~9e-7 rad) scales to ~4e-5 and gets no visible arm swing.
+_HIP_SWING_FULL = 0.02
 
 _ARM_PITCH = {
     JointRole.SHOULDER_PITCH_L: JointRole.HIP_PITCH_R,
