@@ -21,7 +21,9 @@ MAPPING_SCHEMA = """\
 # `landmarks` maps a landmark name to the rig's bone name; `roles` maps a G1 joint role to the
 # `Bone/Channel` hinge that drives it (the bone's rotation channel, as `inspect_rig` prints it;
 # which channel is the knee's depends on the rig's axes). Pass this as the `mapping` argument
-# (a dict of the same shape). The names below are a Mixamo rig's (y-up, centimetres).
+# (a dict of the same shape). The names below are a Mixamo rig's (y-up, centimetres); the knee
+# channel is Zrotation on the project's x-forward test rig, and is likely Xrotation on a real
+# +Z-forward Mixamo export: read it off `inspect_rig` before copying this example.
 landmarks:
   pelvis: mixamorig:Hips
   ankle_l: mixamorig:LeftFoot

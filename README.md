@@ -262,8 +262,9 @@ Two decisions that change the output, stated with their numbers:
 5. The name lexicon covers the common families; an unusual rig needs a mapping file.
 6. The emotion prompt lexicon is hand-written and English; the MCP host's model does better.
 7. Skewed hinge axes drop procedural upper-body cues; the legs are always solved.
-8. Zero slip holds for feasible parameters; an emotion that asks a rig for an unreachable stride
-   is reported, not clipped.
+8. Slip on feasible parameters stays within about twice the IK's 2 mm per-knot threshold (the
+   two real-rig exceedances above are 2.7 and 2.9 mm); an emotion that asks a rig for an
+   unreachable stride is reported, not clipped.
 
 Findings from validation:
 
