@@ -3,15 +3,23 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from types import MappingProxyType
 
 import mujoco
 import numpy as np
 import pytest
 
+from emotive_gait.gait.generator import generate
 from emotive_gait.gait.ik import LEG_ROLES
+from emotive_gait.gait.params import GaitParameters
 from emotive_gait.mocap.readers.bvh import BvhFile, euler_from_matrix, rotation_about
 from emotive_gait.mocap.skeleton import Landmark
-from emotive_gait.rig.calibration import ReferencePose, reference_pose
+from emotive_gait.rig.calibration import (
+    ReferencePose,
+    landmark_site_names,
+    posture_map,
+    reference_pose,
+)
 from emotive_gait.rig.compile import _z_up_matrix, compile_driven, compile_full
 from emotive_gait.rig.mapping import RigError, bind_roles, map_landmarks
 from emotive_gait.rig.profile import rig_profile, rig_robot
@@ -26,6 +34,7 @@ from rig.driven import (
     calibrated_rig,
     driven_rig,
     hinges_from_posture,
+    landmark_points,
     probe_driven,
     spec_id,
     static_posture,
@@ -287,6 +296,8 @@ def test_posture_map_makes_commanded_posture_read_back(tmp_path, spec):
         read = static_posture(robot, qpos, mapping)
         for k in POSTURE_PARAMETERS:
             assert abs(read[k] - target[k]) < 0.02, (k, command, read[k] - target[k])
+    assert pm[JointRole.ELBOW_L] == pm[JointRole.ELBOW_R]
+    assert pm[JointRole.SHOULDER_ROLL_L] == pm[JointRole.SHOULDER_ROLL_R]
 
 
 def test_posture_map_commands_the_reference_pose_at_p_ref(tmp_path):
@@ -306,3 +317,71 @@ def test_posture_map_commands_the_reference_pose_at_p_ref(tmp_path):
 
 def test_identity_posture_map_on_the_g1_is_the_default():
     assert G1_PROFILE_WITH_NECK.posture_map == {}
+
+
+def _calibrate(full, ref, landmarks, drop=()):
+    """``(robot, mapping, driven, rows, p_ref)`` with the roles in ``drop`` left unbound."""
+    mapping = bind_roles(full, ref, landmarks)
+    roles = {r: b for r, b in mapping.roles.items() if r not in drop}
+    mapping = replace(mapping, roles=MappingProxyType(roles))
+    driven = compile_driven(full.file, mapping, ref)
+    uncalibrated = rig_robot(driven, rig_profile("calib", mapping, ref, posture_map={}))
+    sites = landmark_site_names(driven, mapping.landmarks)
+    rows, p_ref = posture_map(uncalibrated, mapping, landmark_sites=sites)
+    robot = rig_robot(driven, rig_profile("calib", mapping, ref, posture_map=rows))
+    return robot, mapping, driven, rows, p_ref
+
+
+def _bend(points: dict, side: str) -> float:
+    """Elbow bend (rad) from the sites: the angle between the segments, signed by
+    ``_signed_flexion`` (negative hyperextended)."""
+    upper = points[f"elbow_{side}"] - points[f"shoulder_{side}"]
+    fore = points[f"wrist_{side}"] - points[f"elbow_{side}"]
+    angle = np.arccos(np.clip(upper @ fore / np.linalg.norm(upper) / np.linalg.norm(fore), -1, 1))
+    return float(np.sign(_signed_flexion(points, side)) * angle)
+
+
+def _bends(robot, driven, mapping, qpos) -> tuple[float, float]:
+    data = mujoco.MjData(robot.model)
+    data.qpos[:] = qpos
+    mujoco.mj_forward(robot.model, data)
+    points = landmark_points(driven, mapping, data)
+    return _bend(points, "l"), _bend(points, "r")
+
+
+def test_posture_rows_carry_every_parameter_key_without_a_neck_and_generate_runs(tmp_path):
+    full, ref, landmarks = _bound(RigSpec(), tmp_path)
+    robot, _, _, rows, _ = _calibrate(full, ref, landmarks, drop=(JointRole.NECK_PITCH,))
+    assert JointRole.NECK_PITCH not in rows and JointRole.WAIST_PITCH in rows
+    for row in rows.values():
+        assert set(row) == {*POSTURE_PARAMETERS, "offset"}
+        assert row["neck_pitch"] == 0.0
+    angles = generate(GaitParameters(), robot, welded=robot).angles_at(0.3)
+    assert JointRole.NECK_PITCH not in angles and JointRole.WAIST_PITCH in angles
+
+
+def test_a_hyperextended_reference_elbow_keeps_the_gain_on_the_flexion_side(tmp_path):
+    full, ref, landmarks = _bound(RigSpec(), tmp_path)
+    for side in "lr":
+        ref = _with_elbow(ref, full.file, landmarks.landmarks[Landmark(f"elbow_{side}")], -20.0)
+    robot, mapping, driven, rows, p_ref = _calibrate(full, ref, landmarks)
+    assert rows[JointRole.ELBOW_L]["elbow_flexion"] > 0.0
+    zero = _bends(robot, driven, mapping, np.zeros(robot.model.nq))
+    assert all(b < 0.0 for b in zero)  # hyperextended at the reference
+    target = {**p_ref, "elbow_flexion": p_ref["elbow_flexion"] + 0.5}
+    bent = _bends(robot, driven, mapping, hinges_from_posture(robot, rows, target))
+    for before, after in zip(zero, bent, strict=True):
+        assert after - before > 0.4, (before, after)  # signed flexion grows
+
+
+def test_a_half_bound_elbow_group_moves_the_bound_arm_by_the_command(tmp_path):
+    full, ref, landmarks = _bound(RigSpec(), tmp_path)
+    robot, mapping, driven, rows, p_ref = _calibrate(
+        full, ref, landmarks, drop=(JointRole.ELBOW_R,)
+    )
+    assert JointRole.ELBOW_R not in rows
+    target = {**p_ref, "elbow_flexion": p_ref["elbow_flexion"] + 0.5}
+    zero = _bends(robot, driven, mapping, np.zeros(robot.model.nq))
+    left, right = _bends(robot, driven, mapping, hinges_from_posture(robot, rows, target))
+    assert abs(left - zero[0] - 0.5) < 0.02, (zero, left)
+    assert abs(right - zero[1]) < 1e-9 and abs(zero[1]) < 1e-6

@@ -29,13 +29,11 @@ heading +x) the extractor's own static reading (``mocap.extract.posture_angles``
 forward +x, left +y) is ``p_ref``. Each posture parameter has a role group (waist pitch; neck
 pitch; both elbows; both shoulder rolls), turned together by ``+PROBE_RAD``; the reading's
 change over ``PROBE_RAD`` is the Jacobian column of that group, ``J[parameter, group]``. A
-group with no bound role drops its parameter's row and column. ``K = J^-1`` and every bound
-role of a group gets the row ``{parameter: K[group, parameter], "offset": -(K @ p_ref)[group]}``,
-so commanding ``p_ref`` writes hinge 0 (the reference pose) and commanding ``p_ref + delta``
-turns the group by ``K @ delta``. The elbows are probed from the reference, which on a
-straight-armed actor is exactly straight: ``elbow_flexion`` is ``|bend|`` there, and the
-one-sided ``+PROBE_RAD`` probe (flexion by the bound sign) reads the gain of the flexing side,
-the side the map commands.
+group with no bound role drops its parameter's row and column from ``J``. ``K = J^-1`` and
+every bound role of a group gets the row ``{parameter: K[group, parameter], "offset":
+-(K @ p_ref)[group]}`` over all four posture parameters (0.0 for a dropped one), so commanding
+``p_ref`` writes hinge 0 (the reference pose) and commanding ``p_ref + delta`` turns the group
+by ``K @ delta``. See ``posture_map`` for the elbow and half-bound cases.
 """
 
 from __future__ import annotations
@@ -68,14 +66,23 @@ if TYPE_CHECKING:  # rig.mapping imports this module
 L = Landmark
 _AXIS = {"X": 0, "Y": 1, "Z": 2}
 _FEET = ((L.ANKLE_L, L.TOE_L), (L.ANKLE_R, L.TOE_R))
-R = JointRole
 # Posture parameter -> the roles turned together to probe it (spec 4.3).
 POSTURE_GROUPS: Mapping[str, tuple[JointRole, ...]] = MappingProxyType(
     {
-        "trunk_pitch": (R.WAIST_PITCH,),
-        "neck_pitch": (R.NECK_PITCH,),
-        "elbow_flexion": (R.ELBOW_L, R.ELBOW_R),
-        "arm_abduction": (R.SHOULDER_ROLL_L, R.SHOULDER_ROLL_R),
+        "trunk_pitch": (JointRole.WAIST_PITCH,),
+        "neck_pitch": (JointRole.NECK_PITCH,),
+        "elbow_flexion": (JointRole.ELBOW_L, JointRole.ELBOW_R),
+        "arm_abduction": (JointRole.SHOULDER_ROLL_L, JointRole.SHOULDER_ROLL_R),
+    }
+)
+# The landmark whose absence leaves a two-arm measure on the other arm alone: hiding it drops
+# that role's side from the measure (elbow flexion needs the wrist, abduction the elbow).
+_SIDE_LANDMARK: Mapping[JointRole, Landmark] = MappingProxyType(
+    {
+        JointRole.ELBOW_L: L.WRIST_L,
+        JointRole.ELBOW_R: L.WRIST_R,
+        JointRole.SHOULDER_ROLL_L: L.ELBOW_L,
+        JointRole.SHOULDER_ROLL_R: L.ELBOW_R,
     }
 )
 
@@ -329,8 +336,23 @@ def posture_map(
     """``(rows, p_ref)``: the measured affine posture map of the ``driven`` chain in ``robot``.
 
     ``landmark_sites`` maps each landmark to its site name (several are averaged, as the clip's
-    landmark tracks are). Raises ``RigError`` when a bound posture group's measure cannot be
-    read (a landmark is absent) or the Jacobian is singular.
+    landmark tracks are). Every row carries all four ``POSTURE_PARAMETERS`` and ``"offset"``.
+
+    Elbow: ``elbow_flexion`` is unsigned (``pi`` minus the angle at the elbow, the frozen
+    extractor definition), so its gain is taken on the flexion side, the magnitude of the
+    measured diagonal entry; the bound sign already makes ``+hinge`` anatomical flexion. On a
+    straight reference elbow the one-sided probe reads that side directly. On a reference
+    hyperextended beyond ``PROBE_RAD`` the probe reduces ``|bend|``; the gain magnitude is kept
+    and a flexion command first unfolds the arm, so the extractor's read-back on such a rig is
+    off by the fold (a documented limitation of the unsigned measure, never retuned).
+
+    Half-bound group: when one side of a two-role group (elbows, shoulder rolls) is unbound,
+    that group's measure is probed and read on the bound arm only, so the bound arm moves by the
+    commanded delta and the unbound arm stays at the reference. The extractor's two-arm mean on
+    the output then reads half the delta, a round-trip residual such a rig shows.
+
+    Raises ``RigError`` when a bound posture group's measure cannot be read (a landmark is
+    absent) or the Jacobian is singular.
     """
     model = robot.model
     data = mujoco.MjData(model)
@@ -344,19 +366,31 @@ def posture_map(
         left=np.array([[0.0, 1.0, 0.0]]),
         turning=np.zeros(1, dtype=bool),
     )
+    groups = {
+        k: tuple(r for r in POSTURE_GROUPS[k] if r in mapping.roles) for k in POSTURE_PARAMETERS
+    }
+    # Per measure, the landmarks hidden so a half-bound group reads its bound arm alone.
+    hidden = {
+        k: frozenset(_SIDE_LANDMARK[r] for r in POSTURE_GROUPS[k] if r not in groups[k])
+        if groups[k]
+        else frozenset()
+        for k in POSTURE_PARAMETERS
+    }
 
     def reading(qpos: np.ndarray) -> np.ndarray:
         data.qpos[:] = qpos
         mujoco.mj_forward(model, data)
         tracks = {lm: data.site_xpos[ids].mean(axis=0)[None, :] for lm, ids in site_ids.items()}
-        read = posture_angles(tracks, frame)
-        return np.array([read[k] for k in POSTURE_PARAMETERS])
+        out, cache = [], {}
+        for k in POSTURE_PARAMETERS:
+            if hidden[k] not in cache:
+                shown = {lm: v for lm, v in tracks.items() if lm not in hidden[k]}
+                cache[hidden[k]] = posture_angles(shown, frame)
+            out.append(cache[hidden[k]][k])
+        return np.array(out)
 
     q0 = np.zeros(model.nq)
     p_all = reading(q0)
-    groups = {
-        k: tuple(r for r in POSTURE_GROUPS[k] if r in mapping.roles) for k in POSTURE_PARAMETERS
-    }
     used = [i for i, k in enumerate(POSTURE_PARAMETERS) if groups[k]]
     for i in used:
         if not np.isfinite(p_all[i]):
@@ -368,6 +402,10 @@ def posture_map(
         for role in groups[POSTURE_PARAMETERS[i]]:
             turned[robot.qpos_adr(role)] += PROBE_RAD
         jacobian[:, col] = (reading(turned)[used] - p_all[used]) / PROBE_RAD
+    elbow = POSTURE_PARAMETERS.index("elbow_flexion")
+    if elbow in used:
+        e = used.index(elbow)
+        jacobian[e, e] = abs(jacobian[e, e])  # the flexion side (docstring)
     if used and np.linalg.cond(jacobian) > 1e6:
         raise RigError(f"posture Jacobian is singular: {np.round(jacobian, 3).tolist()}")
     gains = np.linalg.inv(jacobian) if used else np.zeros((0, 0))
@@ -375,7 +413,9 @@ def posture_map(
     offsets = -gains @ p_all[used]
     rows: dict[JointRole, Mapping[str, float]] = {}
     for row, i in enumerate(used):
-        coefficients = {POSTURE_PARAMETERS[j]: float(gains[row, c]) for c, j in enumerate(used)}
+        coefficients = dict.fromkeys(POSTURE_PARAMETERS, 0.0)
+        for c, j in enumerate(used):
+            coefficients[POSTURE_PARAMETERS[j]] = float(gains[row, c])
         coefficients["offset"] = float(offsets[row])
         for role in groups[POSTURE_PARAMETERS[i]]:
             rows[role] = MappingProxyType(dict(coefficients))
