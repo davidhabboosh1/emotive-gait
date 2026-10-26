@@ -23,17 +23,16 @@ from emotive_gait.cli_common import (
     _parse_emotions,
     _print_params,
     _warn_learned_cells,
+    evidence_lines,
     warn_infeasible,
     warn_unsourced,
 )
-from emotive_gait.emotion.evidence import EVIDENCE
 from emotive_gait.emotion.model import IntensityError, modulate
 from emotive_gait.gait.params import GaitParameters, SpeedConstraintError
 
 _REPORT = "docs/reports/phase-4-5-fit-report.md"
 _DERIVED = "data/derived"
 _ROOTS = {"free": "FREE", "z-rail": "Z_RAIL", "xz-rail": "XZ_RAIL", "weld": "WELD"}
-_DIRECTION = {1: "+", 0: "0", -1: "-"}
 
 
 class _ModelRevisionError(Exception):
@@ -322,38 +321,6 @@ def _demo(args: argparse.Namespace) -> int:
         _err(f"environment failure: {exc}")
         return 1
     return 0
-
-
-def _learned_columns(cell) -> list[str]:
-    if cell is None:
-        return ["-", "-", "-"]
-    if cell.grounding == "missing":
-        return ["-", "-", cell.direction_check]
-    if cell.grounding == "fitted":
-        interval = f"[{cell.ci_low:.4f}, {cell.ci_high:.4f}]"
-    else:
-        interval = f"{cell.n_actors} actors"
-    return [f"{cell.estimate:+.4f}", interval, cell.direction_check]
-
-
-def evidence_lines(artefact=None, scaling: str = "froude") -> list[str]:
-    """The claim table as ``evidence`` prints it, one string per row (shared with the MCP server)."""
-    head = ["EMOTION", "PARAMETER", "DIR", "GROUNDING"]
-    if artefact is not None:
-        head += ["ESTIMATE", "CI", "CHECK"]
-    rows = [(*head, "CITATION")]
-    last = None
-    for c in EVIDENCE:
-        label = c.emotion.value if c.emotion is not last else ""
-        last = c.emotion
-        row = [label, c.parameter, _DIRECTION[c.direction], c.grounding.value.upper()]
-        if artefact is not None:
-            row += _learned_columns(artefact.cells.get((scaling, c.emotion.value, c.parameter)))
-        rows.append((*row, c.citation))
-    widths = [max(len(r[i]) for r in rows) for i in range(len(rows[0]) - 1)]
-    return [
-        "  ".join(r[i].ljust(widths[i]) for i in range(len(widths))) + "  " + r[-1] for r in rows
-    ]
 
 
 def _evidence(args: argparse.Namespace) -> int:

@@ -22,14 +22,14 @@ MAPPING_SCHEMA = """\
 # bone that drives it. Pass this as the `mapping` argument (a dict of the same shape).
 landmarks:
   pelvis: Hips
-  l_ankle: LeftFoot
-  r_ankle: RightFoot
-  l_toe: LeftToeBase
-  r_toe: RightToeBase
+  ankle_l: LeftFoot
+  ankle_r: RightFoot
+  toe_l: LeftToeBase
+  toe_r: RightToeBase
   neck: Neck
 roles:
-  left_knee: LeftLeg
-  right_knee: RightLeg
+  knee_l: LeftLeg
+  knee_r: RightLeg
 # optional: the file's unit and up axis (explicit tool arguments win)
 scale: 0.01      # metres per file unit
 up_axis: y       # y or z
@@ -66,55 +66,77 @@ def _call(fn, *args):
         raise ToolError(str(exc)) from exc
 
 
-def _load(bvh_path: str, scale: float | None, up_axis: str | None, mapping: dict | None):
-    from emotive_gait.rig.cli import (
-        _check_positive_finite,
-        mapping_overrides_from,
-        resolve_scale_up,
-    )
+def _prepare(bvh_path: str, scale: float | None, up_axis: str | None, mapping: dict | None):
+    """``(source, scale, up_axis, overrides, ignored)`` from the tool arguments; ``ignored`` lists
+    the informational mapping keys the pipeline does not use."""
+    from emotive_gait.cli_common import check_positive_finite
+    from emotive_gait.rig.cli import mapping_overrides_from, resolve_scale_up
     from emotive_gait.rig.errors import RigError
-    from emotive_gait.rig.synthesis import load_rig
 
     source = Path(bvh_path)
     if not source.is_file():
         raise RigError(f"{source}: no such file")
     overrides, info = (None, {}) if mapping is None else mapping_overrides_from(mapping)
     if scale is not None:
-        scale = _check_positive_finite(scale, "scale")
+        scale = check_positive_finite(scale, "scale")
     if up_axis is not None and up_axis not in ("y", "z"):
         raise RigError(f"up_axis must be 'y' or 'z', got {up_axis!r}")
     scale, up_axis = resolve_scale_up(info, scale, up_axis)
-    return load_rig(source, scale=scale, up_axis=up_axis, mapping_overrides=overrides)
+    ignored = [k for k in info if k not in ("scale", "up_axis")]
+    return source, scale, up_axis, overrides, ignored
+
+
+def _with_ignored(data: dict, ignored: list[str]) -> dict:
+    if ignored:
+        data["ignored_mapping_keys"] = ignored
+    return data
+
+
+def _load(bvh_path: str, scale: float | None, up_axis: str | None, mapping: dict | None):
+    """The ``LoadedRig`` and the ignored informational mapping keys."""
+    from emotive_gait.rig.synthesis import load_rig
+
+    source, scale, up_axis, overrides, ignored = _prepare(bvh_path, scale, up_axis, mapping)
+    rig = load_rig(source, scale=scale, up_axis=up_axis, mapping_overrides=overrides)
+    return rig, ignored
 
 
 def _inspect(bvh_path, scale, up_axis, mapping) -> dict:
-    from emotive_gait.rig.cli import _clean, inspect_data
+    from emotive_gait.cli_common import clean
+    from emotive_gait.rig.cli import inspect_data
 
-    return _clean(inspect_data(_load(bvh_path, scale, up_axis, mapping)))
+    rig, ignored = _load(bvh_path, scale, up_axis, mapping)
+    return _with_ignored(clean(inspect_data(rig)), ignored)
 
 
 def _measure(bvh_path, scale, up_axis, mapping) -> dict:
     import dataclasses
 
-    from emotive_gait.rig.cli import _clean
+    from emotive_gait.cli_common import clean
+    from emotive_gait.rig.synthesis import measure
 
-    s = _load(bvh_path, scale, up_axis, mapping).summary
-    return _clean(
-        {
-            "mean": dataclasses.asdict(s.mean),
-            "cycles": {
-                "used": s.n_cycles,
-                "discarded": s.n_discarded,
-                "discard_reasons": dict(s.discard_reasons),
-            },
-            "leg_length": s.leg_length,
-        }
+    source, scale, up_axis, overrides, ignored = _prepare(bvh_path, scale, up_axis, mapping)
+    s = measure(source, scale=scale, up_axis=up_axis, mapping_overrides=overrides)
+    return _with_ignored(
+        clean(
+            {
+                "mean": dataclasses.asdict(s.mean),
+                "cycles": {
+                    "used": s.n_cycles,
+                    "discarded": s.n_discarded,
+                    "discard_reasons": dict(s.discard_reasons),
+                },
+                "leg_length": s.leg_length,
+            }
+        ),
+        ignored,
     )
 
 
 def _walk(
     bvh_path, out_path, intensities, prompt, model, scaling, duration_s, mapping, scale, up_axis
 ) -> dict:
+    from emotive_gait.cli_common import check_positive_finite, clean
     from emotive_gait.emotion.evidence import Emotion
     from emotive_gait.emotion.learned import (
         ArtefactMissingError,
@@ -124,7 +146,7 @@ def _walk(
     from emotive_gait.emotion.model import ANALYTIC
     from emotive_gait.emotion.prompt import parse_emotion_prompt
     from emotive_gait.mocap.writers.bvh import write_bvh
-    from emotive_gait.rig.cli import _check_positive_finite, _clean, walk_data
+    from emotive_gait.rig.cli import walk_data
     from emotive_gait.rig.synthesis import walk
 
     if (intensities is None) == (prompt is None):
@@ -134,7 +156,7 @@ def _walk(
     if scaling not in ("froude", "ratio"):
         raise ValueError(f"scaling must be 'froude' or 'ratio', got {scaling!r}")
     if duration_s is not None:
-        duration_s = _check_positive_finite(duration_s, "duration_s")
+        duration_s = check_positive_finite(duration_s, "duration_s")
     parsed = None
     if prompt is not None:
         parsed = parse_emotion_prompt(prompt)
@@ -158,7 +180,9 @@ def _walk(
             emotion_model = LearnedEmotionModel.default(scaling=scaling)
         except (ArtefactMissingError, ArtefactSchemaError) as exc:
             raise ValueError(str(exc)) from exc
-    rig = _load(bvh_path, scale, up_axis, mapping)
+    if Path(out_path).resolve() == Path(bvh_path).resolve():
+        raise ValueError("out_path must differ from bvh_path (the source would be overwritten)")
+    rig, ignored = _load(bvh_path, scale, up_axis, mapping)
     result = walk(
         rig,
         intensities=values,
@@ -171,15 +195,16 @@ def _walk(
     out = Path(out_path)
     out.parent.mkdir(parents=True, exist_ok=True)
     write_bvh(result.output, out)
-    return _clean(walk_data(result, None if parsed is None else (prompt, parsed), str(out)))
+    data = clean(walk_data(result, None if parsed is None else (prompt, parsed), str(out)))
+    return _with_ignored(data, ignored)
 
 
 def _parse(text: str) -> dict:
+    from emotive_gait.cli_common import clean
     from emotive_gait.emotion.prompt import parse_emotion_prompt
-    from emotive_gait.rig.cli import _clean
 
     r = parse_emotion_prompt(text)
-    return _clean(
+    return clean(
         {
             "intensities": {e.value: v for e, v in r.intensities.items()},
             "matched": [
@@ -288,7 +313,7 @@ def build_server():
     @server.resource("emotive-gait://evidence")
     def evidence() -> str:
         """The claim table with its grounding, as the evidence command prints it."""
-        from emotive_gait.cli import evidence_lines
+        from emotive_gait.cli_common import evidence_lines
 
         return "\n".join(evidence_lines()) + "\n"
 

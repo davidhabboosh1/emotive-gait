@@ -174,3 +174,74 @@ def test_stdio_server_starts_and_answers_list_tools():
 
     names, parsed = asyncio.run(asyncio.wait_for(go(), 20))
     assert names == TOOLS and parsed["intensities"]["sadness"] == pytest.approx(0.6)
+
+
+def test_mapping_schema_example_uses_real_landmark_and_role_names():
+    import yaml
+
+    from emotive_gait.rig.cli import mapping_overrides_from
+    from emotive_gait.rig.server import MAPPING_SCHEMA
+    from emotive_gait.rig.synthesis import _split_overrides
+
+    data = yaml.safe_load(MAPPING_SCHEMA)
+    overrides, info = mapping_overrides_from(data)
+    lm_over, role_over = _split_overrides(overrides)  # raises on an unknown landmark or role
+    assert lm_over and role_over and set(info) == {"scale", "up_axis"}
+
+
+def test_mapping_schema_example_is_accepted_by_the_tool(server, tmp_path):
+    import yaml
+
+    from emotive_gait.rig.server import MAPPING_SCHEMA
+
+    mapping = yaml.safe_load(MAPPING_SCHEMA)
+    mapping["landmarks"] = {}  # the example's bone names are illustrative; keys are checked above
+    mapping["roles"] = {}
+    result = call_tool(
+        server,
+        "measure_gait",
+        {"bvh_path": str(walk_file(RigSpec(), tmp_path)), "mapping": mapping},
+    )
+    assert result["cycles"]["used"] >= 1
+
+
+def test_measure_gait_never_loads_the_rig(server, tmp_path, monkeypatch):
+    from emotive_gait.rig import synthesis
+
+    def boom(*args, **kwargs):
+        raise AssertionError("measure_gait must not call load_rig or bind roles")
+
+    monkeypatch.setattr(synthesis, "load_rig", boom)
+    monkeypatch.setattr(synthesis, "bind_roles", boom)
+    result = call_tool(server, "measure_gait", {"bvh_path": str(walk_file(RigSpec(), tmp_path))})
+    assert result["cycles"]["used"] >= 1 and result["leg_length"] > 0
+
+
+def test_measure_gait_without_knees_fails_on_the_landmark_minimum(server, tmp_path):
+    from emotive_gait.mocap.writers.bvh import write_bvh
+    from rig.rigs import walk_and_clip
+    from rig.test_mapping import drop_bones
+
+    f, _ = walk_and_clip(RigSpec(), tmp_path)
+    path = tmp_path / "noknee.bvh"
+    write_bvh(drop_bones(f, ("mixamorig:LeftLeg", "mixamorig:RightLeg")), path)
+    assert "knee_l" in call_tool_expecting_error(server, "measure_gait", {"bvh_path": str(path)})
+
+
+def test_out_path_equal_to_the_source_is_a_tool_error(server, tmp_path):
+    path = walk_file(RigSpec(), tmp_path)
+    before = path.read_bytes()
+    err = call_tool_expecting_error(
+        server,
+        "emotional_walk",
+        {"bvh_path": str(path), "out_path": str(path), "intensities": {"sadness": 0.5}},
+    )
+    assert "overwritten" in err and path.read_bytes() == before
+
+
+def test_informational_mapping_keys_are_reported(server, tmp_path):
+    path = str(walk_file(RigSpec(), tmp_path))
+    result = call_tool(
+        server, "inspect_rig", {"bvh_path": path, "mapping": {"family": "mixamo", "warnings": []}}
+    )
+    assert result["ignored_mapping_keys"] == ["family", "warnings"]

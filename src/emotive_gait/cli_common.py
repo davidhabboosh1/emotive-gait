@@ -10,8 +10,10 @@ import dataclasses
 import math
 import sys
 from collections.abc import Mapping, Sequence
+from enum import Enum
+from typing import Any
 
-from emotive_gait.emotion.evidence import UNSOURCED_EMOTIONS, Emotion
+from emotive_gait.emotion.evidence import EVIDENCE, UNSOURCED_EMOTIONS, Emotion
 from emotive_gait.gait.params import GaitParameters
 from emotive_gait.gait.scaling import MEASURED_FIELDS
 
@@ -119,3 +121,66 @@ def warn_infeasible(report) -> None:
         "warning: parameters exceed the robot's reach: max foot error "
         f"{report.max_foot_position_error_m * 1000:.1f} mm; roles at limit: {roles}"
     )
+
+
+def check_positive_finite(value: object, name: str) -> float:
+    """``value`` as a positive finite float, else ``ValueError`` naming ``name`` and the value."""
+    try:
+        if isinstance(value, bool):
+            raise TypeError
+        number = float(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        raise ValueError(f"{name} must be a positive finite number, got {value!r}") from None
+    if not (math.isfinite(number) and number > 0):
+        raise ValueError(f"{name} must be a positive finite number, got {value!r}")
+    return number
+
+
+def clean(value: Any) -> Any:
+    """JSON-able: enums as values, numpy scalars as Python, NaN and infinity as ``None``."""
+    if isinstance(value, Enum):
+        return value.value
+    if isinstance(value, Mapping):
+        return {clean(k): clean(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [clean(v) for v in value]
+    if hasattr(value, "item") and not isinstance(value, (str, bytes)):
+        value = value.item()
+    if isinstance(value, float) and not math.isfinite(value):
+        return None
+    return value
+
+
+_DIRECTION = {1: "+", 0: "0", -1: "-"}
+
+
+def _learned_columns(cell) -> list[str]:
+    if cell is None:
+        return ["-", "-", "-"]
+    if cell.grounding == "missing":
+        return ["-", "-", cell.direction_check]
+    if cell.grounding == "fitted":
+        interval = f"[{cell.ci_low:.4f}, {cell.ci_high:.4f}]"
+    else:
+        interval = f"{cell.n_actors} actors"
+    return [f"{cell.estimate:+.4f}", interval, cell.direction_check]
+
+
+def evidence_lines(artefact=None, scaling: str = "froude") -> list[str]:
+    """The claim table as ``evidence`` prints it, one string per row (shared with the MCP server)."""
+    head = ["EMOTION", "PARAMETER", "DIR", "GROUNDING"]
+    if artefact is not None:
+        head += ["ESTIMATE", "CI", "CHECK"]
+    rows = [(*head, "CITATION")]
+    last = None
+    for c in EVIDENCE:
+        label = c.emotion.value if c.emotion is not last else ""
+        last = c.emotion
+        row = [label, c.parameter, _DIRECTION[c.direction], c.grounding.value.upper()]
+        if artefact is not None:
+            row += _learned_columns(artefact.cells.get((scaling, c.emotion.value, c.parameter)))
+        rows.append((*row, c.citation))
+    widths = [max(len(r[i]) for r in rows) for i in range(len(rows[0]) - 1)]
+    return [
+        "  ".join(r[i].ljust(widths[i]) for i in range(len(widths))) + "  " + r[-1] for r in rows
+    ]

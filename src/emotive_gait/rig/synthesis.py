@@ -277,6 +277,47 @@ def reachable_pelvis_factor(p0: GaitParameters, robot: RobotModel, source_height
     return lo
 
 
+def _read(source: Path, scale: float | None, up_axis: str | None) -> BvhFile:
+    """Read ``source``; ``scale`` and ``up_axis`` are inferred from the rest hierarchy when
+    ``None``."""
+    if scale is None or up_axis is None:
+        inferred_scale, inferred_up, _ = infer_scale_and_up(
+            read_bvh_file(source, scale=1.0, up_axis="z")
+        )
+        scale = inferred_scale if scale is None else scale
+        up_axis = inferred_up if up_axis is None else up_axis
+    if up_axis not in ("y", "z"):
+        raise RigError(f"up axis must be 'y' or 'z', got {up_axis!r}")
+    return read_bvh_file(source, scale=float(scale), up_axis=up_axis)
+
+
+def _summarise(clip: SkeletonClip, landmarks: LandmarkMap) -> ClipSummary:
+    """``summarise`` the clip; ``RigError`` naming the discard reasons when no cycle is usable."""
+    summary = summarise(clip, landmarks)
+    if summary.n_cycles == 0:
+        raise RigError(f"no usable cycle: {dict(summary.discard_reasons)}")
+    return summary
+
+
+def measure(
+    source: Path,
+    *,
+    scale: float | None,
+    up_axis: str | None,
+    mapping_overrides: Mapping[str, str] | None,
+) -> ClipSummary:
+    """The source's ``ClipSummary``: read, map the landmarks, summarise; nothing else.
+
+    No role binding, calibration or compilation, so any walk whose landmarks map can be
+    measured. Landmark overrides are honoured; ``role:`` overrides are ignored.
+    """
+    file = _read(Path(source), scale, up_axis)
+    clip = file.to_clip(end_sites=True)
+    lm_over, _ = _split_overrides(mapping_overrides)
+    landmarks = map_landmarks(file, clip, overrides=lm_over)
+    return _summarise(clip, landmarks.landmarks)
+
+
 def load_rig(
     source: Path,
     *,
@@ -288,15 +329,7 @@ def load_rig(
     from the rest hierarchy when ``None``. Raises ``RigError`` (unusable mapping, no usable
     cycle, unknown override)."""
     source = Path(source)
-    if scale is None or up_axis is None:
-        inferred_scale, inferred_up, _ = infer_scale_and_up(
-            read_bvh_file(source, scale=1.0, up_axis="z")
-        )
-        scale = inferred_scale if scale is None else scale
-        up_axis = inferred_up if up_axis is None else up_axis
-    if up_axis not in ("y", "z"):
-        raise RigError(f"up axis must be 'y' or 'z', got {up_axis!r}")
-    file = read_bvh_file(source, scale=float(scale), up_axis=up_axis)
+    file = _read(source, scale, up_axis)
     clip = file.to_clip(end_sites=True)
     lm_over, role_over = _split_overrides(mapping_overrides)
     landmarks = map_landmarks(file, clip, overrides=lm_over)
@@ -310,9 +343,7 @@ def load_rig(
         bare, mapping, landmark_sites=landmark_site_names(driven, mapping.landmarks)
     )
     profile = rig_profile(name, mapping, reference, posture_map=rows)
-    summary = summarise(clip, mapping.landmarks)
-    if summary.n_cycles == 0:  # reference_pose has already refused this; kept as a guard
-        raise RigError(f"no usable cycle: {dict(summary.discard_reasons)}")
+    summary = _summarise(clip, mapping.landmarks)  # reference_pose has already refused n == 0
     p0, raw, unobservable = _p0(summary)
     source_height = float(reference.pelvis_height)
     factor = reachable_pelvis_factor(p0, rig_robot(driven, profile), source_height)

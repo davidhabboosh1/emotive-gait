@@ -12,7 +12,6 @@ import dataclasses
 import json
 import math
 from collections.abc import Mapping, Sequence
-from enum import Enum
 from pathlib import Path
 from typing import Any
 
@@ -22,6 +21,8 @@ from emotive_gait.cli_common import (
     _load_learned,
     _parse_emotions,
     _warn_learned_cells,
+    check_positive_finite,
+    clean,
     warn_infeasible,
     warn_unsourced,
 )
@@ -55,22 +56,9 @@ _OK = {True: "ok", False: "NO", None: "-"}
 # --- parsers -------------------------------------------------------------------------------
 
 
-def _check_positive_finite(value: object, name: str) -> float:
-    """``value`` as a positive finite float, else ``ValueError`` naming ``name`` and the value."""
-    try:
-        if isinstance(value, bool):
-            raise TypeError
-        number = float(value)  # type: ignore[arg-type]
-    except (TypeError, ValueError):
-        raise ValueError(f"{name} must be a positive finite number, got {value!r}") from None
-    if not (math.isfinite(number) and number > 0):
-        raise ValueError(f"{name} must be a positive finite number, got {value!r}")
-    return number
-
-
 def _positive_finite(text: str) -> float:
     try:
-        return _check_positive_finite(text, "value")
+        return check_positive_finite(text, "value")
     except ValueError as exc:
         raise argparse.ArgumentTypeError(str(exc)) from None
 
@@ -119,21 +107,6 @@ def add_serve_parser(sub) -> None:
 
 
 # --- data ----------------------------------------------------------------------------------
-
-
-def _clean(value: Any) -> Any:
-    """JSON-able: enums as values, numpy scalars as Python, NaN and infinity as ``None``."""
-    if isinstance(value, Enum):
-        return value.value
-    if isinstance(value, Mapping):
-        return {_clean(k): _clean(v) for k, v in value.items()}
-    if isinstance(value, (list, tuple)):
-        return [_clean(v) for v in value]
-    if hasattr(value, "item") and not isinstance(value, (str, bytes)):
-        value = value.item()
-    if isinstance(value, float) and not math.isfinite(value):
-        return None
-    return value
 
 
 def _read_mapping(path: str | None) -> tuple[dict[str, str] | None, dict[str, Any]]:
@@ -191,7 +164,7 @@ def resolve_scale_up(
     """
     try:
         file_scale = (
-            _check_positive_finite(info["scale"], "mapping file scale") if "scale" in info else None
+            check_positive_finite(info["scale"], "mapping file scale") if "scale" in info else None
         )
     except ValueError as exc:
         raise RigError(str(exc)) from None
@@ -478,7 +451,7 @@ def _walk_command(args: argparse.Namespace) -> int:
 
 def _emit(args: argparse.Namespace, data: dict, printer) -> None:
     if args.json:
-        print(json.dumps(_clean(data), indent=2))
+        print(json.dumps(clean(data), indent=2))
     else:
         printer(data)
 
@@ -511,5 +484,8 @@ def run_serve(args: argparse.Namespace) -> int:
         return 1
     from emotive_gait.rig.server import serve
 
-    serve()
+    try:
+        serve()
+    except KeyboardInterrupt:
+        pass
     return 0
