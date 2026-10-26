@@ -4,10 +4,16 @@ from __future__ import annotations
 
 import functools
 import shutil
+import sys
+from pathlib import Path
 
 import pytest
 
 from emotive_gait.gait.params import GaitParameters
+
+# tests/emotion has no __init__.py, so its helpers (artefacts.py) are importable by bare name
+# from any test module once its directory is on the path.
+sys.path.insert(0, str(Path(__file__).parent / "emotion"))
 
 
 @functools.cache
@@ -69,3 +75,53 @@ PHASE0_PRESETS = {
         neck_pitch=-0.35,
     ),
 }
+
+
+@pytest.fixture(scope="session")
+def _toy_fit_files(tmp_path_factory):
+    from learn.ondisk import write_fit_dataset
+
+    return write_fit_dataset(tmp_path_factory.mktemp("toy_fit"))
+
+
+@pytest.fixture
+def synthetic_dataset_on_disk(_toy_fit_files, monkeypatch):
+    """Three-actor toy dataset plus a one-actor ``committable: false`` one, on disk.
+
+    The files are written once per session; the dataset ids are registered in ``LANDMARKS``
+    for the duration of the test only.
+    """
+    from learn.ondisk import register_landmarks
+
+    register_landmarks(monkeypatch)
+    return _toy_fit_files
+
+
+@pytest.fixture(scope="session")
+def fitted_toy(_toy_fit_files, tmp_path_factory):
+    """One ``run_fit`` on the toy dataset (committable data only): ``(summary, directory)``.
+
+    The directory holds ``coef.yaml``, ``report.md`` and ``derived/``. Shared because a fit
+    takes about half a minute.
+    """
+    from learn.ondisk import register_landmarks
+
+    from emotive_gait.learn.pipeline import run_fit
+
+    tmp = tmp_path_factory.mktemp("fit")
+    patch = pytest.MonkeyPatch()
+    register_landmarks(patch)
+    try:
+        summary = run_fit(
+            _toy_fit_files.manifest,
+            _toy_fit_files.root,
+            out_artefact=tmp / "coef.yaml",
+            out_report=tmp / "report.md",
+            derived=tmp / "derived",
+            datasets=None,
+            include_uncommittable=False,
+            log=lambda _: None,
+        )
+    finally:
+        patch.undo()
+    return summary, tmp
