@@ -336,16 +336,8 @@ def _learned_columns(cell) -> list[str]:
     return [f"{cell.estimate:+.4f}", interval, cell.direction_check]
 
 
-def _evidence(args: argparse.Namespace) -> int:
-    artefact = None
-    if args.model == "learned":
-        from emotive_gait.emotion import learned
-
-        try:
-            artefact = learned.load_artefact(learned.default_artefact_path())
-        except (learned.ArtefactMissingError, learned.ArtefactSchemaError) as exc:
-            _err(str(exc))
-            return 1
+def evidence_lines(artefact=None, scaling: str = "froude") -> list[str]:
+    """The claim table as ``evidence`` prints it, one string per row (shared with the MCP server)."""
     head = ["EMOTION", "PARAMETER", "DIR", "GROUNDING"]
     if artefact is not None:
         head += ["ESTIMATE", "CI", "CHECK"]
@@ -356,13 +348,26 @@ def _evidence(args: argparse.Namespace) -> int:
         last = c.emotion
         row = [label, c.parameter, _DIRECTION[c.direction], c.grounding.value.upper()]
         if artefact is not None:
-            row += _learned_columns(
-                artefact.cells.get((args.scaling, c.emotion.value, c.parameter))
-            )
+            row += _learned_columns(artefact.cells.get((scaling, c.emotion.value, c.parameter)))
         rows.append((*row, c.citation))
     widths = [max(len(r[i]) for r in rows) for i in range(len(rows[0]) - 1)]
-    for r in rows:
-        print("  ".join(r[i].ljust(widths[i]) for i in range(len(widths))) + "  " + r[-1])
+    return [
+        "  ".join(r[i].ljust(widths[i]) for i in range(len(widths))) + "  " + r[-1] for r in rows
+    ]
+
+
+def _evidence(args: argparse.Namespace) -> int:
+    artefact = None
+    if args.model == "learned":
+        from emotive_gait.emotion import learned
+
+        try:
+            artefact = learned.load_artefact(learned.default_artefact_path())
+        except (learned.ArtefactMissingError, learned.ArtefactSchemaError) as exc:
+            _err(str(exc))
+            return 1
+    for line in evidence_lines(artefact, args.scaling):
+        print(line)
     return 0
 
 

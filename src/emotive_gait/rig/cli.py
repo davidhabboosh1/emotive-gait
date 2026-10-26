@@ -154,6 +154,18 @@ def _read_mapping(path: str | None) -> tuple[dict[str, str] | None, dict[str, An
         data = yaml.safe_load(text) or {}
     except yaml.YAMLError as exc:
         raise RigError(f"{path} is not valid YAML: {exc}") from exc
+    return mapping_overrides_from(data, path)
+
+
+def mapping_overrides_from(
+    data: Any, where: str = "mapping"
+) -> tuple[dict[str, str], dict[str, Any]]:
+    """``(overrides, informational)`` from an already parsed ``landmarks:``/``roles:`` mapping.
+
+    Shared by the file reader and the MCP server's ``mapping`` argument; ``where`` names the
+    source in error messages. Raises ``RigError`` on a malformed mapping.
+    """
+    path = where
     if not isinstance(data, dict):
         raise RigError(f"{path}: expected the keys 'landmarks' and 'roles'")
     unknown = sorted(str(k) for k in set(data) - {"landmarks", "roles", *_INFORMATIONAL})
@@ -170,12 +182,13 @@ def _read_mapping(path: str | None) -> tuple[dict[str, str] | None, dict[str, An
     return merged, {k: data[k] for k in _INFORMATIONAL if k in data}
 
 
-def _load(args: argparse.Namespace) -> LoadedRig:
-    source = Path(args.source)
-    if not source.is_file():
-        raise RigError(f"{source}: no such file")
-    overrides, info = _read_mapping(args.mapping)
-    scale, up_axis = args.scale, args.up
+def resolve_scale_up(
+    info: Mapping[str, Any], scale: float | None, up_axis: str | None
+) -> tuple[float | None, str | None]:
+    """``scale`` and ``up_axis`` with a mapping's values as defaults; explicit values win.
+
+    Raises ``RigError`` on an invalid mapping-side ``scale`` or ``up_axis``.
+    """
     try:
         file_scale = (
             _check_positive_finite(info["scale"], "mapping file scale") if "scale" in info else None
@@ -185,9 +198,19 @@ def _load(args: argparse.Namespace) -> LoadedRig:
     file_up = info.get("up_axis")
     if file_up is not None and file_up not in ("y", "z"):
         raise RigError(f"mapping file up_axis must be 'y' or 'z', got {file_up!r}")
+    return (
+        scale if scale is not None else file_scale,
+        up_axis if up_axis is not None else file_up,
+    )
+
+
+def _load(args: argparse.Namespace) -> LoadedRig:
+    source = Path(args.source)
+    if not source.is_file():
+        raise RigError(f"{source}: no such file")
+    overrides, info = _read_mapping(args.mapping)
     # the file's values act as if given on the command line; explicit flags win
-    scale = scale if scale is not None else file_scale
-    up_axis = up_axis if up_axis is not None else file_up
+    scale, up_axis = resolve_scale_up(info, args.scale, args.up)
     ignored = [k for k in info if k not in ("scale", "up_axis")]
     if ignored:
         _err(f"ignoring informational mapping keys: {', '.join(ignored)}")
@@ -486,5 +509,7 @@ def run_serve(args: argparse.Namespace) -> int:
     except ImportError:
         _err("the MCP server needs the mcp extra: pip install -e '.[mcp]'")
         return 1
-    _err("the MCP server is not implemented yet")
-    return 1
+    from emotive_gait.rig.server import serve
+
+    serve()
+    return 0
