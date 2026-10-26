@@ -9,12 +9,16 @@ between-actor SD of each parameter:
   ``AXIS_GAINS`` assigns one axis per parameter; only the gains are fitted.
 * ``S1_fear_offsets``: S1 plus a free fear entry for each ``CATEGORY_OFFSETS[FEAR]`` parameter.
 * ``S2_fixed_axes_free_loadings``: ``W`` fixed, ``G`` dense 3 x P.
-* ``S3_rank3``: rank-3 truncated SVD of the per-emotion mean matrix.
+* ``S3_rank3``: rank-3 truncated SVD of the per-emotion mean matrix of the standardised deltas
+  (deltas divided by ``sd``, so the structure does not depend on parameter units).
 * ``S4_full``: the per-emotion mean (saturated).
 
 Caveat, part of the result: four emotions span at most a four-dimensional space, so rank 3 removes
 a single dimension and the test has low power. An actor may lack emotions; every fit uses the
 rows that exist, and a held-out actor is predicted only for the emotions they performed.
+An emotion with no training rows at all is the no-change prediction (0) in S3 and S4. R^2 is
+centred per parameter, so it can be negative (a structure worse than the parameter mean, as S1
+may be on real data).
 """
 
 from __future__ import annotations
@@ -168,14 +172,15 @@ def structure_test(
         "S4_full": _s4,
     }
     n_free = _n_free(parameters)
+    y = y / scale  # every structure is fitted and scored in standardised units
     centre = np.nanmean(y, axis=0)
-    ss_tot = float(np.nansum((((y - centre) / scale)[:, scored]) ** 2))
+    ss_tot = float(np.nansum(((y - centre)[:, scored]) ** 2))
     actors = list(dict.fromkeys(actor))
 
     results = []
     for name in STRUCTURES:
         fit = fitters[name]
-        resid = (y - fit(emo, y)[emo]) / scale
+        resid = y - fit(emo, y)[emo]
         ss_res = float(np.nansum(resid[:, scored] ** 2))
         r2 = 1.0 - ss_res / ss_tot if ss_tot > 0.0 else float("nan")
 
@@ -183,7 +188,7 @@ def structure_test(
         for held in actors:
             test = actor == held
             pred = fit(emo[~test], y[~test])[emo[test]]
-            err = (pred - y[test]) / scale
+            err = pred - y[test]
             for p in range(len(parameters)):
                 sq[p].extend((err[~np.isnan(err[:, p]), p] ** 2).tolist())
         per_param = [
