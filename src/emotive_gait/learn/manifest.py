@@ -118,6 +118,13 @@ class HashProblem:
     error: str | None = None  # why a fetch of this file failed, when it did
 
 
+def describe_problem(problem: HashProblem) -> str:
+    """``path: expected <sha>, got <actual|missing> [error]``."""
+    actual = "missing" if problem.actual is None else problem.actual
+    text = f"{problem.path}: expected {problem.expected}, got {actual}"
+    return f"{text} [{problem.error}]" if problem.error else text
+
+
 def _file_hash(path: Path, algorithm: str) -> str:
     digest = hashlib.new(algorithm, usedforsecurity=False)
     with Path(path).open("rb") as f:

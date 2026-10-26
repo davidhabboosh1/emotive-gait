@@ -108,7 +108,7 @@ def _attempt(action: Callable[[], None], dest: Path) -> str | None:
     """Run ``action``; on ``OSError`` remove ``dest``'s ``.part`` file and return the error text."""
     try:
         action()
-    except OSError as exc:
+    except (OSError, ValueError, zipfile.BadZipFile) as exc:
         dest.with_name(dest.name + ".part").unlink(missing_ok=True)
         return f"{type(exc).__name__}: {exc}"
     return None

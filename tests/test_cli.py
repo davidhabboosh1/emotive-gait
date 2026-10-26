@@ -340,13 +340,18 @@ def test_fetch_verifies_files_already_in_place(capsys, synthetic_dataset_on_disk
 
 
 def test_fetch_reports_a_failed_download_with_the_url_and_the_hash(
-    capsys, tmp_path, synthetic_dataset_on_disk
+    capsys, monkeypatch, tmp_path, synthetic_dataset_on_disk
 ):
+    def offline(*args, **kwargs):
+        raise OSError("offline")
+
+    monkeypatch.setattr("urllib.request.urlretrieve", offline)  # no network in tests
     data = synthetic_dataset_on_disk
     args = ["fetch", "--manifest", str(data.manifest), "--root", str(tmp_path)]
     code = main([*args, "--datasets", "toy"])
     err = capsys.readouterr().err
     assert code == 2 and "toy/a1_neutral.bvh: expected" in err and "missing" in err
+    assert "OSError: offline" in err and "http://example.test/" in err
     assert "fetch by hand" in err and "Traceback" not in err
 
 
@@ -360,3 +365,36 @@ def test_fetch_uses_a_local_directory(tmp_path, synthetic_dataset_on_disk):
 def test_fetch_rejects_a_malformed_from(capsys):
     assert main(["fetch", "--from", "toy"]) == 2
     assert "ID=PATH" in capsys.readouterr().err
+
+
+def test_uncommittable_fit_defaults_the_report_beside_the_artefact(
+    capsys, tmp_path, synthetic_dataset_on_disk
+):
+    data = synthetic_dataset_on_disk
+    out = tmp_path / "c.yaml"
+    args = ["fit", "--manifest", str(data.manifest), "--root", str(data.root), "--out", str(out)]
+    args += ["--derived", str(tmp_path / "d"), "--datasets", "toy_uncommittable"]
+    assert main([*args, "--include-uncommittable"]) == 0
+    assert (tmp_path / "fit-report.md").is_file()
+
+
+def test_fetch_with_a_scheme_less_url_exits_two_without_a_traceback(capsys, tmp_path):
+    from learn.manifests import clip_dict, dataset_dict, write_manifest
+
+    d = dataset_dict(url="not-a-url", files=[clip_dict("walk.bvh", b"walk")])
+    manifest = write_manifest(tmp_path, [d])
+    assert main(["fetch", "--manifest", str(manifest), "--root", str(tmp_path / "raw")]) == 2
+    err = capsys.readouterr().err
+    assert "toy/walk.bvh" in err and "ValueError" in err and "Traceback" not in err
+
+
+def test_demo_learned_with_an_artefact_lacking_the_scaling_exits_one(capsys, monkeypatch, tmp_path):
+    import yaml
+
+    path = tmp_path / "a.yaml"
+    path.write_text(
+        yaml.safe_dump({"schema_version": 1, "provenance": {}, "contradictions": [], "cells": {}})
+    )
+    _use_artefact(monkeypatch, path)
+    code = main(["demo", "--emotion", "anger=1.0", "--model", "learned", "--dry-run"])
+    assert code == 1 and "froude" in capsys.readouterr().err

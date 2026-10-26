@@ -39,9 +39,9 @@ from emotive_gait.learn.fit import (
 )
 from emotive_gait.learn.manifest import (
     DatasetEntry,
-    HashProblem,
     Manifest,
     ManifestError,
+    describe_problem,
     load_manifest,
     verify,
 )
@@ -78,14 +78,13 @@ class FitSummary:
     n_cycles: int
 
 
-def describe_problem(problem: HashProblem) -> str:
-    actual = "missing" if problem.actual is None else problem.actual
-    text = f"{problem.path}: expected {problem.expected}, got {actual}"
-    return f"{text} [{problem.error}]" if problem.error else text
-
-
 def _in_package(path: Path) -> bool:
     return Path(path).resolve().is_relative_to(_SRC)
+
+
+def _in_committed_tree(path: Path) -> bool:
+    resolved = Path(path).resolve()
+    return resolved.is_relative_to(_SRC) or resolved.is_relative_to(_SRC.parent / "docs")
 
 
 def _select(
@@ -204,6 +203,11 @@ def run_fit(
     except ManifestError as exc:
         raise FitInputError(str(exc)) from None
     out_artefact, out_report, derived = Path(out_artefact), Path(out_report), Path(derived)
+    if include_uncommittable and _in_committed_tree(out_report):
+        raise FitInputError(
+            f"--include-uncommittable would write the report to {out_report}, inside the "
+            "repository's docs/ or src/; its numbers are not committable (use --report outside them)"
+        )
     used, left_out = _select(manifest, datasets, include_uncommittable, out_artefact, log)
     problems = verify(manifest, Path(root), datasets=[d.id for d in used])
     if problems:

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import math
 import re
+from pathlib import Path
 
 import pytest
 import yaml
@@ -233,3 +234,30 @@ def test_first_difference_compares_missing_cells_too(tmp_path):
     )
     b = write_artefact(tmp_path / "b.yaml", shifted, provenance={})
     assert "froude" in (first_difference(a, b) or "")
+
+
+def test_include_uncommittable_may_not_write_the_report_into_docs_or_src(
+    synthetic_dataset_on_disk, tmp_path
+):
+    data = synthetic_dataset_on_disk
+    docs = Path(__file__).resolve().parents[2] / "docs" / "reports" / "x.md"
+    with pytest.raises(FitInputError, match=r"x\.md"):
+        run_fit(
+            data.manifest,
+            data.root,
+            out_artefact=tmp_path / "c.yaml",
+            out_report=docs,
+            derived=tmp_path / "d",
+            datasets=["toy_uncommittable"],
+            include_uncommittable=True,
+        )
+    assert not docs.exists()
+
+
+def test_write_artefact_refuses_an_infinite_estimate(tmp_path):
+    cells = _cells_from(make_artefact(FULL_AGREEING))
+    bad = cells["ratio"]["cadence"][0]
+    fields = {k: getattr(bad, k) for k in Cell.__dataclass_fields__}
+    cells["ratio"]["cadence"][0] = Cell(**{**fields, "estimate": math.inf})
+    with pytest.raises(ValueError, match="ratio.*cadence"):
+        write_artefact(tmp_path / "a.yaml", cells, provenance={})

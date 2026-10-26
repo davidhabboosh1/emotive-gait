@@ -47,7 +47,7 @@ _CELL_FIELDS = tuple(f.name for f in fields(ArtefactCell) if f.name not in ("emo
 
 def _num(value: float | None) -> float | None:
     """A plain float, with ``None`` and NaN as ``None`` (YAML ``null``)."""
-    if value is None or math.isnan(value):
+    if value is None or not math.isfinite(value):
         return None
     return float(value)
 
@@ -61,7 +61,7 @@ def _plain(value: object) -> object:
     if isinstance(value, np.generic):
         return _plain(value.item())
     if isinstance(value, float):
-        return None if math.isnan(value) else value
+        return value if math.isfinite(value) else None
     if value is None or isinstance(value, (bool, int, str)):
         return value
     return str(value)

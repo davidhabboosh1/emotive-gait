@@ -163,3 +163,20 @@ def test_a_missing_local_source_gives_problems_not_an_exception(tmp_path):
     d = load_manifest(write_minimal_manifest(tmp_path))
     problems = fetch(d, tmp_path / "raw2", from_paths={"toy": tmp_path / "nodir"})
     assert problems and problems[0].error is not None
+
+
+def test_a_nested_member_that_is_not_a_zip_is_a_problem_not_an_exception(tmp_path):
+    blob = zip_bytes({"outer.zip": b"not a zip"})
+    (tmp_path / "toy.zip").write_bytes(blob)
+    clip = clip_dict("walk.bvh", b"walk", archive_member="outer.zip::walk.bvh")
+    d = dataset_dict(archive="toy.zip", archive_sha256=sha(blob), files=[clip])
+    m = load_manifest(write_manifest(tmp_path, [d]))
+    problems = fetch(m, tmp_path / "raw", from_paths={"toy": tmp_path / "toy.zip"})
+    assert [p.path for p in problems] == ["toy/walk.bvh"] and problems[0].error
+
+
+def test_a_url_without_a_scheme_is_a_problem_not_an_exception(tmp_path):
+    d = dataset_dict(url="not-a-url", files=[clip_dict("walk.bvh", b"walk")])
+    m = load_manifest(write_manifest(tmp_path, [d]))
+    problems = fetch(m, tmp_path / "raw")
+    assert len(problems) == 1 and "ValueError" in (problems[0].error or "")

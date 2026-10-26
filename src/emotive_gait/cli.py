@@ -128,7 +128,12 @@ def _build_parser() -> argparse.ArgumentParser:
     f.add_argument(
         "--out", default=None, metavar="PATH", help="artefact path (default: the packaged one)"
     )
-    f.add_argument("--report", default=_REPORT, help=f"report path (default {_REPORT})")
+    f.add_argument(
+        "--report",
+        default=None,
+        help=f"report path (default {_REPORT}; with --include-uncommittable, fit-report.md "
+        "beside --out)",
+    )
     f.add_argument("--derived", default=_DERIVED, help=f"per-cycle tables (default {_DERIVED})")
     f.add_argument(
         "--check",
@@ -373,7 +378,7 @@ def _load_learned(scaling: str):
 
     try:
         return LearnedEmotionModel.default(scaling=scaling)
-    except (ArtefactMissingError, ArtefactSchemaError) as exc:
+    except (ArtefactMissingError, ArtefactSchemaError, ValueError) as exc:
         _err(str(exc))
         return None
 
@@ -470,6 +475,12 @@ def _fit(args: argparse.Namespace) -> int:
         _err("--include-uncommittable needs --out PATH outside src/ (its numbers stay local)")
         return 2
     target = Path(args.out) if args.out else default_artefact_path()
+    if args.report:
+        report = Path(args.report)
+    elif args.include_uncommittable:
+        report = target.parent / "fit-report.md"
+    else:
+        report = Path(_REPORT)
     common = {"datasets": args.datasets, "include_uncommittable": args.include_uncommittable}
     try:
         if args.check:
@@ -478,7 +489,7 @@ def _fit(args: argparse.Namespace) -> int:
             Path(args.manifest),
             Path(args.root),
             out_artefact=target,
-            out_report=Path(args.report),
+            out_report=report,
             derived=Path(args.derived),
             **common,
         )
@@ -531,11 +542,10 @@ def _source_url(manifest, shown_path: str) -> str:
 
 
 def _fetch(args: argparse.Namespace) -> int:
-    pipeline = _fit_import()
-    if pipeline is None:
-        return 1
+    import zipfile
+
     from emotive_gait.learn.fetch import fetch
-    from emotive_gait.learn.manifest import ManifestError, load_manifest
+    from emotive_gait.learn.manifest import ManifestError, describe_problem, load_manifest
 
     from_paths: dict[str, Path] = {}
     for spec in args.from_paths:
@@ -547,14 +557,14 @@ def _fetch(args: argparse.Namespace) -> int:
     try:
         manifest = load_manifest(Path(args.manifest))
         problems = fetch(manifest, Path(args.root), from_paths=from_paths, datasets=args.datasets)
-    except ManifestError as exc:
-        _err(str(exc))
+    except (ManifestError, ValueError, zipfile.BadZipFile) as exc:
+        _err(str(exc) if isinstance(exc, ManifestError) else f"{args.manifest}: {exc}")
         return 2
     except OSError as exc:
         _err(f"environment failure: {exc}")
         return 1
     for problem in problems:
-        print(pipeline.describe_problem(problem), file=sys.stderr)
+        print(describe_problem(problem), file=sys.stderr)
         if problem.error is not None or problem.actual is None:
             print(f"  fetch by hand: {_source_url(manifest, problem.path)}", file=sys.stderr)
     if problems:
