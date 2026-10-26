@@ -9,6 +9,7 @@
 # `[emotion, weight]`, emotion one of anger, disgust, fear, happiness, sadness, surprise.
 terms:
   # anger
+  anger: [anger, 1.0]
   furious: [anger, 1.0]
   enraged: [anger, 1.0]
   livid: [anger, 1.0]
@@ -70,13 +71,14 @@ terms:
   dreading: [fear, 0.8]
   trembling: [fear, 0.7]
   cowering: [fear, 0.9]
-  fear: [fear, 0.8]
+  fear: [fear, 1.0]
   paranoid: [fear, 0.6]
   insecure: [fear, 0.4]
   timidly: [fear, 0.4]
   fearfully: [fear, 0.8]
   nervously: [fear, 0.5]
   # happiness
+  happiness: [happiness, 1.0]
   elated: [happiness, 1.0]
   ecstatic: [happiness, 1.0]
   euphoric: [happiness, 1.0]
@@ -115,6 +117,7 @@ terms:
   smiling: [happiness, 0.6]
   grinning: [happiness, 0.7]
   # sadness
+  sadness: [sadness, 1.0]
   devastated: [sadness, 1.0]
   heartbroken: [sadness, 1.0]
   despairing: [sadness, 1.0]
@@ -154,6 +157,7 @@ terms:
   slumped: [sadness, 0.5]
   dejectedly: [sadness, 0.8]
   # disgust
+  disgust: [disgust, 1.0]
   disgusted: [disgust, 1.0]
   revolted: [disgust, 1.0]
   repulsed: [disgust, 0.9]
@@ -173,6 +177,7 @@ terms:
   distasteful: [disgust, 0.5]
   disgusting: [disgust, 0.9]
   # surprise
+  surprise: [surprise, 1.0]
   astonished: [surprise, 1.0]
   astounded: [surprise, 1.0]
   shocked: [surprise, 0.9]

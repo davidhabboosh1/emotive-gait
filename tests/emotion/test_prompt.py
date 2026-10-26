@@ -67,3 +67,44 @@ def test_every_lexicon_term_names_a_known_emotion_and_a_weight_in_range():
         Emotion(emotion)
         assert 0.0 < w <= 1.0
         assert term == term.lower() and len(term.split()) <= 2
+
+
+def test_contracted_negation_is_recognised():
+    r = parse_emotion_prompt("she isn't angry")
+    assert r.intensities[Emotion.ANGER] == 0.0
+    assert ("angry", Emotion.ANGER, 0.0) in r.matched
+    assert parse_emotion_prompt("he wasn't happy").intensities[Emotion.HAPPINESS] == 0.0
+    assert parse_emotion_prompt("she won't be furious").intensities[Emotion.ANGER] == 0.0
+    assert parse_emotion_prompt("she isn't angry").unmatched == ()
+
+
+def test_contraction_fragments_stay_out_of_unmatched():
+    r = parse_emotion_prompt("she's furious")
+    assert r.unmatched == () and r.intensities[Emotion.ANGER] == 1.0
+
+
+@pytest.mark.parametrize("emotion", list(Emotion))
+def test_every_emotion_name_parses_to_itself_at_full_intensity(emotion):
+    r = parse_emotion_prompt(emotion.value)
+    assert r.intensities[emotion] == 1.0
+
+
+def test_lexicon_validation_fails_loudly(monkeypatch):
+    from emotive_gait.emotion import prompt
+
+    class Fake:
+        def __init__(self, text):
+            self.text = text
+
+        def read_text(self, encoding):
+            return self.text
+
+    for text, needle in [
+        ("other: {}", "terms"),
+        ("terms: {x: [anger]}", "'x'"),
+        ("terms: {x: [joy, 0.5]}", "unknown emotion"),
+        ("terms: {x: [anger, 1.5]}", "outside"),
+    ]:
+        monkeypatch.setattr(prompt, "_LEXICON_PATH", Fake(text))
+        with pytest.raises(ValueError, match=needle):
+            prompt._load_lexicon()
