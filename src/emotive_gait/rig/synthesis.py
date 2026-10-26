@@ -195,19 +195,23 @@ def invert_double_support(raw: float, params: GaitParameters) -> float:
 def _split_overrides(
     overrides: Mapping[str, str] | None,
 ) -> tuple[dict[str, str], dict[str, str]]:
-    """``(landmark overrides, role overrides)``. A key that is both a landmark and a role
-    (``knee_l``, ``elbow_l``, ...) is a role override when its value is a ``Bone/Channel``."""
+    """``(landmark overrides, role overrides)``. Role keys are namespaced ``role:<role value>``
+    (as the decisions are); a bare key is a landmark value."""
     landmarks = {lm.value for lm in Landmark}
     roles = {r.value for r in JointRole}
     lm_over: dict[str, str] = {}
     role_over: dict[str, str] = {}
     for key, value in (overrides or {}).items():
-        if key in roles and (key not in landmarks or "/" in value):
-            role_over[key] = value
+        if key.startswith("role:"):
+            if key[5:] not in roles:
+                raise RigError(f"mapping override {key!r} names an unknown role")
+            role_over[key[5:]] = value
         elif key in landmarks:
             lm_over[key] = value
         else:
-            raise RigError(f"mapping override {key!r} is neither a landmark nor a role")
+            raise RigError(
+                f"mapping override {key!r} is not a landmark (roles are written 'role:<role>')"
+            )
     return lm_over, role_over
 
 

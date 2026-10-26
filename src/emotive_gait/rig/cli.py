@@ -55,9 +55,21 @@ _OK = {True: "ok", False: "NO", None: "-"}
 # --- parsers -------------------------------------------------------------------------------
 
 
+def _positive_finite(text: str) -> float:
+    try:
+        value = float(text)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"{text!r} is not a number") from None
+    if not (math.isfinite(value) and value > 0):
+        raise argparse.ArgumentTypeError(f"{text!r} must be positive and finite")
+    return value
+
+
 def _rig_arguments(p: argparse.ArgumentParser) -> None:
     p.add_argument("source", metavar="IN.bvh", help="the rig's BVH walk")
-    p.add_argument("--scale", type=float, default=None, help="metres per file unit (inferred)")
+    p.add_argument(
+        "--scale", type=_positive_finite, default=None, help="metres per file unit (inferred)"
+    )
     p.add_argument("--up", choices=["y", "z"], default=None, help="the file's up axis (inferred)")
     p.add_argument("--mapping", default=None, metavar="MAP.yaml", help="landmark/role overrides")
     p.add_argument("--json", action="store_true", help="print one JSON object instead of text")
@@ -82,7 +94,9 @@ def add_rig_parser(sub) -> None:
         help="emotion intensity in [0, 1]; repeatable (or use --prompt)",
     )
     w.add_argument("--prompt", default=None, help="free-text emotion, through the lexicon")
-    w.add_argument("--duration", type=float, default=None, help="seconds (default: the source's)")
+    w.add_argument(
+        "--duration", type=_positive_finite, default=None, help="seconds (default: the source's)"
+    )
     _add_model_arguments(w)
 
     v = rsub.add_parser("validate", help="walk zero and the four presets and tabulate the claims")
@@ -112,10 +126,14 @@ def _clean(value: Any) -> Any:
     return value
 
 
-def _read_mapping(path: str | None) -> dict[str, str] | None:
-    """The flat override dict ``load_rig`` takes, from a ``landmarks:``/``roles:`` YAML file."""
+def _read_mapping(path: str | None) -> tuple[dict[str, str] | None, dict[str, Any]]:
+    """``(overrides, informational)`` from a ``landmarks:``/``roles:`` YAML file.
+
+    ``overrides`` is the flat dict ``load_rig`` takes (role keys prefixed ``role:``);
+    ``informational`` holds the keys ``inspect --json`` adds (``scale``, ``up_axis``, ...).
+    """
     if path is None:
-        return None
+        return None, {}
     import yaml
 
     try:
@@ -132,23 +150,30 @@ def _read_mapping(path: str | None) -> dict[str, str] | None:
     if unknown:
         raise RigError(f"{path}: unknown key(s) {', '.join(unknown)}; use landmarks and roles")
     merged: dict[str, str] = {}
-    for section in ("landmarks", "roles"):
+    for section, prefix in (("landmarks", ""), ("roles", "role:")):
         entries = data.get(section) or {}
         if not isinstance(entries, dict) or not all(
             isinstance(k, str) and isinstance(v, str) for k, v in entries.items()
         ):
             raise RigError(f"{path}: '{section}' must map names to bone names")
-        merged.update(entries)
-    return merged
+        merged.update({prefix + k: v for k, v in entries.items()})
+    return merged, {k: data[k] for k in _INFORMATIONAL if k in data}
 
 
 def _load(args: argparse.Namespace) -> LoadedRig:
     source = Path(args.source)
     if not source.is_file():
         raise RigError(f"{source}: no such file")
-    return load_rig(
-        source, scale=args.scale, up_axis=args.up, mapping_overrides=_read_mapping(args.mapping)
-    )
+    overrides, info = _read_mapping(args.mapping)
+    scale, up_axis = args.scale, args.up
+    if scale is None and info.get("scale") is not None:
+        scale = _positive_finite(str(info["scale"]))  # the file's, as if given on the command line
+    if up_axis is None:
+        up_axis = info.get("up_axis")
+    ignored = [k for k in info if k not in ("scale", "up_axis")]
+    if ignored:
+        _err(f"ignoring informational mapping keys: {', '.join(ignored)}")
+    return load_rig(source, scale=scale, up_axis=up_axis, mapping_overrides=overrides)
 
 
 def _params(p) -> dict[str, float]:
@@ -301,7 +326,7 @@ def _print_header(d: dict) -> None:
     rows += [(x["what"], x["chosen"], x["source"], x["note"]) for x in m["decisions"]]
     _table(rows)
     for w in m["warnings"]:
-        print(f"warning: {w}")
+        _err(f"warning: {w}")
     if m["skewed"]:
         print(f"skewed roles: {', '.join(m['skewed'])}")
 
@@ -346,7 +371,7 @@ def _print_walk(d: dict) -> None:
 
 
 def _print_validate(d: dict) -> None:
-    rows = [("run", "feasible", "max|residual| field", "within", "slip_mm", "height_mm")]
+    rows = [("run", "feasible", "max|residual| field", "round-trip within", "slip_mm", "height_mm")]
     for r in d["runs"]:
         rows.append(
             (
@@ -381,8 +406,6 @@ def _intensities(args: argparse.Namespace):
 
 def _walk_command(args: argparse.Namespace) -> int:
     intensities, source, prompt = _intensities(args)
-    if args.duration is not None and not args.duration > 0:
-        raise ValueError("--duration must be positive")
     warn_unsourced(intensities)
     model = ANALYTIC
     if args.model == "learned":

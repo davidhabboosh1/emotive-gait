@@ -7,9 +7,11 @@ import sys
 from dataclasses import replace
 
 import pytest
+import yaml
 from rig.rigs import RigSpec, standing_file, walk_file
 
 from emotive_gait.cli import main
+from emotive_gait.mocap.skeleton import Landmark
 
 
 def test_rig_inspect_prints_decisions_and_p0(tmp_path, capsys):
@@ -46,6 +48,8 @@ def test_rig_walk_with_an_unmatched_prompt_exits_two_listing_the_words(tmp_path,
 def test_rig_walk_needs_exactly_one_of_emotion_and_prompt(tmp_path, capsys):
     source = walk_file(RigSpec(), tmp_path)
     assert main(["rig", "walk", str(source), "--out", str(tmp_path / "o.bvh")]) == 2
+    err = capsys.readouterr().err
+    assert "--emotion" in err and "--prompt" in err
 
 
 def test_standing_clip_exits_two_with_the_reasons(tmp_path, capsys):
@@ -96,3 +100,60 @@ def test_serve_without_mcp_exits_one_with_the_install_hint(monkeypatch, capsys):
 def test_rig_validate_prints_five_rows(tmp_path, capsys):
     assert main(["rig", "validate", str(walk_file(RigSpec(), tmp_path))]) == 0
     assert capsys.readouterr().out.count("\n") >= 5
+
+
+def _inspect_mapping(path, capsys, *extra):
+    assert main(["rig", "inspect", str(path), "--json", *extra]) == 0
+    return json.loads(capsys.readouterr().out)["mapping"]
+
+
+def _user_decisions(path, capsys, mapping_file):
+    assert main(["rig", "inspect", str(path), "--json", "--mapping", str(mapping_file)]) == 0
+    out = json.loads(capsys.readouterr().out)["mapping"]
+    return {d["what"]: d for d in out["decisions"]}
+
+
+def test_inspect_output_fed_back_marks_every_landmark_and_role_user(tmp_path, capsys):
+
+    path = walk_file(RigSpec(), tmp_path)
+    mapping = _inspect_mapping(path, capsys)
+    (tmp_path / "m.yaml").write_text(yaml.safe_dump(mapping))
+    decisions = _user_decisions(path, capsys, tmp_path / "m.yaml")
+    landmarks = {lm.value for lm in Landmark}
+    asked = {*mapping["landmarks"], *(f"role:{r}" for r in mapping["roles"])}
+    assert asked and all(decisions[w]["source"] == "user" for w in asked)
+    assert asked >= landmarks & set(decisions)
+
+
+@pytest.mark.filterwarnings("ignore:invalid value:RuntimeWarning")  # a deliberately broken leg
+def test_edited_knee_landmark_in_a_fed_back_file_shows_in_the_decisions(tmp_path, capsys):
+
+    path = walk_file(RigSpec(), tmp_path)
+    mapping = _inspect_mapping(path, capsys)
+    other = mapping["landmarks"]["ankle_l"]
+    mapping["landmarks"]["knee_l"] = other
+    (tmp_path / "m.yaml").write_text(yaml.safe_dump(mapping))
+    main(["rig", "inspect", str(path), "--json", "--mapping", str(tmp_path / "m.yaml")])
+    out = json.loads(capsys.readouterr().out)["mapping"]
+    assert out["landmarks"]["knee_l"] == other
+
+
+def test_mapping_file_scale_and_up_axis_are_honoured_flags_win(tmp_path, capsys):
+    path = walk_file(RigSpec(), tmp_path)  # y-up, centimetres
+    wrong = tmp_path / "m.yaml"
+    wrong.write_text("up_axis: z\nscale: 5.0\nfamily: x\nleg_length: 1.0\n")
+    # the file's wrong axis is used as if given on the command line, so the rig does not map
+    assert main(["rig", "inspect", str(path), "--mapping", str(wrong)]) == 2
+    assert "ignoring informational mapping keys: family, leg_length" in capsys.readouterr().err
+    # explicit flags take precedence over the file
+    argv = ["rig", "inspect", str(path), "--json", "--up", "y", "--scale", "0.01"]
+    assert main([*argv, "--mapping", str(wrong)]) == 0
+    mapping = json.loads(capsys.readouterr().out)["mapping"]
+    assert mapping["up_axis"] == "y" and mapping["scale"] == pytest.approx(0.01)
+
+
+@pytest.mark.parametrize("bad", ["-1", "0", "nan", "inf", "abc"])
+def test_scale_must_be_positive_and_finite(tmp_path, capsys, bad):
+    path = walk_file(RigSpec(), tmp_path)
+    assert main(["rig", "inspect", str(path), f"--scale={bad}"]) == 2
+    assert "--scale" in capsys.readouterr().err

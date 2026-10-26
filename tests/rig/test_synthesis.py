@@ -348,9 +348,9 @@ def test_mapping_overrides_split_into_landmarks_and_roles(loaded, rigs):
         load_rig(path, scale=None, up_axis=None, mapping_overrides={"head": "NoSuchBone"})
     with pytest.raises(RigError, match="no_such_key"):
         load_rig(path, scale=None, up_axis=None, mapping_overrides={"no_such_key": "x"})
-    # "knee_l" is both a landmark and a role: a "Bone/Channel" value makes it a role override.
+    # "knee_l" is both a landmark and a role: the "role:" prefix makes it the role override.
     hinge = rigs[RigSpec()].mapping.roles[JointRole.KNEE_L].hinge
-    again = load_rig(path, scale=None, up_axis=None, mapping_overrides={"knee_l": hinge})
+    again = load_rig(path, scale=None, up_axis=None, mapping_overrides={"role:knee_l": hinge})
     assert any(d.what == "role:knee_l" and d.source == "user" for d in again.mapping.decisions)
 
 

@@ -29,7 +29,6 @@ from emotive_gait.cli_common import (
 from emotive_gait.emotion.evidence import EVIDENCE
 from emotive_gait.emotion.model import IntensityError, modulate
 from emotive_gait.gait.params import GaitParameters, SpeedConstraintError
-from emotive_gait.rig.cli import add_rig_parser, add_serve_parser, run_rig, run_serve
 
 _REPORT = "docs/reports/phase-4-5-fit-report.md"
 _DERIVED = "data/derived"
@@ -137,6 +136,8 @@ def _build_parser() -> argparse.ArgumentParser:
         metavar="ID=PATH",
         help="use a local copy instead of downloading (an archive, or a directory); repeatable",
     )
+    from emotive_gait.rig.cli import add_rig_parser, add_serve_parser
+
     add_rig_parser(sub)
     add_serve_parser(sub)
     return p
@@ -592,10 +593,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _fit(args)
     if args.command == "fetch":
         return _fetch(args)
-    if args.command == "rig":
-        return run_rig(args)
-    if args.command == "serve":
-        return run_serve(args)
+    if args.command in ("rig", "serve"):
+        from emotive_gait.rig.cli import run_rig, run_serve
+
+        return run_rig(args) if args.command == "rig" else run_serve(args)
     return _demo(args)
 
 
