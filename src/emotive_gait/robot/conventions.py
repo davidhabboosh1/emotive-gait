@@ -2,7 +2,8 @@
 
 ``ROLE_CONVENTIONS`` maps a role to ``(landmark value, direction)``: a small positive rotation of
 the role's joint (times the profile's ``sign``) moves that landmark in that direction. The G1 is
-the reference rig (spec 4.5); a rig whose joint disagrees needs a negative ``sign``. Roles that
+the reference rig (spec 4.5); on a rig whose joint disagrees, the rig builder flips the hinge
+axis (every sign is baked into the axis, so a rig's ``sign_for`` stays all +1.0). Roles that
 are IK-solved or unused with symmetric ranges (``HIP_YAW_*``, ``ANKLE_ROLL_*``, ``WAIST_YAW``,
 ``WAIST_ROLL``) have no row and no probe.
 

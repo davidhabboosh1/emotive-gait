@@ -303,13 +303,23 @@ def robot():
 
 
 def test_posture_map_writes_an_affine_combination_of_the_posture_parameters(robot):
-    row = {"trunk_pitch": 0.5, "neck_pitch": 0.0, "elbow_flexion": 0.0, "arm_abduction": 0.0}
-    profile = replace(robot.profile, posture_map={JointRole.WAIST_PITCH: {**row, "offset": 0.1}})
-    traj = generate(
-        GaitParameters(trunk_pitch=0.2),
-        replace(robot, profile=profile),
-        welded=weld_robot_for(robot.profile),
-    )
-    assert traj.angles_at(0.3)[JointRole.WAIST_PITCH] == pytest.approx(0.2)  # 0.5 * 0.2 + 0.1
-    plain = generate(GaitParameters(trunk_pitch=0.2), robot)
-    assert plain.angles_at(0.3)[JointRole.WAIST_PITCH] == pytest.approx(0.2)  # identity path
+    zero = {"trunk_pitch": 0.0, "neck_pitch": 0.0, "elbow_flexion": 0.0, "arm_abduction": 0.0}
+    posture_map = {
+        JointRole.WAIST_PITCH: {**zero, "trunk_pitch": 0.5, "offset": 0.1},
+        # Replaces the sign default (-1 * abduction on the right roll).
+        JointRole.SHOULDER_ROLL_R: {**zero, "arm_abduction": 2.0, "offset": 0.0},
+        # Replaces the elbow posture only: the swing term is still added after.
+        JointRole.ELBOW_L: {**zero, "elbow_flexion": 1.0, "offset": 0.3},
+    }
+    params = GaitParameters(trunk_pitch=0.3, arm_abduction=0.1, expansiveness=1.5)
+    profile = replace(robot.profile, posture_map=posture_map)
+    traj = generate(params, replace(robot, profile=profile), welded=weld_robot_for(robot.profile))
+    plain = generate(params, robot)
+    for phase in (0.3, 0.7):
+        mapped, identity = traj.angles_at(phase), plain.angles_at(phase)
+        assert mapped[JointRole.WAIST_PITCH] == pytest.approx(0.25)  # 0.5 * 0.3 + 0.1
+        assert identity[JointRole.WAIST_PITCH] == pytest.approx(0.3)  # identity path
+        assert mapped[JointRole.SHOULDER_ROLL_R] == pytest.approx(0.30)  # 2.0 * 1.5 * 0.1
+        assert identity[JointRole.SHOULDER_ROLL_R] == pytest.approx(-0.15)  # sign * abduction
+        assert mapped[JointRole.ELBOW_L] == pytest.approx(identity[JointRole.ELBOW_L] + 0.3)
+        assert mapped[JointRole.ELBOW_R] == pytest.approx(identity[JointRole.ELBOW_R])

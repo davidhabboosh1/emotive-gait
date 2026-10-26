@@ -17,12 +17,12 @@ from emotive_gait.gait.generator import GaitTrajectory, generate
 from emotive_gait.gait.params import GaitParameters
 from emotive_gait.mocap.extract import ClipSummary, summarise
 from emotive_gait.robot.loader import RobotModel, load_robot
-from emotive_gait.robot.roles import JointRole
+from emotive_gait.robot.roles import POSTURE_PARAMETERS, JointRole
 from mocap.g1_landmarks import G1_LANDMARKS, record_clip
 
 PRESETS = ("neutral", "sad", "angry", "happy")
 # Absolute on the robot, so compared as deltas against neutral.
-POSTURE = ("trunk_pitch", "neck_pitch", "elbow_flexion", "arm_abduction")
+POSTURE = POSTURE_PARAMETERS
 
 
 @dataclass(frozen=True)
