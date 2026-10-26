@@ -64,8 +64,9 @@ Seven packages (`robot/`, `gait/`, `emotion/`, `sim/`, `mocap/`, `learn/`, `rig/
 - `rig/`: any BVH walk, read, measured, moved by an emotion and written back on its own rig
   (mapping, compile to MuJoCo, calibration, synthesis, writer, validate, MCP server). May import
   everything except `learn/` and `sim/`; ONLY `cli.py` imports it (lazily, for `rig` and `serve`).
-  `rig/server.py` is the only module importing `mcp`, inside functions. `emotion/prompt.py` (the
-  English lexicon) imports only `emotion.evidence` and pyyaml. `mocap/writers/` (BVH writer) is new.
+  `rig/server.py` is the only module that uses `mcp` (inside functions); `rig/cli.py` only probes
+  whether it is installed. `emotion/prompt.py` (the
+  English lexicon) imports only `emotion.evidence` and pyyaml. `mocap/writers/` holds the BVH writer.
 
 Dependency rules:
 
@@ -192,7 +193,8 @@ Dependency rules:
 - **Rig calibration (Phase 4.6).** The calibrated zero is the actor's mean walking pose baked into
   body quaternions (chordal means; pelvis WORLD rotation heading-removed; ankle at the stance
   WORLD orientation). Posture is an affine `posture_map` measured by probing the compiled rig:
-  trunk gain about 0.82 on the synthetic base rig, 0.57 on a one-spine-bone rig. The G1's map is
+  trunk gain about 0.82 on the synthetic base rig and 0.57 with one spine bone (posture-map probes;
+  the design estimated 0.77 on 100STYLE proportions). The G1's map is
   empty and its output is bit-identical to before.
 - One foot point everywhere: the toe if present, else the foot's End Site, else the ankle.
   `foot_site_floor_height = 0.0` on every rig, because the floor IS the median stance height of
@@ -208,10 +210,11 @@ Dependency rules:
 - The double-support inversion goes through `rule_double_support`, now in `gait/footsteps.py`.
 - The pelvis-lowering factor (`reachable_pelvis_factor`, the `pelvis_height` decision) lowers the
   nominal pelvis from the source's mean until the neutral stride is reachable by the flat-foot
-  generator; the output walks lower than the source (measured 0.844 to 0.992 on real rigs).
-- Hinge names are `Bone/Channel`; End Sites are `_End` joints. The pelvis bone's hinges sit on the
-  carrier body `pelvis_hinges` under the joint-less root `pelvis`. Role overrides in a mapping
-  are keyed `role:<role>`.
+  generator; the output walks lower than the source (measured 0.836 to 0.992 on the real-rig runs).
+- Hinge names are `Bone/Channel`; End Sites are named `<bone>_End` (points and sites, not hinges). The pelvis bone's hinges sit on the
+  carrier body `pelvis_hinges` under the joint-less root `pelvis`. A mapping file's `roles:`
+  section maps a role to a `Bone/Channel` value; internally the flat overrides dict that
+  `load_rig` takes namespaces them `role:<role>`.
 - Translation channels below the pelvis: constant columns are folded into the compiled offsets,
   varying ones are refused. A BVH whose position values duplicate its OFFSETs (Bandai) is read by
   the reader at twice its bone length; `--scale 0.005` halves the root travel too.

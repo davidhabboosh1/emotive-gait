@@ -218,15 +218,15 @@ shipped lexicon does.
 back in its own channels and read by the frozen extractor; the full tables are in
 [`docs/reports/phase-4-6-rig-validation.md`](docs/reports/phase-4-6-rig-validation.md). On every
 synthetic rig of the CI family and on the committed 100STYLE excerpt, zero emotion round-trips
-within the Phase 4.5 tolerances with foot slip at most 1.4 mm (synthetic) and 0.0 mm (100STYLE).
+within the Phase 4.5 tolerances with foot slip within the CI bound of 2 mm (worst measured 1.4 mm, the no-toe rig) and 0.0 mm on 100STYLE.
 On real rigs, worst feasible-run residuals and the maximum foot slip on feasible runs:
 
-| rig | feasible runs within tolerance | max slip, feasible runs |
-| --- | --- | --- |
-| 100STYLE excerpt | all | 0.0 mm |
-| 100STYLE full clip | all | 2.9 mm |
-| Bandai Namco dataset-2 walk | all | 0.0 mm |
-| CMU subject 07 (cgspeed conversion) | none: `elbow_r` is skewed, so the elbow fields miss on every run | 2.7 mm |
+| rig | worst field (residual) on feasible runs | feasible runs within tolerance | max slip, feasible runs |
+| --- | --- | --- | --- |
+| 100STYLE excerpt | `double_support_frac` -0.0134 | all | 0.0 mm |
+| 100STYLE full clip | `elbow_swing_ratio` +0.0201 | all | 2.9 mm |
+| Bandai Namco dataset-2 walk | `elbow_swing_ratio` -0.0410 | all | 0.0 mm |
+| CMU subject 07 (cgspeed conversion) | `elbow_swing_ratio` -0.5812 (half-bound right elbow) | none: `elbow_r` is skewed, so the elbow fields miss on every run | 2.7 mm |
 
 Angry and happy are infeasible on every real rig (the generator cannot reach their strides);
 this is reported, not gated.
@@ -259,7 +259,7 @@ Two decisions that change the output, stated with their numbers:
 8. Zero slip holds for feasible parameters; an emotion that asks a rig for an unreachable stride
    is reported, not clipped.
 
-Findings from the validation report:
+Findings from validation:
 
 - Units inference knows only the five scales above, so CMU's length unit (1/0.45 inch) is read
   as inches, a rig at 0.45 times its size, unless `--scale 0.0564444` is given.
@@ -270,7 +270,6 @@ Findings from the validation report:
   by the fold.
 - A half-bound arm group (one skewed side, as CMU's right elbow) moves one arm by the full delta
   and the extractor's two-arm mean reads half.
-- No recognition rate has been measured for any rig, and disgust and surprise stay unsourced.
 
 ## Limitations
 
