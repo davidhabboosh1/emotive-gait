@@ -13,8 +13,13 @@ Conventions:
   the reader's ``R = R_c1 @ R_c2 @ R_c3``; hinges are defined in channel order.
 - The root body is ``pelvis`` with no joint (what ``gait.ik`` calls welded). When the pelvis
   bone has hinges they sit on a zero-offset carrier body (``PELVIS_CARRIER``) between ``pelvis``
-  and the pelvis's children. Ancestors of the pelvis are not compiled, so their rotations are
-  not represented.
+  and the pelvis's children; a pelvis body quaternion (``driven`` mode's baked tilt) also goes
+  on the carrier, so the root stays world-aligned. ``body_of`` gives the body a bone hangs from,
+  ``frame_of`` the body whose frame is the bone's rotated frame (the carrier for the pelvis).
+  Ancestors of the pelvis are not compiled, so their rotations are not represented.
+- The pelvis's position channels are irrelevant: everything is measured relative to the pelvis.
+  Translation channels below the pelvis are refused (``RigError``) unless their motion column is
+  identically zero.
 - Hinges and their position actuators are named ``f"{bone}/{channel}"``; bodies are named after
   their bones; a site sits at every bone origin (named like the bone) and every End Site
   (``f"{bone}_End"``). Bodies carry a tiny explicit inertia so MuJoCo compiles them; the model
@@ -31,13 +36,15 @@ import mujoco
 import numpy as np
 
 from emotive_gait.mocap.readers.bvh import BvhFile
+from emotive_gait.mocap.skeleton import to_z_up
+from emotive_gait.rig.errors import RigError
 
 PELVIS_BODY = "pelvis"
 PELVIS_CARRIER = "pelvis_hinges"
 _AXIS = {"X": 0, "Y": 1, "Z": 2}
 _MASS = 1e-3
 _INERTIA = (1e-6, 1e-6, 1e-6)
-_KP = 100.0
+_KP = 100.0  # arbitrary: the chain is only ever mj_forward-ed, never stepped
 
 
 @dataclass(frozen=True)
@@ -54,8 +61,11 @@ class CompiledRig:
     file: BvhFile
     pelvis: str  # bone name
     hinges: tuple[str, ...]  # hinge names in qpos order
-    body_of: Mapping[str, str]  # bone name -> body name
+    # bone name -> the body it hangs from ("pelvis" for the pelvis bone), which is not
+    # necessarily the body carrying its rotation: see ``frame_of``.
+    body_of: Mapping[str, str]
     landmark_sites: Mapping[str, str]  # clip joint name (incl. _End) -> site name
+    frame_of: Mapping[str, str]  # bone name -> body whose xmat is the bone's rotated frame
 
     def qpos_from_motion(self, frame: int) -> np.ndarray:
         """Every hinge's channel value at ``frame``, in radians (``full`` mode only)."""
@@ -67,12 +77,8 @@ class CompiledRig:
 
 
 def _z_up_matrix(up_axis: str) -> np.ndarray:
-    """``P`` with ``to_z_up(v) == P @ v``."""
-    if up_axis == "z":
-        return np.eye(3)
-    if up_axis == "y":
-        return np.array([[1.0, 0.0, 0.0], [0.0, 0.0, -1.0], [0.0, 1.0, 0.0]])
-    raise ValueError(f"up_axis must be 'y' or 'z', got {up_axis!r}")
+    """``P`` with ``to_z_up(v) == P @ v`` (rows of ``to_z_up(I)`` are the columns of ``P``)."""
+    return to_z_up(np.eye(3), up_axis).T
 
 
 def _subtree(file: BvhFile, root: int) -> list[int]:
@@ -82,6 +88,22 @@ def _subtree(file: BvhFile, root: int) -> list[int]:
         if file.joints[i].parent in inside:
             inside.add(i)
     return sorted(inside)
+
+
+def _refuse_translation(file: BvhFile, bones: Sequence[int], root: int) -> None:
+    """Raise ``RigError`` for a non-zero position channel on a bone below the pelvis."""
+    for bone in bones:
+        if bone == root:
+            continue
+        name = file.joints[bone].name
+        for channel in file.joints[bone].channels:
+            if not channel.endswith("position"):
+                continue
+            if np.any(file.motion[:, file.channel_index(name, channel)] != 0.0):
+                raise RigError(
+                    f"bone {name!r} has a non-zero translation channel {channel!r}; "
+                    "only the pelvis may translate"
+                )
 
 
 def _build(
@@ -107,10 +129,13 @@ def _build(
         raise ValueError(f"bone names {sorted(clash)} collide with the compiled root bodies")
     p = _z_up_matrix(file.up_axis)
     root = names.index(pelvis)
+    bones = _subtree(file, root)
+    _refuse_translation(file, bones, root)
 
     spec = mujoco.MjSpec()
     hangs_from: dict[int, mujoco.MjsBody] = {}  # bone index -> body its children hang from
     body_of: dict[str, str] = {}
+    frame_of: dict[str, str] = {}
     sites: dict[str, str] = {}
     hinge_names: list[str] = []
 
@@ -139,18 +164,21 @@ def _build(
             actuator.set_to_position(kp=_KP)
             hinge_names.append(name)
 
-    for bone in _subtree(file, root):
+    for bone in bones:
         joint = file.joints[bone]
         if bone == root:
             pos = np.array([0.0, 0.0, pelvis_height])
-            body = new_body(spec.worldbody, PELVIS_BODY, pos, quat_for(bone))
+            body = new_body(spec.worldbody, PELVIS_BODY, pos, None)  # stays world-aligned
             body_of[joint.name] = PELVIS_BODY
-            if hinges_for(bone):
-                body = new_body(body, PELVIS_CARRIER, np.zeros(3), None)
+            quat = quat_for(bone)
+            if hinges_for(bone) or quat is not None:
+                body = new_body(body, PELVIS_CARRIER, np.zeros(3), quat)
+            frame_of[joint.name] = body.name
         else:
             offset = p @ (np.asarray(joint.offset, dtype=float) * file.scale)
             body = new_body(hangs_from[joint.parent], joint.name, offset, quat_for(bone))
             body_of[joint.name] = joint.name
+            frame_of[joint.name] = joint.name
         add_hinges(body, bone)
         hangs_from[bone] = body
         body.add_site(name=joint.name, pos=[0.0, 0.0, 0.0])
@@ -168,6 +196,7 @@ def _build(
         hinges=tuple(hinge_names),
         body_of=MappingProxyType(body_of),
         landmark_sites=MappingProxyType(sites),
+        frame_of=MappingProxyType(frame_of),
     )
 
 

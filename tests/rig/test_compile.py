@@ -9,8 +9,9 @@ import mujoco
 import numpy as np
 import pytest
 
-from emotive_gait.mocap.readers.bvh import read_bvh_file
-from emotive_gait.rig.compile import compile_full, heading_matrix
+from emotive_gait.mocap.readers.bvh import BvhFile, BvhJoint, read_bvh_file
+from emotive_gait.rig.compile import PELVIS_CARRIER, compile_full, heading_matrix
+from emotive_gait.rig.errors import RigError
 from rig.rigs import RigSpec, build_rig, pelvis_name, write_walk
 
 FIX = Path(__file__).resolve().parents[1] / "mocap" / "fixtures"
@@ -63,6 +64,8 @@ def test_full_chain_names_bodies_hinges_and_sites():
     pelvis = pelvis_name(spec)
     rig = compile_full(f, pelvis=pelvis, pelvis_height=0.8)
     assert rig.body_of[pelvis] == "pelvis"
+    assert rig.frame_of[pelvis] == PELVIS_CARRIER  # the pelvis bone's rotated frame
+    assert all(rig.frame_of[b] == rig.body_of[b] for b in rig.body_of if b != pelvis)
     assert "reference" not in rig.body_of  # ancestors of the pelvis are not compiled
     assert np.allclose(rig.model.body("pelvis").pos, [0.0, 0.0, 0.8])
     assert rig.model.body("pelvis").jntnum == 0
@@ -70,7 +73,50 @@ def test_full_chain_names_bodies_hinges_and_sites():
     for i, hinge in enumerate(rig.hinges):
         assert rig.model.joint(hinge).qposadr[0] == i
         assert rig.model.actuator(hinge).trnid[0] == rig.model.joint(hinge).id
-    assert any(name.endswith("_End") for name in rig.landmark_sites)
+    clip = f.to_clip(end_sites=True)
+    below = [n for i, n in enumerate(clip.joint_names) if _descends(clip.parents, i, pelvis, clip)]
+    assert set(rig.landmark_sites) == set(below)
+    assert all(site == name for name, site in rig.landmark_sites.items())
+    assert f"{pelvis}_End" not in below and "mixamorig:Head_End" in rig.landmark_sites
+    assert f"{pelvis}/Zrotation" == rig.hinges[0]
+    assert "mixamorig:LeftLeg/Xrotation" in rig.hinges
+
+
+def _descends(parents, i: int, ancestor: str, clip) -> bool:
+    while i >= 0:
+        if clip.joint_names[i] == ancestor:
+            return True
+        i = parents[i]
+    return False
+
+
+def _with_translation(f: BvhFile, bone: str, values: float) -> BvhFile:
+    """``f`` with ``Xposition Yposition Zposition`` prepended to ``bone``, all set to ``values``."""
+    start = f.channel_slice(bone).start
+    joints = tuple(
+        BvhJoint(
+            j.name,
+            j.parent,
+            j.offset,
+            ("Xposition", "Yposition", "Zposition") + j.channels,
+            j.end_site,
+        )
+        if j.name == bone
+        else j
+        for j in f.joints
+    )
+    extra = np.full((f.motion.shape[0], 3), values)
+    motion = np.concatenate([f.motion[:, :start], extra, f.motion[:, start:]], axis=1)
+    return replace(f, joints=joints, motion=motion)
+
+
+def test_translation_channels_below_the_pelvis_are_refused_unless_zero():
+    f = build_rig(RigSpec())
+    bone = "mixamorig:LeftLeg"
+    with pytest.raises(RigError, match="mixamorig:LeftLeg"):
+        compile_full(_with_translation(f, bone, 1.5), pelvis=pelvis_name(RigSpec()))
+    rig = compile_full(_with_translation(f, bone, 0.0), pelvis=pelvis_name(RigSpec()))
+    assert f"{bone}/Xposition" not in rig.hinges
 
 
 @pytest.mark.parametrize("forward", [[1.0, 0.0, 0.0], [0.0, 2.0, 0.3], [-1.0, -1.0, 0.0]])
@@ -80,3 +126,22 @@ def test_heading_matrix_takes_x_to_the_horizontal_forward_and_keeps_z(forward):
     assert np.allclose(r @ [1.0, 0.0, 0.0], flat / np.linalg.norm(flat))
     assert np.allclose(r @ [0.0, 0.0, 1.0], [0.0, 0.0, 1.0])
     assert np.allclose(r.T @ r, np.eye(3)) and np.isclose(np.linalg.det(r), 1.0)
+
+
+def test_a_pelvis_quaternion_goes_on_the_carrier_and_the_root_stays_world_aligned():
+    from emotive_gait.rig.compile import _build
+
+    f = build_rig(RigSpec())
+    pelvis = pelvis_name(RigSpec())
+    tilt = np.array([np.cos(0.1), 0.0, np.sin(0.1), 0.0])
+    rig = _build(
+        f,
+        pelvis=pelvis,
+        pelvis_height=1.0,
+        hinges_for=lambda bone: [],
+        quat_for=lambda bone: tilt if f.joints[bone].name == pelvis else None,
+        hinge_range=lambda name: None,
+    )
+    assert np.allclose(rig.model.body("pelvis").quat, [1.0, 0.0, 0.0, 0.0])
+    assert np.allclose(rig.model.body(PELVIS_CARRIER).quat, tilt)
+    assert rig.frame_of[pelvis] == PELVIS_CARRIER and rig.model.nq == 0
