@@ -24,7 +24,8 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest", "ruff==0.17.2"]  # ruff pinned to match .pre-commit-config.yaml
+fit = ["statsmodels>=0.14", "pandas>=2"]  # the learn/ pipeline; the runtime needs neither
+dev = ["pytest", "ruff==0.17.2", "statsmodels>=0.14", "pandas>=2"]  # ruff pinned to match .pre-commit-config.yaml
 
 [project.scripts]
 emotive-gait = "emotive_gait.cli:main"

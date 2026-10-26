@@ -1,0 +1,46 @@
+# Data manifest for the learned emotion model (see emotive_gait.learn.manifest for the layout).
+# `files:` lists are frozen in Task 9; sizes and hashes come from the downloaded files.
+datasets:
+  - id: 100style
+    name: 100STYLE
+    url: https://zenodo.org/records/8127870/files/100STYLE.zip
+    archive: 100STYLE.zip
+    archive_sha256: 2c3b4017f8e2397ee6904c9b9f43551d8b426d39ddc3558d121fee9e55cb2d58
+    archive_md5: 3cf627852fd8192024c04a8d0ef49583
+    archive_bytes: 1468515354
+    licence: CC BY 4.0
+    committable: true
+    permission: ""
+    reader: bvh
+    reader_args: {scale: 0.01, up_axis: y}
+    aux_files: []
+    files: []
+    excluded: []
+  - id: cmu
+    name: CMU Graphics Lab Motion Capture Database
+    url: http://mocap.cs.cmu.edu/subjects/
+    archive: null
+    licence: >-
+      Free for all uses; the data was obtained from mocap.cs.cmu.edu, created with funding
+      from NSF EIA-0196217.
+    committable: true
+    permission: ""
+    reader: asf_amc
+    reader_args: {}
+    aux_files: []
+    files: []
+    excluded: []
+  - id: bml
+    name: Body Movement Library (point-tracked data)
+    url: http://paco.psy.gla.ac.uk/wp-content/uploads/2018/05/full_set_of_ptd_data.zip
+    archive: full_set_of_ptd_data.zip
+    archive_sha256: 763870c0ae8e6b29590ab829d22b660fcb4b1b288a1bc63ff065100556c14d9c
+    archive_bytes: 263914453
+    licence: No licence stated
+    committable: false
+    permission: ""  # pending written permission from the Glasgow PACO lab
+    reader: ptd
+    reader_args: {scale: 0.0254, up_axis: z, fps: 60.0}
+    aux_files: []
+    files: []
+    excluded: []

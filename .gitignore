@@ -9,3 +9,5 @@ build/
 dist/
 *.egg-info/
 docs/media/*.mp4
+data/raw/
+data/derived/
