@@ -17,8 +17,19 @@ from emotive_gait.rig.mapping import RigError, bind_roles, map_landmarks
 from emotive_gait.rig.profile import rig_profile, rig_robot
 from emotive_gait.rig.ranges import RANGES
 from emotive_gait.robot.conventions import ROLE_CONVENTIONS, convention_holds
-from emotive_gait.robot.roles import JointRole
-from rig.driven import X, Y, Z, driven_rig, probe_driven, spec_id
+from emotive_gait.robot.profiles.g1 import G1_PROFILE_WITH_NECK
+from emotive_gait.robot.roles import POSTURE_PARAMETERS, JointRole
+from rig.driven import (
+    X,
+    Y,
+    Z,
+    calibrated_rig,
+    driven_rig,
+    hinges_from_posture,
+    probe_driven,
+    spec_id,
+    static_posture,
+)
 from rig.rigs import FAMILY_VARIANTS, RigSpec, build_rig, toe_rest_height_m, walk_and_clip
 
 
@@ -250,3 +261,48 @@ def test_a_bound_hinge_writes_back_as_its_own_euler_channel_through_a_three_axis
     # Several bound channels on one bone telescope: each hinge's axis is its channel's axis
     # seen through the later channels, so the composition is the Euler update of every channel.
     assert np.allclose(channel_degrees(), expected, atol=1e-9)
+
+
+POSTURE_SPECS = [
+    RigSpec(),
+    replace(RigSpec(), spine_bones=1),
+    replace(RigSpec(), family="style100"),
+]
+
+
+@pytest.mark.parametrize("spec", POSTURE_SPECS, ids=spec_id)
+def test_posture_map_makes_commanded_posture_read_back(tmp_path, spec):
+    robot, mapping, _, pm, p_ref = calibrated_rig(spec, tmp_path / spec_id(spec))
+    assert tuple(p_ref) == POSTURE_PARAMETERS
+    commands = (
+        {},
+        {"trunk_pitch": 0.3},
+        {"neck_pitch": 0.3},
+        {"elbow_flexion": 0.5},
+        {"arm_abduction": 0.3},
+    )
+    for command in commands:
+        target = {k: p_ref[k] + command.get(k, 0.0) for k in POSTURE_PARAMETERS}
+        qpos = hinges_from_posture(robot, pm, target)
+        read = static_posture(robot, qpos, mapping)
+        for k in POSTURE_PARAMETERS:
+            assert abs(read[k] - target[k]) < 0.02, (k, command, read[k] - target[k])
+
+
+def test_posture_map_commands_the_reference_pose_at_p_ref(tmp_path):
+    robot, _, _, pm, p_ref = calibrated_rig(RigSpec(), tmp_path)
+    assert set(pm) == {
+        JointRole.WAIST_PITCH,
+        JointRole.NECK_PITCH,
+        JointRole.ELBOW_L,
+        JointRole.ELBOW_R,
+        JointRole.SHOULDER_ROLL_L,
+        JointRole.SHOULDER_ROLL_R,
+    }
+    assert pm[JointRole.ELBOW_L] == pm[JointRole.ELBOW_R]
+    assert pm[JointRole.SHOULDER_ROLL_L] == pm[JointRole.SHOULDER_ROLL_R]
+    assert np.allclose(hinges_from_posture(robot, pm, p_ref), 0.0, atol=1e-12)
+
+
+def test_identity_posture_map_on_the_g1_is_the_default():
+    assert G1_PROFILE_WITH_NECK.posture_map == {}

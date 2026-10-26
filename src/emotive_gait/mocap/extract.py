@@ -225,6 +225,23 @@ def _angles(tracks: Mapping[Landmark, np.ndarray], frame: PathFrame) -> _Angles:
     return _Angles(trunk, neck, tuple(arm), tuple(abduction), tuple(elbow))
 
 
+def posture_angles(tracks: Mapping[Landmark, np.ndarray], frame: PathFrame) -> dict[str, float]:
+    """The static posture measures over ``tracks`` (any length), the frame mean of each.
+
+    Keyed by the posture parameter names (``robot.roles.POSTURE_PARAMETERS``, spelled out here
+    because ``mocap`` imports nothing from ``robot``): ``trunk_pitch``, ``neck_pitch``,
+    ``elbow_flexion`` and ``arm_abduction``, the last two the mean of both arms. The definitions
+    are the per-cycle ones in the module docstring, unfiltered; ``NaN`` where a landmark is absent.
+    """
+    a = _angles(tracks, frame)
+    return {
+        "trunk_pitch": _nanmean(a.trunk),
+        "neck_pitch": _nanmean(a.neck),
+        "elbow_flexion": _nanmean([_nanmean(e) for e in a.elbow]),
+        "arm_abduction": _nanmean([_nanmean(b) for b in a.abduction]),
+    }
+
+
 def _swing_ratio(arm: np.ndarray, elbow: np.ndarray) -> float:
     ok = np.isfinite(arm) & np.isfinite(elbow)
     if np.count_nonzero(ok) < 3 or np.ptp(arm[ok]) < 1e-6:

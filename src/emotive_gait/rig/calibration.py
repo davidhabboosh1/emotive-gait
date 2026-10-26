@@ -23,6 +23,19 @@ Probes (spec 4.4): with the ``full`` chain posed at the reference, each hinge is
 ``+PROBE_RAD`` and the landmark points are read before and after; the
 hinge's world axis is recorded too. The full chain's pelvis carries the heading-removed
 rotation, so its world frame is the reference path frame: forward +x, left +y, up +z.
+
+Posture map (spec 4.3, "Posture gain"): on the ``driven`` chain at qpos zero (the reference,
+heading +x) the extractor's own static reading (``mocap.extract.posture_angles``, path frame
+forward +x, left +y) is ``p_ref``. Each posture parameter has a role group (waist pitch; neck
+pitch; both elbows; both shoulder rolls), turned together by ``+PROBE_RAD``; the reading's
+change over ``PROBE_RAD`` is the Jacobian column of that group, ``J[parameter, group]``. A
+group with no bound role drops its parameter's row and column. ``K = J^-1`` and every bound
+role of a group gets the row ``{parameter: K[group, parameter], "offset": -(K @ p_ref)[group]}``,
+so commanding ``p_ref`` writes hinge 0 (the reference pose) and commanding ``p_ref + delta``
+turns the group by ``K @ delta``. The elbows are probed from the reference, which on a
+straight-armed actor is exactly straight: ``elbow_flexion`` is ``|bend|`` there, and the
+one-sided ``+PROBE_RAD`` probe (flexion by the bound sign) reads the gain of the flexing side,
+the side the map commands.
 """
 
 from __future__ import annotations
@@ -30,11 +43,13 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
 from types import MappingProxyType
+from typing import TYPE_CHECKING
 
 import mujoco
 import numpy as np
 
-from emotive_gait.mocap.extract import extract_cycles, gait_timing, summarise
+from emotive_gait.mocap.events import PathFrame
+from emotive_gait.mocap.extract import extract_cycles, gait_timing, posture_angles, summarise
 from emotive_gait.mocap.readers.bvh import BvhFile, rotation_about
 from emotive_gait.mocap.skeleton import Landmark, LandmarkMap, SkeletonClip
 from emotive_gait.rig.compile import (
@@ -44,10 +59,25 @@ from emotive_gait.rig.compile import (
 )
 from emotive_gait.rig.errors import RigError
 from emotive_gait.robot.conventions import PROBE_RAD
+from emotive_gait.robot.roles import POSTURE_PARAMETERS, JointRole
+
+if TYPE_CHECKING:  # rig.mapping imports this module
+    from emotive_gait.rig.mapping import RigMapping
+    from emotive_gait.robot.loader import RobotModel
 
 L = Landmark
 _AXIS = {"X": 0, "Y": 1, "Z": 2}
 _FEET = ((L.ANKLE_L, L.TOE_L), (L.ANKLE_R, L.TOE_R))
+R = JointRole
+# Posture parameter -> the roles turned together to probe it (spec 4.3).
+POSTURE_GROUPS: Mapping[str, tuple[JointRole, ...]] = MappingProxyType(
+    {
+        "trunk_pitch": (R.WAIST_PITCH,),
+        "neck_pitch": (R.NECK_PITCH,),
+        "elbow_flexion": (R.ELBOW_L, R.ELBOW_R),
+        "arm_abduction": (R.SHOULDER_ROLL_L, R.SHOULDER_ROLL_R),
+    }
+)
 
 
 @dataclass(frozen=True, eq=False)
@@ -274,3 +304,79 @@ def probe_hinges(
             after=MappingProxyType(points(turned)),
         )
     return out
+
+
+def landmark_site_names(
+    rig: CompiledRig, landmarks: LandmarkMap
+) -> dict[Landmark, str | tuple[str, ...]]:
+    """Landmark -> the site name(s) of ``rig`` carrying its joint(s); landmarks whose joints
+    have no site are left out."""
+    out: dict[Landmark, str | tuple[str, ...]] = {}
+    for lm, bones in landmarks.items():
+        names = (bones,) if isinstance(bones, str) else tuple(bones)
+        if names and all(n in rig.landmark_sites for n in names):
+            sites = tuple(rig.landmark_sites[n] for n in names)
+            out[lm] = sites[0] if isinstance(bones, str) else sites
+    return out
+
+
+def posture_map(
+    robot: RobotModel,
+    mapping: RigMapping,
+    *,
+    landmark_sites: Mapping[Landmark, str | tuple[str, ...]],
+) -> tuple[Mapping[JointRole, Mapping[str, float]], dict[str, float]]:
+    """``(rows, p_ref)``: the measured affine posture map of the ``driven`` chain in ``robot``.
+
+    ``landmark_sites`` maps each landmark to its site name (several are averaged, as the clip's
+    landmark tracks are). Raises ``RigError`` when a bound posture group's measure cannot be
+    read (a landmark is absent) or the Jacobian is singular.
+    """
+    model = robot.model
+    data = mujoco.MjData(model)
+    site_ids = {
+        lm: [model.site(n).id for n in ((s,) if isinstance(s, str) else s)]
+        for lm, s in landmark_sites.items()
+    }
+    frame = PathFrame(
+        origin=np.zeros((1, 3)),
+        forward=np.array([[1.0, 0.0, 0.0]]),
+        left=np.array([[0.0, 1.0, 0.0]]),
+        turning=np.zeros(1, dtype=bool),
+    )
+
+    def reading(qpos: np.ndarray) -> np.ndarray:
+        data.qpos[:] = qpos
+        mujoco.mj_forward(model, data)
+        tracks = {lm: data.site_xpos[ids].mean(axis=0)[None, :] for lm, ids in site_ids.items()}
+        read = posture_angles(tracks, frame)
+        return np.array([read[k] for k in POSTURE_PARAMETERS])
+
+    q0 = np.zeros(model.nq)
+    p_all = reading(q0)
+    groups = {
+        k: tuple(r for r in POSTURE_GROUPS[k] if r in mapping.roles) for k in POSTURE_PARAMETERS
+    }
+    used = [i for i, k in enumerate(POSTURE_PARAMETERS) if groups[k]]
+    for i in used:
+        if not np.isfinite(p_all[i]):
+            k = POSTURE_PARAMETERS[i]
+            raise RigError(f"posture {k} is bound but cannot be read: a landmark is absent")
+    jacobian = np.zeros((len(used), len(used)))
+    for col, i in enumerate(used):
+        turned = q0.copy()
+        for role in groups[POSTURE_PARAMETERS[i]]:
+            turned[robot.qpos_adr(role)] += PROBE_RAD
+        jacobian[:, col] = (reading(turned)[used] - p_all[used]) / PROBE_RAD
+    if used and np.linalg.cond(jacobian) > 1e6:
+        raise RigError(f"posture Jacobian is singular: {np.round(jacobian, 3).tolist()}")
+    gains = np.linalg.inv(jacobian) if used else np.zeros((0, 0))
+    p_ref = {k: float(v) for k, v in zip(POSTURE_PARAMETERS, p_all, strict=True)}
+    offsets = -gains @ p_all[used]
+    rows: dict[JointRole, Mapping[str, float]] = {}
+    for row, i in enumerate(used):
+        coefficients = {POSTURE_PARAMETERS[j]: float(gains[row, c]) for c, j in enumerate(used)}
+        coefficients["offset"] = float(offsets[row])
+        for role in groups[POSTURE_PARAMETERS[i]]:
+            rows[role] = MappingProxyType(dict(coefficients))
+    return MappingProxyType(rows), p_ref

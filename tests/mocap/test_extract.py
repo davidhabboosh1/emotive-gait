@@ -10,10 +10,26 @@ import pytest
 
 from emotive_gait.gait.params import GaitParameters
 from emotive_gait.gait.scaling import MEASURED_FIELDS, to_gait_parameters
-from emotive_gait.mocap.extract import GaitMeasurement, extract_cycles, leg_length, summarise
+from emotive_gait.mocap.events import path_frame
+from emotive_gait.mocap.extract import (
+    GaitMeasurement,
+    extract_cycles,
+    leg_length,
+    posture_angles,
+    summarise,
+)
 from emotive_gait.mocap.normalise import normalise, ratio_delta
 from emotive_gait.mocap.skeleton import Landmark
-from mocap.walker import FPS, SWING_S, bend, extremum_offset_s, full_walker
+from mocap.walker import (
+    ELBOW_FLEXION,
+    FPS,
+    NECK_PITCH,
+    SWING_S,
+    TRUNK_PITCH,
+    bend,
+    extremum_offset_s,
+    full_walker,
+)
 
 walker = full_walker()
 summary = summarise(walker.clip, walker.landmarks)
@@ -203,3 +219,16 @@ def test_ratio_delta_is_fractional_for_lengths_and_a_difference_for_angles():
     assert d["step_length"] == pytest.approx(-0.2)
     assert d["trunk_pitch"] == pytest.approx(0.1)
     assert d["cadence"] == pytest.approx(0.0) and d["com_height_scale"] == pytest.approx(0.0)
+
+
+def test_posture_angles_keys_match_the_posture_parameters():
+    from emotive_gait.robot.roles import POSTURE_PARAMETERS  # tests may cross layers
+
+    tracks = walker.clip.landmark_positions(walker.landmarks)
+    read = posture_angles(tracks, path_frame(tracks[Landmark.PELVIS], FPS))
+    assert tuple(read) == POSTURE_PARAMETERS
+    # The walker's posture is known by construction (elbow: a symmetric swing about its mean).
+    assert read["trunk_pitch"] == pytest.approx(TRUNK_PITCH, abs=0.01)
+    assert read["neck_pitch"] == pytest.approx(NECK_PITCH, abs=0.01)
+    assert read["elbow_flexion"] == pytest.approx(ELBOW_FLEXION, abs=0.01)
+    assert read["arm_abduction"] == pytest.approx(0.0, abs=0.01)
