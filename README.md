@@ -72,6 +72,10 @@ it lacks to the analytic model.
 **`learn/`** is the offline fit pipeline (manifest, fetch, mixed-effects fit, held-out validation,
 artefact and report writers); it needs the `fit` extra and only `cli.py` imports it.
 
+**`rig/`** reads a BVH walk, binds its bones to roles, compiles it to a MuJoCo model, calibrates
+the zero pose and writes the walk back; `cli.py` and the MCP server sit on top of it (see Emotion
+for any rig).
+
 **`sim/`** has a kinematic tier that poses the robot with no physics and walks it forward with
 exact foot placement (the source of stimuli for video), and a physical tier that steps position
 servos open loop with the pelvis on a vertical rail. ZMP and center-of-pressure are measured
@@ -156,6 +160,117 @@ identified from these data. Fear and anger are thin and disgust and surprise are
 structure test is a model comparison, not a discovery. Forward walking is a kinematic-tier
 result, and nothing here generalises beyond the fitted actors. No recognition rate has been
 measured.
+
+## Emotion for any rig
+
+The output is a parametric walk with the source's measured gait parameters plus the emotion
+deltas, written on the source's own skeleton; it is not the source's frames with an emotion
+layered on. `emotive-gait rig` reads a BVH walk, maps its bones to semantic roles, measures the
+actor's gait parameters (cadence, step length, trunk pitch, arm swing, ...) with the same
+extractor the learned model uses, adds the emotion's parameter deltas, regenerates the walk
+(legs by IK on the rig's own proportions, upper body from curves) and writes a BVH in the
+source's channels. The actor's idiosyncrasies do not survive; the parameters do. No language
+model is involved: `--emotion` takes intensities, `--prompt` uses a shipped English lexicon.
+
+```sh
+emotive-gait rig inspect in.bvh [--scale S] [--up y|z] [--mapping map.yaml] [--json]
+emotive-gait rig walk in.bvh --out out.bvh --emotion sadness=0.8 [--emotion fear=0.3 ...]
+emotive-gait rig walk in.bvh --out out.bvh --prompt "very gloomy" --model learned --scaling froude
+emotive-gait rig validate in.bvh [--report path.md] [--scale S] [--up y|z] [--mapping map.yaml]
+```
+
+`inspect` prints the detected naming family, units, up axis, leg length, the role and landmark
+bindings, skewed roles (hinge axes too far from a clean axis, left unbound or bound with a
+warning), unobservable fields and the `pelvis_height` decision (below). `walk` also takes
+`--model {analytic,learned}`, `--scaling {froude,ratio}`, `--duration S` and `--json`.
+`validate` walks the rig at zero emotion and at the four analytic presets, reads each output
+back with the extractor and tabulates the residuals against frozen tolerances; it writes every
+run for at least four gait cycles at its own cadence. Units are inferred from the hip-to-ankle
+length against a table of known scales (1, 0.01, 0.0254, 0.1 and 0.001 m per file unit); `--scale`
+and `--up` override. The mapping file has a `landmarks:` section (landmark to bone) and a
+`roles:` section (role to `Bone/Channel`); `inspect --json` prints a `mapping` object that can be
+edited and fed back with `--mapping` (its `scale` and `up_axis` are honoured; flags win).
+
+**Blender round trip.** Export the character's animation with Blender's BVH exporter (the tool
+infers Z-up and metres, or pass `--up z --scale 1`), run `rig walk`, and import the result with
+the same settings. **Mixamo.** Download the FBX, import it to Blender, export BVH, and proceed
+as above; the files are never committed.
+
+**MCP server.** `pip install -e ".[mcp]"` (pinned `mcp>=2,<3`), then register it:
+
+```sh
+claude mcp add emotive-gait -- emotive-gait serve
+```
+
+or, for Claude Desktop, in `claude_desktop_config.json`:
+
+```json
+{"mcpServers": {"emotive-gait": {"command": "emotive-gait", "args": ["serve"]}}}
+```
+
+It exposes five tools (`inspect_rig`, `measure_gait`, `emotional_walk`, `parse_emotion_prompt`,
+`list_emotions`), two resources (`emotive-gait://evidence`, `emotive-gait://rig-mapping-schema`)
+and one prompt (`emotional_walk_request`). The package never calls a language model: when a host
+model is present it maps words to intensities itself and passes `intensities`; otherwise the
+shipped lexicon does.
+
+**What was measured.** Every rig is walked at zero emotion and at the analytic presets, written
+back in its own channels and read by the frozen extractor; the full tables are in
+[`docs/reports/phase-4-6-rig-validation.md`](docs/reports/phase-4-6-rig-validation.md). On every
+synthetic rig of the CI family and on the committed 100STYLE excerpt, zero emotion round-trips
+within the Phase 4.5 tolerances with foot slip at most 1.4 mm (synthetic) and 0.0 mm (100STYLE).
+On real rigs, worst feasible-run residuals and the maximum foot slip on feasible runs:
+
+| rig | feasible runs within tolerance | max slip, feasible runs |
+| --- | --- | --- |
+| 100STYLE excerpt | all | 0.0 mm |
+| 100STYLE full clip | all | 2.9 mm |
+| Bandai Namco dataset-2 walk | all | 0.0 mm |
+| CMU subject 07 (cgspeed conversion) | none: `elbow_r` is skewed, so the elbow fields miss on every run | 2.7 mm |
+
+Angry and happy are infeasible on every real rig (the generator cannot reach their strides);
+this is reported, not gated.
+
+Two decisions that change the output, stated with their numbers:
+
+- **The output walks with a lower pelvis than the source.** The generator has a flat foot and
+  no heel-toe roll, so the source's mean pelvis height can leave its stride unreachable. The
+  nominal pelvis height is the source's mean lowered by `reachable_pelvis_factor` until the
+  neutral stride is reachable (printed by `inspect` as the `pelvis_height` decision): 0.906
+  (100STYLE excerpt), 0.867 (100STYLE full), 0.844 (CMU), 0.992 (Bandai), 0.938 (synthetic base
+  rig). The G1 does the same: its 0.68 m nominal sits below its 0.79 m stand.
+- **Pitch-innermost shoulders are not gated above 0.5 rad.** When a rig's shoulder pitch channel
+  is the innermost rotation channel, the channel couples `arm_swing_amp` and `arm_abduction`;
+  above 0.5 rad of commanded abduction those two fields are not gated. This applies to the
+  Bandai rig, where no run exceeded 0.483 rad.
+
+**Limitations of this feature.**
+
+1. The output is a parametric gait, not the source's motion with an emotion on top: the 14
+   parameters survive the round trip, the actor's idiosyncrasies do not.
+2. Froude re-dimensioning is first-order (Donelan and Kram 1997); a child rig or a giant gets a
+   rescaled human effect, not a measured one.
+3. Posture semantics are the extractor's operational definitions; a rig's shoulder or spine
+   rigging may render "trunk pitch" differently from a human.
+4. No hands, fingers, head yaw or pelvis rotation; the swing-foot pitch is emergent.
+5. The name lexicon covers the common families; an unusual rig needs a mapping file.
+6. The emotion prompt lexicon is hand-written and English; the MCP host's model does better.
+7. Skewed hinge axes drop procedural upper-body cues; the legs are always solved.
+8. Zero slip holds for feasible parameters; an emotion that asks a rig for an unreachable stride
+   is reported, not clipped.
+
+Findings from the validation report:
+
+- Units inference knows only the five scales above, so CMU's length unit (1/0.45 inch) is read
+  as inches, a rig at 0.45 times its size, unless `--scale 0.0564444` is given.
+- A BVH whose non-root position channels duplicate its OFFSETs (Bandai) is read by the BVH
+  reader at twice its bone length. `--scale 0.005` restores bone length but halves the root
+  travel, so the source gait is read at half its step length.
+- The extractor's elbow measure is unsigned, so a hyperextended reference elbow reads back off
+  by the fold.
+- A half-bound arm group (one skewed side, as CMU's right elbow) moves one arm by the full delta
+  and the extractor's two-arm mean reads half.
+- No recognition rate has been measured for any rig, and disgust and surprise stay unsourced.
 
 ## Limitations
 

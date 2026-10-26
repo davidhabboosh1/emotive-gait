@@ -25,6 +25,11 @@ emotive-gait fetch                                    # download/verify data/raw
 emotive-gait fit                                      # refit; rewrites the artefact and docs/reports/phase-4-5-fit-report.md
 emotive-gait fit --check                              # refit to a temp file, compare every estimate with the artefact
 emotive-gait fit --include-uncommittable --out data/derived/with_bml/coef.yaml   # local fit with BML
+emotive-gait rig inspect in.bvh [--scale S] [--up y|z] [--mapping map.yaml] [--json]   # bindings, units, decisions
+emotive-gait rig walk in.bvh --out out.bvh --emotion sadness=0.8   # or --prompt "very gloomy"; --model, --scaling, --duration
+emotive-gait rig validate in.bvh [--report path.md]   # neutral and the four presets, round-trip table
+emotive-gait serve                                    # MCP server over stdio; needs the `mcp` extra
+python -m emotive_gait.rig.validate docs/reports/phase-4-6-rig-validation.yaml --out docs/reports/phase-4-6-rig-validation.md
 pytest                                                # whole suite
 pytest tests/gait/test_generator.py::test_name -v     # one test
 ruff check .
@@ -35,7 +40,7 @@ CI runs `ruff check .`, `ruff format --check .` and `pytest -q`. `docs/archive` 
 
 ## Architecture
 
-Six packages (`robot/`, `gait/`, `emotion/`, `sim/`, `mocap/`, `learn/`) plus `cli.py` on top:
+Seven packages (`robot/`, `gait/`, `emotion/`, `sim/`, `mocap/`, `learn/`, `rig/`) plus `cli.py` on top:
 
 - `robot/`: semantic `JointRole`s, the G1 profile (role -> actuator name), the model loader, neck
   injection, root modes (`FREE`, `Z_RAIL`, `XZ_RAIL` (experimental), `WELD`).
@@ -56,6 +61,11 @@ Six packages (`robot/`, `gait/`, `emotion/`, `sim/`, `mocap/`, `learn/`) plus `c
   and `learn/`. `emotion/learned.py` reads the packaged artefact with pyyaml, imports
   `robot.roles` under `TYPE_CHECKING` only, and never imports `learn/`, `mocap/` or `sim/`;
   `emotion/model.py` holds the `EmotionModel` protocol. Only `cli.py` runs the learned-preset IK. `tests/mocap/` may import `sim/`; the package may not.
+- `rig/`: any BVH walk, read, measured, moved by an emotion and written back on its own rig
+  (mapping, compile to MuJoCo, calibration, synthesis, writer, validate, MCP server). May import
+  everything except `learn/` and `sim/`; ONLY `cli.py` imports it (lazily, for `rig` and `serve`).
+  `rig/server.py` is the only module importing `mcp`, inside functions. `emotion/prompt.py` (the
+  English lexicon) imports only `emotion.evidence` and pyyaml. `mocap/writers/` (BVH writer) is new.
 
 Dependency rules:
 
@@ -178,6 +188,49 @@ Dependency rules:
 - Learned presets are flagged and rendered, not gated (user decision 2026-10-26): the feasibility
   test gates the analytic presets only; learned residuals (froude angry 6.37 mm, happy 5.62 mm) are
   documented in the fit report.
+
+- **Rig calibration (Phase 4.6).** The calibrated zero is the actor's mean walking pose baked into
+  body quaternions (chordal means; pelvis WORLD rotation heading-removed; ankle at the stance
+  WORLD orientation). Posture is an affine `posture_map` measured by probing the compiled rig:
+  trunk gain about 0.82 on the synthetic base rig, 0.57 on a one-spine-bone rig. The G1's map is
+  empty and its output is bit-identical to before.
+- One foot point everywhere: the toe if present, else the foot's End Site, else the ankle.
+  `foot_site_floor_height = 0.0` on every rig, because the floor IS the median stance height of
+  that point.
+- Two compiles: `full` (every joint, for FK) and `driven` (the chain the generator drives). The FK
+  gate is 1e-6 m (measured 1e-15) against the reader's forward kinematics.
+- `ROLE_CONVENTIONS` in `robot/conventions.py` fixes each role's sign. The G1 elbow is a strict
+  xfail there; the ELBOW row is wrist-forward.
+- `generate(..., welded=)` takes a prebuilt welded robot. `RobotProfile.elbow_swing_sign` is -1.0
+  on rigs: the generator's swing term was tuned on the G1's inverted elbow.
+- A rig needs at least twelve leg roles bound. Knee and elbow ranges are about the STRAIGHT
+  configuration (`RoleBinding.zero_offset`).
+- The double-support inversion goes through `rule_double_support`, now in `gait/footsteps.py`.
+- The pelvis-lowering factor (`reachable_pelvis_factor`, the `pelvis_height` decision) lowers the
+  nominal pelvis from the source's mean until the neutral stride is reachable by the flat-foot
+  generator; the output walks lower than the source (measured 0.844 to 0.992 on real rigs).
+- Hinge names are `Bone/Channel`; End Sites are `_End` joints. The pelvis bone's hinges sit on the
+  carrier body `pelvis_hinges` under the joint-less root `pelvis`. Role overrides in a mapping
+  are keyed `role:<role>`.
+- Translation channels below the pelvis: constant columns are folded into the compiled offsets,
+  varying ones are refused. A BVH whose position values duplicate its OFFSETs (Bandai) is read by
+  the reader at twice its bone length; `--scale 0.005` halves the root travel too.
+- Units inference knows only (1, 0.01, 0.0254, 0.1, 0.001) m per unit; CMU's unit is read as
+  inches unless `--scale 0.0564444`.
+- On a rig whose shoulder PITCH channel is the innermost rotation channel, `arm_swing_amp` and
+  `arm_abduction` are not gated above 0.5 rad commanded abduction (Bandai; no run exceeded 0.483).
+- A half-bound posture group (one skewed side) moves one arm by the full delta and the extractor's
+  mean reads half. The extractor's elbow measure is unsigned.
+- No LLM inside the package: the MCP host's model maps words to intensities when present, the
+  shipped lexicon otherwise.
+- Never commit Bandai (CC BY-NC), the cgspeed CMU conversion or Mixamo files, in any form. The
+  validation datasets live in `data/rig-manifest.yaml`, not the frozen `data/manifest.yaml`.
+- `docs/reports/phase-4-6-rig-validation.md` is regenerated from `phase-4-6-rig-validation.yaml`
+  with the command under Commands, never hand-edited. `validate` runs at least four cycles per
+  preset.
+- `mcp>=2,<3` is pinned (`mcp` and `dev` extras). The server must stay silent on stdout: stdout is
+  the protocol channel.
+- `tests/rig/` is a package (`from rig.rigs import ...`).
 
 ## Conventions
 
