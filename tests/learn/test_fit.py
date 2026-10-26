@@ -133,6 +133,24 @@ def test_degenerate_fit_falls_back_to_the_random_intercept():
     assert cell.grounding == "fitted" and cell.ci_low < cell.estimate < cell.ci_high
 
 
+def test_converged_but_collinear_slope_is_singular():
+    # As above with 10 actors: this seed converges, eigenvalue ratio ~1e-5, but the intercept
+    # and slope correlate at about -0.9999, so the maximal structure is abandoned.
+    df = synthetic_table(
+        n_actors=10,
+        emotions=("anger",),
+        effects={},
+        actor_sd=0.03,
+        cycle_sd=0.02,
+        cycles_per_clip=6,
+        seed=3,
+    )
+    angry = df["emotion"] == "anger"
+    df.loc[angry, "cadence"] = 2.0 + np.where(df.loc[angry, "cycle"] % 2 == 0, 0.02, -0.02)
+    cell = fit_parameter(df, "cadence")[0]
+    assert cell.converged_maximal is False and cell.fallback_reason == "singular_cov_re"
+
+
 def _fake(converged=True, bse=(0.01, 0.02), cov=((1e-3, 0.0), (0.0, 2e-3))):
     return SimpleNamespace(converged=converged, bse_fe=np.array(bse), cov_re=np.array(cov))
 
@@ -152,6 +170,7 @@ def _fake(converged=True, bse=(0.01, 0.02), cov=((1e-3, 0.0), (0.0, 2e-3))):
         (_fake(cov=((1e-3, 0.0), (0.0, 1e-10))), [], "singular_cov_re"),
         (_fake(cov=((1e-3, 1e-3), (1e-3, 1e-3))), [], "singular_cov_re"),
         (_fake(cov=((1e-3, float("inf")), (0.0, 1e-3))), [], "singular_cov_re"),
+        (_fake(cov=((1e-3, -0.9999e-3), (-0.9999e-3, 1e-3))), [], "singular_cov_re"),
         (
             _fake(),
             [

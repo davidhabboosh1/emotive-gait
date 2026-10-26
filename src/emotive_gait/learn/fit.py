@@ -45,6 +45,7 @@ _RATIO_SCALED = (*LENGTH_FIELDS, "cadence", "com_height_scale")
 _TERM = "C(emotion, Treatment('neutral'))"
 _GROUP = "_group"
 _RELATIVE_SINGULAR = 1e-6
+_SINGULAR_CORRELATION = 0.999  # lme4's convention for a singular fit
 # The ConvergenceWarnings that end an optimisation for good. statsmodels also warns
 # "Maximum Likelihood optimization failed to converge" when its first optimiser stops, then
 # "Retrying MixedLM optimization with <next>", and "The MLE may be on the boundary" whenever any
@@ -112,7 +113,8 @@ def _rejection(result, messages: Sequence[str]) -> FallbackReason | None:
     ``ConvergenceWarning``s raised while fitting. Checked in order: no result (``fit_error``);
     ``converged`` false; a terminal warning (``_TERMINAL_WARNINGS``); a non-finite fixed-effect
     standard error (the Hessian is not positive definite there); ``cov_re`` non-finite or with
-    smallest / largest eigenvalue below 1e-6 (``singular_cov_re``).
+    smallest / largest eigenvalue below 1e-6, or an off-diagonal correlation with |r| > 0.999
+    (``singular_cov_re``).
     """
     if result is None:
         return "fit_error"
@@ -127,6 +129,12 @@ def _rejection(result, messages: Sequence[str]) -> FallbackReason | None:
         return "singular_cov_re"
     eig = np.linalg.eigvalsh(matrix)
     if eig[-1] <= 0.0 or eig[0] / eig[-1] < _RELATIVE_SINGULAR:
+        return "singular_cov_re"
+    sd = np.sqrt(np.diag(matrix))
+    if np.any(sd <= 0.0):
+        return "singular_cov_re"
+    corr = matrix / np.outer(sd, sd)
+    if np.any(np.abs(corr[~np.eye(len(sd), dtype=bool)]) > _SINGULAR_CORRELATION):
         return "singular_cov_re"
     return None
 
