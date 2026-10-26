@@ -119,7 +119,7 @@ def test_a_varying_translation_channel_below_the_pelvis_is_refused():
     column = moving.channel_index(bone, "Yposition")
     motion = np.repeat(moving.motion, 2, axis=0)
     motion[1, column] = 1.5
-    with pytest.raises(RigError, match="mixamorig:LeftLeg"):
+    with pytest.raises(RigError, match="mixamorig:LeftLeg.*varying translation"):
         compile_full(moving.with_motion(motion), pelvis=pelvis_name(RigSpec()))
     rig = compile_full(_with_translation(f, bone, 0.0), pelvis=pelvis_name(RigSpec()))
     assert f"{bone}/Xposition" not in rig.hinges

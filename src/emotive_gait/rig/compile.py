@@ -121,18 +121,11 @@ def bone_offset(file: BvhFile, bone: int) -> np.ndarray:
             continue
         if np.max(np.abs(column - column[0])) > CONSTANT_TRANSLATION_TOL:
             raise RigError(
-                f"bone {joint.name!r} has a non-zero translation channel {channel!r}; "
+                f"bone {joint.name!r} has a varying translation channel {channel!r}; "
                 "only the pelvis may translate"
             )
         offset[_AXIS[channel[0]]] += float(column[0])
     return offset
-
-
-def _refuse_translation(file: BvhFile, bones: Sequence[int], root: int) -> None:
-    """Raise ``RigError`` for a varying position channel on a bone below the pelvis."""
-    for bone in bones:
-        if bone != root:
-            bone_offset(file, bone)
 
 
 def _build(
@@ -160,8 +153,7 @@ def _build(
         raise ValueError(f"bone names {sorted(clash)} collide with the compiled root bodies")
     p = z_up_matrix(file.up_axis)
     root = names.index(pelvis)
-    bones = _subtree(file, root)
-    _refuse_translation(file, bones, root)
+    bones = _subtree(file, root)  # bone_offset refuses a varying translation as it builds
 
     spec = mujoco.MjSpec()
     spec.compiler.degree = False  # hinge ranges are radians

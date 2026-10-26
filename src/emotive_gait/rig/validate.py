@@ -4,8 +4,14 @@
 ``fear`` at intensity 1.0 through ``walk`` (the analytic model), one ``ValidationRow`` each;
 ``render_report`` turns the tables of several rigs into the Markdown of
 ``docs/reports/phase-4-6-rig-validation.md``. Nothing is gated here: infeasible presets and
-residuals beyond tolerance are reported as measured. The report carries aggregates only (no
-clip or frame data).
+residuals beyond tolerance are reported as measured. Every run is written for at least
+``MIN_STEPS`` steps at its own cadence; a run whose output still holds no complete cycle is
+reported unmeasured, and a run that raises as an ``error:`` row. The report carries aggregates
+only (no clip or frame data).
+
+The committed report is regenerated from its spec (rigs, not-run entries, authored findings),
+from the repository root: ``python -m emotive_gait.rig.validate SPEC.yaml --out REPORT.md``
+with ``docs/reports/phase-4-6-rig-validation.yaml`` and ``.md``.
 """
 
 from __future__ import annotations
@@ -18,11 +24,12 @@ from pathlib import Path
 from types import MappingProxyType
 
 from emotive_gait.emotion.evidence import Emotion
-from emotive_gait.emotion.model import ANALYTIC
+from emotive_gait.emotion.model import ANALYTIC, modulate
 from emotive_gait.gait.params import GaitParameters
 from emotive_gait.mocap.readers.bvh import BvhFile
 from emotive_gait.rig.calibration import POSTURE_GROUPS
 from emotive_gait.rig.mapping import RigMapping
+from emotive_gait.rig.scaled import RigScaledModel
 from emotive_gait.rig.synthesis import (
     RELATIVE_TOLERANCES,
     TOLERANCES,
@@ -51,15 +58,21 @@ RUNS: tuple[tuple[str, Mapping[Emotion, float]], ...] = (
 PITCH_INNERMOST_ABDUCTION = 0.5  # rad
 PITCH_INNERMOST_EXCLUDED = ("arm_swing_amp", "arm_abduction")
 
+# Every run writes at least this many steps (four gait cycles) at its own P1 cadence, so a short
+# source clip slowed by a preset still holds a complete cycle for the extractor.
+MIN_STEPS = 8
+MEASURED = "measured"
+UNMEASURED = "unmeasured: no complete cycle"
+
 
 @dataclass(frozen=True)
 class ValidationRow:
     """One run: feasibility, the residual per field, whether all are within tolerance, slip."""
 
     run: str
-    feasible: bool
+    feasible: bool | None  # None: the run raised
     max_residual: Mapping[str, float]  # field -> residual (measured - commanded)
-    within: bool  # every gated field within its tolerance
+    within: bool | None  # every gated field within its tolerance; None: not measured
     slip_m: float  # worst horizontal stance-foot travel
     height_m: float  # worst stance-foot height error
     failing: tuple[str, ...] = ()  # gated fields beyond tolerance
@@ -67,6 +80,12 @@ class ValidationRow:
     worst_field: str = "-"  # the residual furthest from its tolerance (as a ratio)
     worst_residual: float = math.nan
     commanded_abduction: float = math.nan  # expansiveness * arm_abduction of P1 (rad)
+    duration_s: float = math.nan  # length of the written output
+    status: str = "measured"  # MEASURED, UNMEASURED or "error: <message>"
+
+    @property
+    def measured(self) -> bool:
+        return self.status == MEASURED
 
 
 @dataclass(frozen=True)
@@ -83,6 +102,7 @@ class ValidationTable:
     cycles: int
     source_pelvis_height: float
     nominal_pelvis_height: float
+    source_duration_s: float
     skewed: tuple[str, ...]
     unobservable: tuple[str, ...]
     half_bound: tuple[str, ...]  # two-sided posture groups with one side bound
@@ -133,44 +153,75 @@ def worst_field(result: WalkResult) -> tuple[str, float]:
     return worst
 
 
-def validation_row(name: str, result: WalkResult) -> ValidationRow:
-    """The row of one run's ``WalkResult``."""
+def validation_row(name: str, result: WalkResult, duration_s: float) -> ValidationRow:
+    """The row of one run's ``WalkResult`` written over ``duration_s``; a run whose output holds
+    no complete cycle is ``UNMEASURED`` (no ``within``, no failing fields)."""
+    common = {
+        "run": name,
+        "feasible": bool(result.feasibility.feasible),
+        "max_residual": MappingProxyType(dict(result.round_trip.residuals)),
+        "slip_m": float(result.slip.max_travel_m),
+        "height_m": float(result.slip.max_height_error_m),
+        "commanded_abduction": float(result.p1.expansiveness * result.p1.arm_abduction),
+        "duration_s": float(duration_s),
+    }
+    if result.round_trip.measured.n_cycles == 0:
+        return ValidationRow(**common, within=None, status=UNMEASURED)
     excluded = pitch_innermost_exclusion(result.rig.mapping, result.rig.file, result.p1)
     ok = within_tolerance(result.round_trip)
     failing = tuple(k for k, v in ok.items() if not v and k not in excluded)
     field, residual = worst_field(result)
     return ValidationRow(
-        run=name,
-        feasible=bool(result.feasibility.feasible),
-        max_residual=MappingProxyType(dict(result.round_trip.residuals)),
+        **common,
         within=not failing,
-        slip_m=float(result.slip.max_travel_m),
-        height_m=float(result.slip.max_height_error_m),
         failing=failing,
         excluded=excluded,
         worst_field=field,
         worst_residual=float(residual),
-        commanded_abduction=float(result.p1.expansiveness * result.p1.arm_abduction),
     )
+
+
+def _error_row(name: str, exc: Exception) -> ValidationRow:
+    return ValidationRow(
+        run=name,
+        feasible=None,
+        max_residual=MappingProxyType({}),
+        within=None,
+        slip_m=math.nan,
+        height_m=math.nan,
+        status=f"error: {exc}",
+    )
+
+
+def run_duration(rig: LoadedRig, p1: GaitParameters) -> float:
+    """The source's length, or ``MIN_STEPS`` steps at ``p1``'s cadence when that is longer."""
+    source = rig.file.motion.shape[0] * rig.file.frame_time
+    return max(source, MIN_STEPS / p1.cadence)
 
 
 def validate_loaded(
     rig: LoadedRig, *, source: str, scale_given: bool, up_given: bool
 ) -> ValidationTable:
-    """Zero emotion and the four presets on an already loaded ``rig``."""
-    rows = tuple(
-        validation_row(
-            name,
-            walk(
+    """Zero emotion and the four presets on an already loaded ``rig``, each written for
+    ``run_duration``. A run that raises becomes an ``error: <message>`` row."""
+    rows = []
+    for name, intensities in RUNS:
+        try:
+            # the P1 ``walk`` computes (the analytic model at walk's default froude scaling)
+            scaled = RigScaledModel(ANALYTIC, scaling="froude", p0=rig.p0)
+            duration = run_duration(rig, modulate(rig.p0, intensities, rig.profile, model=scaled))
+            result = walk(
                 rig,
                 intensities=intensities,
                 intensities_source="flags",
                 model=ANALYTIC,
                 model_name="analytic",
-            ),
-        )
-        for name, intensities in RUNS
-    )
+                duration_s=duration,
+            )
+            rows.append(validation_row(name, result, duration))
+        # keep the rig's other runs; the row names the failure (RigError is a ValueError)
+        except (ValueError, ArithmeticError, RuntimeError, OSError) as exc:
+            rows.append(_error_row(name, exc))
     m = rig.mapping
     half = tuple(
         k
@@ -188,11 +239,12 @@ def validate_loaded(
         cycles=int(rig.summary.n_cycles),
         source_pelvis_height=rig.source_pelvis_height,
         nominal_pelvis_height=rig.nominal_pelvis_height,
+        source_duration_s=float(rig.file.motion.shape[0] * rig.file.frame_time),
         skewed=tuple(r.value for r in m.skewed),
         unobservable=tuple(rig.unobservable),
         half_bound=half,
         pitch_innermost=pitch_innermost(m, rig.file),
-        rows=rows,
+        rows=tuple(rows),
     )
 
 
@@ -229,8 +281,26 @@ def _commit() -> str:
     return out.stdout.strip() or "unknown"
 
 
-def _fmt(x: float) -> str:
-    return format(x, "+.4f") if math.isfinite(x) else "nan"
+_YES = {True: "yes", False: "NO", None: "n/a"}
+
+
+def _commit_line(commit: str) -> str:
+    if commit.endswith("-dirty"):
+        base = commit[: -len("-dirty")]
+        return (
+            f"Commit: generated on uncommitted changes on top of `{base}`; the tree measured is "
+            "that of the commit that adds this report."
+        )
+    return f"Commit: `{commit}`."
+
+
+def _fmt(x: float, spec: str = "+.4f") -> str:
+    return format(x, spec) if math.isfinite(x) else "nan"
+
+
+def _largest(values) -> float:
+    finite = [v for v in values if math.isfinite(v)]
+    return max(finite) if finite else math.nan
 
 
 def _tolerance_text(name: str) -> str:
@@ -261,6 +331,11 @@ def _rig_section(name: str, t: ValidationTable) -> list[str]:
         ),
         f"- usable cycles: {t.cycles}",
         (
+            f"- source length {t.source_duration_s:.2f} s; written per run (at least "
+            f"{MIN_STEPS} steps at the run's cadence): "
+            + ", ".join(f"{r.run} {_fmt(r.duration_s, '.2f')} s" for r in t.rows)
+        ),
+        (
             f"- pelvis height: source mean {t.source_pelvis_height:.3f} m, nominal "
             f"{t.nominal_pelvis_height:.3f} m, factor {t.pelvis_factor:.3f}"
         ),
@@ -276,13 +351,16 @@ def _rig_section(name: str, t: ValidationTable) -> list[str]:
         "|---|---|---|---|---|---|---|",
     ]
     for r in t.rows:
-        failing = ", ".join(r.failing) or "none"
-        if r.excluded:
-            failing += f" (ungated: {', '.join(r.excluded)})"
+        if r.measured:
+            failing = ", ".join(r.failing) or "none"
+            if r.excluded:
+                failing += f" (ungated: {', '.join(r.excluded)})"
+            worst = f"{r.worst_field} ({_fmt(r.worst_residual)})"
+        else:
+            failing, worst = r.status, "-"
         lines.append(
-            f"| {r.run} | {'yes' if r.feasible else 'NO'} | {r.worst_field} "
-            f"({_fmt(r.worst_residual)}) | {'yes' if r.within else 'NO'} | {failing} | "
-            f"{r.slip_m * 1000:.1f} | {r.height_m * 1000:.1f} |"
+            f"| {r.run} | {_YES[r.feasible]} | {worst} | {_YES[r.within]} | {failing} | "
+            f"{_fmt(r.slip_m * 1000, '.1f')} | {_fmt(r.height_m * 1000, '.1f')} |"
         )
     fields = list(dict.fromkeys(f for r in t.rows for f in r.max_residual))
     lines += [
@@ -296,7 +374,7 @@ def _rig_section(name: str, t: ValidationTable) -> list[str]:
         "|---|" + "---|" * len(t.rows),
     ]
     for f in fields:
-        cells = [_fmt(r.max_residual.get(f, math.nan)) for r in t.rows]
+        cells = [_fmt(r.max_residual.get(f, math.nan)) if r.measured else "-" for r in t.rows]
         lines.append(f"| {f} | " + " | ".join(cells) + " |")
     lines.append("")
     return lines
@@ -322,7 +400,7 @@ def render_report(
         "# Phase 4.6 rig validation",
         "",
         "Generated by `emotive_gait.rig.validate.render_report`; do not edit by hand.",
-        f"Commit: `{commit or _commit()}`.",
+        _commit_line(commit or _commit()),
         "",
         (
             "Each rig is walked at zero emotion (`neutral`) and at the analytic presets' "
@@ -383,7 +461,7 @@ def render_report(
         "",
         *(
             f"- {n}: largest commanded abduction "
-            f"{max(r.commanded_abduction for r in tables[n].rows):.3f} rad; ungated runs: "
+            f"{_largest(r.commanded_abduction for r in tables[n].rows):.3f} rad; ungated runs: "
             f"{', '.join(r.run for r in tables[n].rows if r.excluded) or 'none'}"
             for n in innermost
         ),
@@ -391,7 +469,7 @@ def render_report(
         "## Infeasible presets",
         "",
         *(
-            f"- {n}: {', '.join(r.run for r in t.rows if not r.feasible) or 'none'}"
+            f"- {n}: {', '.join(r.run for r in t.rows if r.feasible is False) or 'none'}"
             for n, t in tables.items()
         ),
         "",
@@ -410,6 +488,9 @@ def render_report(
         failing = sorted({f for r in t.rows for f in r.failing})
         if failing:
             items.append(f"fields beyond tolerance on some run: {', '.join(failing)}")
+        other = [f"{r.run} ({r.status})" for r in t.rows if not r.measured]
+        if other:
+            items.append(f"runs not measured: {', '.join(other)}")
         if items:
             hits.append(f"- {n}: " + "; ".join(items))
     lines += hits or ["- none"]
@@ -429,3 +510,130 @@ def render_report(
     if notes:
         lines += ["", "## Findings", "", *(f"- {n}" for n in notes)]
     return "\n".join(lines) + "\n"
+
+
+# --- the committed report, regenerated from its spec ---------------------------------------
+
+
+@dataclass(frozen=True)
+class RigRun:
+    """One table of the report: a BVH path (relative to the working directory) and flags."""
+
+    name: str
+    path: str
+    scale: float | None = None
+    up_axis: str | None = None
+
+    def command(self) -> str:
+        flags = "" if self.scale is None else f" --scale {self.scale:g}"
+        flags += "" if self.up_axis is None else f" --up {self.up_axis}"
+        return f"emotive-gait rig validate {self.path}{flags}"
+
+
+@dataclass(frozen=True)
+class ReportSpec:
+    """``docs/reports/phase-4-6-rig-validation.yaml``: which rigs, what was not run and why,
+    the setup commands and the authored findings; the numbers are recomputed."""
+
+    rigs: tuple[RigRun, ...]
+    not_run: Mapping[str, str]
+    setup_commands: tuple[str, ...] = ()
+    findings: tuple[str, ...] = ()
+
+
+class SpecError(ValueError):
+    """The report spec is malformed; the message names the key."""
+
+
+def load_spec(path: Path) -> ReportSpec:
+    """Read a report spec; ``SpecError`` naming the key on a malformed file."""
+    import yaml
+
+    try:
+        data = yaml.safe_load(Path(path).read_text(encoding="utf-8")) or {}
+    except yaml.YAMLError as exc:
+        raise SpecError(f"{path} is not valid YAML: {exc}") from exc
+    if not isinstance(data, dict):
+        raise SpecError(f"{path}: expected a mapping")
+    unknown = sorted(set(data) - {"rigs", "not_run", "setup_commands", "findings"})
+    if unknown:
+        raise SpecError(f"{path}: unknown key(s) {', '.join(unknown)}")
+    rigs = []
+    for i, raw in enumerate(data.get("rigs") or []):
+        if not isinstance(raw, dict) or not {"name", "path"} <= set(raw):
+            raise SpecError(f"{path}: rigs[{i}] needs name and path")
+        extra = sorted(set(raw) - {"name", "path", "scale", "up_axis"})
+        if extra:
+            raise SpecError(f"{path}: rigs[{i}]: unknown key(s) {', '.join(extra)}")
+        scale = raw.get("scale")
+        if scale is not None and (not isinstance(scale, int | float) or scale <= 0):
+            raise SpecError(f"{path}: rigs[{i}].scale must be a positive number")
+        up = raw.get("up_axis")
+        if up not in (None, "y", "z"):
+            raise SpecError(f"{path}: rigs[{i}].up_axis must be y or z")
+        rigs.append(RigRun(str(raw["name"]), str(raw["path"]), scale, up))
+    not_run = {}
+    for i, raw in enumerate(data.get("not_run") or []):
+        if not isinstance(raw, dict) or set(raw) != {"name", "reason"}:
+            raise SpecError(f"{path}: not_run[{i}] needs exactly name and reason")
+        not_run[str(raw["name"])] = str(raw["reason"])
+    return ReportSpec(
+        rigs=tuple(rigs),
+        not_run=MappingProxyType(not_run),
+        setup_commands=tuple(str(c) for c in data.get("setup_commands") or ()),
+        findings=tuple(" ".join(str(f).split()) for f in data.get("findings") or ()),
+    )
+
+
+def report_from_spec(spec: ReportSpec, *, command: str, progress=None) -> str:
+    """Validate every rig of ``spec`` and render the report. A rig whose file is missing or
+    that ``load_rig`` refuses goes to the not-run list with the measured reason."""
+    tables: dict[str, ValidationTable] = {}
+    not_run = dict(spec.not_run)
+    for rig in spec.rigs:
+        source = Path(rig.path)
+        if not source.is_file():
+            not_run[rig.name] = f"{rig.path} is not on disk (fetch it first)"
+            continue
+        try:
+            tables[rig.name] = validate_rig(
+                source, scale=rig.scale, up_axis=rig.up_axis, mapping_overrides=None
+            )
+        except ValueError as exc:  # RigError, MocapFormatError: the rig cannot be loaded
+            not_run[rig.name] = f"refused: {exc}"
+        if progress is not None:
+            progress(rig.name)
+    commands = [*spec.setup_commands, *(r.command() for r in spec.rigs), command]
+    return render_report(tables, not_run=not_run, commands=commands, notes=spec.findings)
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    """``python -m emotive_gait.rig.validate SPEC.yaml --out REPORT.md`` (run from the
+    repository root). Exit codes: 2 for a malformed spec, 1 for environment failures."""
+    import argparse
+    import sys
+
+    parser = argparse.ArgumentParser(prog="python -m emotive_gait.rig.validate")
+    parser.add_argument("spec", help="the report spec (YAML)")
+    parser.add_argument("--out", required=True, help="the Markdown report to write")
+    args = parser.parse_args(argv)
+    command = f"python -m emotive_gait.rig.validate {args.spec} --out {args.out}"
+    try:
+        spec = load_spec(Path(args.spec))
+        text = report_from_spec(
+            spec, command=command, progress=lambda n: print(f"done {n}", file=sys.stderr)
+        )
+        out = Path(args.out)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_bytes(text.encode("utf-8"))  # LF on every platform
+    except OSError as exc:
+        print(f"environment failure: {exc}", file=sys.stderr)
+        return 1
+    except ValueError as exc:
+        print(str(exc), file=sys.stderr)
+        return 2
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

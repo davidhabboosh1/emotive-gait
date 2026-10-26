@@ -5,5 +5,6 @@ data/rig-manifest.yaml text eol=lf
 src/emotive_gait/emotion/data/*.yaml text eol=lf
 src/emotive_gait/rig/data/*.yaml text eol=lf
 docs/reports/*.md text eol=lf
+docs/reports/*.yaml text eol=lf
 tests/mocap/fixtures/style100_neutral_4s.bvh text eol=lf
 tests/mocap/fixtures/style100_neutral_4s.ATTRIBUTION.txt text eol=lf

@@ -1,0 +1,72 @@
+# Spec of docs/reports/phase-4-6-rig-validation.md. Regenerate the report (from the repository
+# root, after `emotive-gait fetch --manifest data/rig-manifest.yaml`) with:
+#   python -m emotive_gait.rig.validate docs/reports/phase-4-6-rig-validation.yaml --out docs/reports/phase-4-6-rig-validation.md
+# The rigs, the not-run entries and the findings are authored here (versioned); every number in
+# the report is recomputed. Aggregates only: the report never carries clip or frame data.
+setup_commands:
+  - emotive-gait fetch --manifest data/rig-manifest.yaml --datasets cmu_bvh --from cmu_bvh=<cmuconvert-mb2-01-09.zip>
+  - emotive-gait fetch --manifest data/rig-manifest.yaml --datasets bandai2
+rigs:
+  - name: 100STYLE Neutral_FW, committed 4 s excerpt
+    path: tests/mocap/fixtures/style100_neutral_4s.bvh
+  - name: 100STYLE Neutral_FW, full clip
+    path: data/raw/100style/Neutral_FW.bvh
+    scale: 0.01
+    up_axis: y
+  - name: CMU 07_01, cgspeed MotionBuilder BVH
+    path: data/raw/cmu_bvh/07/07_01.bvh
+  - name: Bandai Namco dataset-2 walk_normal_001
+    path: data/raw/bandai2/dataset-2_walk_normal_001.bvh
+  - name: CMU 07_01 at the CMU length unit (check)
+    path: data/raw/cmu_bvh/07/07_01.bvh
+    scale: 0.0564444
+  - name: Bandai Namco walk_normal_001, bones at true size, root travel at half (check)
+    path: data/raw/bandai2/dataset-2_walk_normal_001.bvh
+    scale: 0.005
+not_run:
+  - name: 100STYLE Neutral_BR, BW, FR, ID, SR, SW, TR1
+    reason: >-
+      the same 23-joint rig as Neutral_FW (identical HIERARCHY), other locomotion modes
+      (backward run and walk, forward run, idle, sidestep run and walk, transition), not
+      forward walks; `rig inspect` loads each (BR, BW and ID with both sides swapped by the
+      mapper, ID with all four ankle roles skewed, TR1 with elbow_r and neck_pitch skewed);
+      not validated
+  - name: Mixamo / user-exported Blender rigs
+    reason: none supplied; Mixamo characters are never committed in any form
+findings:
+  - >-
+    CMU units: the hip-to-ankle rule infers 0.0254 m per unit (inches), the known scale nearest
+    the 0.8 m leg target, so the rig is read at 0.45 times its size (see its leg length and
+    pelvis height above). The file keeps the CMU ASF length unit (ASF `length 0.45`: one unit
+    is 1/0.45 inch, 0.0564444 m, what the project's ASF reader uses; subject 104's ASF femur is
+    6.998 units, this file's thigh 6.92 units), which is not among the inference's known
+    scales. The inference rule is unchanged; the check table re-runs the rig at
+    --scale 0.0564444.
+  - >-
+    Bandai units: inference chose 0.01 m per unit and up axis y (the file's own units and axis;
+    the +x rest spine did not mislead it). Every joint has six channels, and the constant
+    position values of the bones below the pelvis repeat their OFFSETs; the BVH reader adds a
+    position channel to the OFFSET, so every bone is read at twice its length (the pelvis height
+    and leg length above). The constant columns are folded into the compiled offsets
+    (rig.compile). The check table at --scale 0.005 has the bones at true size but also halves
+    the root's varying Hips translation, so the source gait is read at half its step length and
+    speed: bones at true size, root travel at half. A replace-offset reading of position
+    channels would be the faithful re-read; that is a reader change, not made here.
+  - >-
+    Bandai shoulders: the shoulder pitch channel is innermost and angry commands 0.483 rad of
+    abduction, just under the 0.5 rad exclusion threshold, so the pitch-innermost coupling
+    likely contributes to angry's arm_swing_amp and arm_abduction residuals (an infeasible run).
+  - >-
+    CMU elbows: elbow_r is skewed (axis purity 0.72, below 0.8) and left unbound, so the
+    elbow_flexion group is half-bound: the bound left elbow is driven, the right is held at the
+    reference, and the extractor's two-arm means mix the two (elbow_flexion and
+    elbow_swing_ratio beyond tolerance at both scales: the documented half-bound limitation of
+    posture_map).
+  - >-
+    Short clips: every run is written for at least eight steps (four gait cycles) at its own
+    cadence, so the 2.64 s CMU clip's sad run (cadence lowered) is written longer than the
+    source and holds complete cycles; the per-run lengths are in each rig's facts.
+  - >-
+    Angry and happy are infeasible on every real rig (the generator's feasibility flag is
+    false; the pelvis factor is fitted to the neutral only); the arm and elbow fields beyond
+    tolerance on the 100STYLE and Bandai rigs occur on those infeasible runs only.

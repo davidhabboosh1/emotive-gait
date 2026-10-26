@@ -262,10 +262,8 @@ def walk_data(result: WalkResult, prompt: tuple[str, PromptResult] | None, out: 
     return data
 
 
-def validate_data(rig: LoadedRig, *, table: ValidationTable | None = None) -> dict:
-    """One row per run (zero and the four presets) on one loaded rig (``validate_loaded``)."""
-    if table is None:
-        table = validate_loaded(rig, source="", scale_given=False, up_given=False)
+def validate_data(table: ValidationTable) -> dict:
+    """One row per run (zero and the four presets) of a ``validate_loaded`` table."""
     runs = [
         {
             "run": r.run,
@@ -275,6 +273,8 @@ def validate_data(rig: LoadedRig, *, table: ValidationTable | None = None) -> di
             "within": r.within,
             "slip_mm": r.slip_m * 1000.0,
             "height_mm": r.height_m * 1000.0,
+            "duration_s": r.duration_s,
+            "status": r.status,
         }
         for r in table.rows
     ]
@@ -355,16 +355,29 @@ def _print_walk(d: dict) -> None:
 
 
 def _print_validate(d: dict) -> None:
-    rows = [("run", "feasible", "max|residual| field", "round-trip within", "slip_mm", "height_mm")]
+    yes = {True: "yes", False: "NO", None: "n/a"}
+    rows = [
+        (
+            "run",
+            "feasible",
+            "max|residual| field",
+            "round-trip within",
+            "slip_mm",
+            "height_mm",
+            "seconds",
+        )
+    ]
     for r in d["runs"]:
+        measured = r["status"] == "measured"
         rows.append(
             (
                 r["run"],
-                "yes" if r["feasible"] else "NO",
-                f"{_num(r['worst_residual'])} {r['worst_field']}",
-                "yes" if r["within"] else "NO",
+                yes[r["feasible"]],
+                f"{_num(r['worst_residual'])} {r['worst_field']}" if measured else r["status"],
+                yes[r["within"]],
                 f"{r['slip_mm']:.1f}",
                 f"{r['height_mm']:.1f}",
+                f"{r['duration_s']:.2f}",
             )
         )
     _table(rows)
@@ -434,7 +447,7 @@ def _validate_command(args: argparse.Namespace, rig: LoadedRig) -> int:
         except OSError as exc:
             _err(f"environment failure: {exc}")
             return 1
-    _emit(args, validate_data(rig, table=table), _print_validate)
+    _emit(args, validate_data(table), _print_validate)
     return 0
 
 

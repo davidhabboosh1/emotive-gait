@@ -28,8 +28,10 @@
 #     centimetres, y up; root joint_Root with Hips as its 6-channel child. Every joint has 6
 #     channels; the bone vectors sit in constant translation columns (rig.compile folds them).
 #     Those position values repeat the OFFSETs, and the BVH reader adds a position channel to
-#     the OFFSET, so at scale 0.01 every bone below the root reads at twice its length (0.005
-#     reads true size): see the rig validation report.
+#     the OFFSET, so at scale 0.01 every bone reads at twice its length. Scale 0.005 puts the
+#     bones at true size but halves the root's varying Hips travel too (half the step length
+#     and speed); a replace-offset reading of position channels would be the faithful re-read,
+#     a reader change not made. See the rig validation report.
 datasets:
 - id: cmu_bvh
   name: CMU Graphics Lab Motion Capture Database, MotionBuilder-friendly BVH conversion (cgspeed, 2010)
@@ -38,8 +40,8 @@ datasets:
   archive_sha256: 8822d96dac5694cb5df35e017fa7df174a051249d48d70d6732a7b68953016d9
   archive_bytes: 33755687
   licence: 'Conversion (READMEFIRST v1.1, 2010): "CMU places no restrictions on the use of the
-    original dataset, and I (Bruce) place no additional restrictions on the use of this particular"
-    conversion. CMU: "Use this data! This data is free for use in research and commercial projects
+    original dataset, and I (Bruce) place no additional restrictions on the use of this particular
+    BVH conversion." CMU: "Use this data! This data is free for use in research and commercial projects
     ... obtained from mocap.cs.cmu.edu. The database was created with funding from NSF EIA-0196217."'
   committable: false
   permission: ''
