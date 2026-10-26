@@ -35,6 +35,7 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 "emotive_gait.emotion" = ["data/*.yaml"]
+"emotive_gait.rig" = ["data/*.yaml"]
 
 [tool.ruff]
 line-length = 100

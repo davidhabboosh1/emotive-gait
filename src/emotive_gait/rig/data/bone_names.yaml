@@ -1,0 +1,185 @@
+# Bone-name lexicon for rig/mapping.py. This is DATA, NOT EVIDENCE: it records how skeleton
+# families spell their bones so a BVH walk can be bound to landmarks offline and
+# deterministically. Nothing here is a literature claim.
+#
+# families: landmark value -> bone name, plus "spine" (bottom to top). "shoulder_l/_r" is the
+# upper-arm root bone, not the clavicle. The family with the largest overlap of these names
+# with the file (at least 6) is chosen, and its exact names win.
+# Rokoko and Xsens spellings are unverified (taken from the Phase 4.6 brief, not checked
+# against a file); 100STYLE is verified against tests/mocap/fixtures/style100_neutral_4s.bvh.
+#
+# tokens: used only for landmarks the family match leaves unbound. A name is normalised
+# (namespace up to the last ":" stripped, "DEF-" prefix stripped, lower-cased); parts are tried
+# in the order listed and each part's tokens in order, the first substring hit wins (so
+# "pelvis" before "hip", "toebase" before "toe", "forearm" before "upper_arm"'s "arm",
+# "upleg"/"upperleg" before "leg"). Side tokens: one starting with "_" or "." must end the
+# name, one ending with "_" must start it, the others are substrings. Rest-pose geometry is
+# the referee for side and structure.
+families:
+  mixamo:
+    pelvis: "mixamorig:Hips"
+    hip_l: "mixamorig:LeftUpLeg"
+    hip_r: "mixamorig:RightUpLeg"
+    knee_l: "mixamorig:LeftLeg"
+    knee_r: "mixamorig:RightLeg"
+    ankle_l: "mixamorig:LeftFoot"
+    ankle_r: "mixamorig:RightFoot"
+    toe_l: "mixamorig:LeftToeBase"
+    toe_r: "mixamorig:RightToeBase"
+    shoulder_l: "mixamorig:LeftArm"
+    shoulder_r: "mixamorig:RightArm"
+    elbow_l: "mixamorig:LeftForeArm"
+    elbow_r: "mixamorig:RightForeArm"
+    wrist_l: "mixamorig:LeftHand"
+    wrist_r: "mixamorig:RightHand"
+    neck: "mixamorig:Neck"
+    head: "mixamorig:Head"
+    spine: ["mixamorig:Spine", "mixamorig:Spine1", "mixamorig:Spine2"]
+  motionbuilder:
+    pelvis: "Hips"
+    hip_l: "LeftUpLeg"
+    hip_r: "RightUpLeg"
+    knee_l: "LeftLeg"
+    knee_r: "RightLeg"
+    ankle_l: "LeftFoot"
+    ankle_r: "RightFoot"
+    toe_l: "LeftToeBase"
+    toe_r: "RightToeBase"
+    shoulder_l: "LeftArm"
+    shoulder_r: "RightArm"
+    elbow_l: "LeftForeArm"
+    elbow_r: "RightForeArm"
+    wrist_l: "LeftHand"
+    wrist_r: "RightHand"
+    neck: "Neck"
+    head: "Head"
+    spine: ["LowerBack", "Spine", "Spine1"]
+  style100:
+    pelvis: "Hips"
+    hip_l: "LeftHip"
+    hip_r: "RightHip"
+    knee_l: "LeftKnee"
+    knee_r: "RightKnee"
+    ankle_l: "LeftAnkle"
+    ankle_r: "RightAnkle"
+    toe_l: "LeftToe"
+    toe_r: "RightToe"
+    shoulder_l: "LeftShoulder"
+    shoulder_r: "RightShoulder"
+    elbow_l: "LeftElbow"
+    elbow_r: "RightElbow"
+    wrist_l: "LeftWrist"
+    wrist_r: "RightWrist"
+    neck: "Neck"
+    head: "Head"
+    spine: ["Chest", "Chest2", "Chest3", "Chest4"]
+  rokoko:  # unverified spelling
+    pelvis: "Hips"
+    hip_l: "LeftThigh"
+    hip_r: "RightThigh"
+    knee_l: "LeftShin"
+    knee_r: "RightShin"
+    ankle_l: "LeftFoot"
+    ankle_r: "RightFoot"
+    toe_l: "LeftToe"
+    toe_r: "RightToe"
+    shoulder_l: "LeftArm"
+    shoulder_r: "RightArm"
+    elbow_l: "LeftForeArm"
+    elbow_r: "RightForeArm"
+    wrist_l: "LeftHand"
+    wrist_r: "RightHand"
+    neck: "Neck"
+    head: "Head"
+    spine: ["Spine", "Spine1", "Spine2"]
+  xsens:  # unverified spelling
+    pelvis: "Hips"
+    hip_l: "LeftUpperLeg"
+    hip_r: "RightUpperLeg"
+    knee_l: "LeftLowerLeg"
+    knee_r: "RightLowerLeg"
+    ankle_l: "LeftFoot"
+    ankle_r: "RightFoot"
+    toe_l: "LeftToe"
+    toe_r: "RightToe"
+    shoulder_l: "LeftArm"
+    shoulder_r: "RightArm"
+    elbow_l: "LeftForeArm"
+    elbow_r: "RightForeArm"
+    wrist_l: "LeftHand"
+    wrist_r: "RightHand"
+    neck: "Neck"
+    head: "Head"
+    spine: ["Spine", "Spine1", "Spine2", "Spine3"]
+  smpl:
+    pelvis: "Pelvis"
+    hip_l: "L_Hip"
+    hip_r: "R_Hip"
+    knee_l: "L_Knee"
+    knee_r: "R_Knee"
+    ankle_l: "L_Ankle"
+    ankle_r: "R_Ankle"
+    toe_l: "L_Foot"
+    toe_r: "R_Foot"
+    shoulder_l: "L_Shoulder"
+    shoulder_r: "R_Shoulder"
+    elbow_l: "L_Elbow"
+    elbow_r: "R_Elbow"
+    wrist_l: "L_Wrist"
+    wrist_r: "R_Wrist"
+    neck: "Neck"
+    head: "Head"
+    spine: ["Spine1", "Spine2", "Spine3"]
+  rigify:
+    pelvis: "DEF-spine"
+    hip_l: "DEF-thigh.L"
+    hip_r: "DEF-thigh.R"
+    knee_l: "DEF-shin.L"
+    knee_r: "DEF-shin.R"
+    ankle_l: "DEF-foot.L"
+    ankle_r: "DEF-foot.R"
+    toe_l: "DEF-toe.L"
+    toe_r: "DEF-toe.R"
+    shoulder_l: "DEF-upper_arm.L"
+    shoulder_r: "DEF-upper_arm.R"
+    elbow_l: "DEF-forearm.L"
+    elbow_r: "DEF-forearm.R"
+    wrist_l: "DEF-hand.L"
+    wrist_r: "DEF-hand.R"
+    neck: "DEF-spine.004"
+    head: "DEF-spine.006"
+    spine: ["DEF-spine.001", "DEF-spine.002", "DEF-spine.003"]
+  unity:
+    pelvis: "Hips"
+    hip_l: "LeftUpperLeg"
+    hip_r: "RightUpperLeg"
+    knee_l: "LeftLowerLeg"
+    knee_r: "RightLowerLeg"
+    ankle_l: "LeftFoot"
+    ankle_r: "RightFoot"
+    toe_l: "LeftToes"
+    toe_r: "RightToes"
+    shoulder_l: "LeftUpperArm"
+    shoulder_r: "RightUpperArm"
+    elbow_l: "LeftLowerArm"
+    elbow_r: "RightLowerArm"
+    wrist_l: "LeftHand"
+    wrist_r: "RightHand"
+    neck: "Neck"
+    head: "Head"
+    spine: ["Spine", "Chest", "UpperChest"]
+tokens:
+  side_left: [left, "l_", "_l", ".l", lft]
+  side_right: [right, "r_", "_r", ".r", rgt]
+  pelvis: [pelvis, hips]
+  hip: [upleg, thigh, hip, femur, upperleg]
+  knee: [leg, shin, knee, tibia, lowerleg, calf]
+  ankle: [foot, ankle]
+  toe: [toebase, toe, toes]
+  spine: [spine, chest, lowerback]
+  neck: [neck]
+  head: [head]
+  forearm: [forearm, elbow, radius, lowerarm]
+  upper_arm: [arm, upperarm, humerus]
+  shoulder: [shoulder, clavicle, collar]
+  hand: [hand, wrist]
