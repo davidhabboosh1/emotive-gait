@@ -5,19 +5,22 @@ usable cycle frames (the union of the cycles ``extract_cycles`` keeps): the rota
 are averaged and projected back onto SO(3) with an SVD, ``U @ diag(1, 1, det(U Vt)) @ Vt``;
 Euler channels are never averaged. The pelvis uses its WORLD rotation (its ancestors composed,
 so a rotating reference bone above it is absorbed) after removing each frame's path-frame
-heading, so it carries the tilt and no yaw. The two ankle bones also get a stance-only mean
-(``foot_stance_rotations``), so "level" is the foot as it rests on the floor. Stance frames
+heading, so it carries the tilt and no yaw. The two ankle bones are the exception: their
+reference (``foot_stance_rotations``) gives the foot its stance WORLD orientation, so "level"
+is the foot as it rests on the floor. It is the chordal mean over the stance frames of the
+foot's heading-removed world rotation, re-expressed through the reference shank (the ankle's
+parent at the reference pose), so the chain at the reference holds the foot exactly as the
+actor's feet sit in stance, whatever the cycle-mean hip and knee do. Stance frames
 are the clip's (``foot_events``), not only the usable cycles': the floor is the floor, and the
 foot rests on it the same way outside a cycle the extractor keeps. Rotations are
 stored in the file's own axes, like the channels they come from.
 
-Timing replicates the extractor exactly (``mocap.extract``): the pelvis and foot tracks are
-low-passed at ``EVENT_FILTER_HZ``, the path frame is rebuilt with a heading window of one
-measured stride, and ``foot_events`` on the foot point (toe landmark, else ankle) gives the
-stance masks. Its thresholds are frozen and used as they are.
+Timing is the extractor's own (``mocap.extract.gait_timing``): its path frame gives each
+frame's heading and its foot events on the foot point (toe landmark, else ankle) the stance
+masks; its thresholds are frozen and used as they are.
 
 Probes (spec 4.4): with the ``full`` chain posed at the reference, each hinge is turned by
-``+PROBE_RAD`` (and ``-PROBE_RAD``) and the landmark points are read before and after; the
+``+PROBE_RAD`` and the landmark points are read before and after; the
 hinge's world axis is recorded too. The full chain's pelvis carries the heading-removed
 rotation, so its world frame is the reference path frame: forward +x, left +y, up +z.
 """
@@ -31,8 +34,7 @@ from types import MappingProxyType
 import mujoco
 import numpy as np
 
-from emotive_gait.mocap.events import cycles, foot_events, path_frame
-from emotive_gait.mocap.extract import EVENT_FILTER_HZ, _lowpass, extract_cycles, summarise
+from emotive_gait.mocap.extract import extract_cycles, gait_timing, summarise
 from emotive_gait.mocap.readers.bvh import BvhFile, rotation_about
 from emotive_gait.mocap.skeleton import Landmark, LandmarkMap, SkeletonClip
 from emotive_gait.rig.compile import (
@@ -58,11 +60,13 @@ class ReferencePose:
     heading: np.ndarray  # unit horizontal forward (z-up world), the mean over usable frames
     floor_z: float  # median foot-point height over the stance frames, both feet pooled
     pelvis_height: float  # mean pelvis height above floor_z over the usable frames
-    # ankle bone name -> chordal mean of its local rotation over its stance frames
+    # ankle bone name -> its local reference rotation: the stance-mean heading-removed world
+    # foot rotation re-expressed through the reference shank frame
     foot_stance_rotations: Mapping[str, np.ndarray]
     stance_frames: tuple[np.ndarray, np.ndarray]  # (T,) bool, left and right, from foot_events
-    # Mean height of the two foot points above floor_z with the chain at the reference pose
-    # (ankles at their stance rotation): the profile's ``foot_site_floor_height``.
+    # Diagnostic only: mean height of the two foot points above floor_z with the chain at the
+    # reference pose. The profile's ``foot_site_floor_height`` is 0 by construction (the floor
+    # is the stance height of the very point the foot site sits on).
     foot_height: float = 0.0
 
     def baked_rotations(self, names: Sequence[str]) -> np.ndarray:
@@ -106,26 +110,6 @@ def _heading_matrices(forward: np.ndarray) -> np.ndarray:
     h[:, 0, 1], h[:, 1, 1] = -f[:, 1], f[:, 0]
     h[:, 2, 2] = 1.0
     return h
-
-
-def _timing(
-    clip: SkeletonClip, landmarks: LandmarkMap
-) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """The extractor's path-frame forward (T, 3) and the left and right stance masks."""
-    fps = float(clip.fps)
-    raw = clip.landmark_positions(landmarks)
-    timing = {
-        k: _lowpass(v, fps, EVENT_FILTER_HZ)
-        for k, v in raw.items()
-        if k in (L.PELVIS, L.ANKLE_L, L.ANKLE_R, L.TOE_L, L.TOE_R)
-    }
-    feet = [timing.get(toe, timing[ankle]) for ankle, toe in _FEET]
-    frame = path_frame(timing[L.PELVIS], fps)
-    pairs = cycles(*(foot_events(foot, frame, fps) for foot in feet))
-    stride = float(np.median([e - s for s, e in pairs]))
-    frame = path_frame(timing[L.PELVIS], fps, smooth_s=stride / fps)
-    left, right = (foot_events(foot, frame, fps).stance for foot in feet)
-    return frame.forward, left, right
 
 
 def _bone(landmarks: LandmarkMap, lm: Landmark) -> str | None:
@@ -176,30 +160,38 @@ def reference_pose(file: BvhFile, clip: SkeletonClip, landmarks: LandmarkMap) ->
     usable = np.zeros(clip.frames(), dtype=bool)
     for c in usable_cycles:
         usable[c.start_frame : c.end_frame + 1] = True
-    forward, stance_l, stance_r = _timing(clip, landmarks)
-    stance = (stance_l, stance_r)
+    timing = gait_timing(clip, landmarks)  # never raises: extract_cycles found cycles
+    forward = timing.frame.forward
+    stance = (timing.events[0].stance, timing.events[1].stance)
 
     names = [j.name for j in file.joints]
     pelvis = _bone(landmarks, L.PELVIS)
     root = names.index(pelvis)
     local = _local_rotations(file)
-    world = local[root]
-    i = file.joints[root].parent
-    while i >= 0:
-        world = local[i] @ world
-        i = file.joints[i].parent
+    world: list[np.ndarray] = []
+    for i, joint in enumerate(file.joints):
+        world.append(local[i] if joint.parent < 0 else world[joint.parent] @ local[i])
     p = _z_up_matrix(file.up_axis)
-    # Heading removed in the z-up world, back to file axes: P^T H^T (P W P^T) P = P^T H^T P W.
     h = _heading_matrices(forward)
-    level = np.einsum("ij,tkj,kl,tlm->tim", p.T, h, p, world)
+
+    def level(i: int) -> np.ndarray:
+        """Bone ``i``'s world rotation with each frame's heading removed, in file axes:
+        P^T H^T (P W P^T) P = P^T H^T P W."""
+        return np.einsum("ij,tkj,kl,tlm->tim", p.T, h, p, world[i])
+
     means = [chordal_mean(r[usable]) for r in local]
-    means[root] = chordal_mean(level[usable])
+    means[root] = chordal_mean(level(root)[usable])
+    reference_world: dict[int, np.ndarray] = {root: means[root]}
+    for i in range(root + 1, len(file.joints)):
+        if file.joints[i].parent in reference_world:
+            reference_world[i] = reference_world[file.joints[i].parent] @ means[i]
 
     stance_rotations: dict[str, np.ndarray] = {}
     for (ankle, _), mask in zip(_FEET, stance, strict=True):
-        bone = _bone(landmarks, ankle)
+        i = names.index(_bone(landmarks, ankle))
         # A usable cycle has stance on both feet, so the mask is never empty here.
-        stance_rotations[bone] = chordal_mean(local[names.index(bone)][mask])
+        foot_world = chordal_mean(level(i)[mask])
+        stance_rotations[names[i]] = reference_world[file.joints[i].parent].T @ foot_world
 
     tracks = clip.landmark_positions(landmarks)
     feet = [tracks.get(toe, tracks[ankle]) for ankle, toe in _FEET]
@@ -242,13 +234,12 @@ def reference_qpos(full: CompiledRig, reference: ReferencePose) -> np.ndarray:
 
 @dataclass(frozen=True, eq=False)
 class HingeProbe:
-    """One hinge turned by ``+-PROBE_RAD`` from the reference on the ``full`` chain."""
+    """One hinge turned by ``+PROBE_RAD`` from the reference on the ``full`` chain."""
 
     hinge: str
     axis: np.ndarray  # world unit axis at the reference: forward +x, left +y, up +z
     before: Mapping[str, np.ndarray]  # landmark value -> world point at the reference
     after: Mapping[str, np.ndarray]  # at +PROBE_RAD
-    minus: Mapping[str, np.ndarray]  # at -PROBE_RAD
 
 
 def probe_hinges(
@@ -274,14 +265,12 @@ def probe_hinges(
     out = {}
     for hinge in hinges:
         adr = model.joint(hinge).qposadr[0]
-        turned = [q0.copy(), q0.copy()]
-        turned[0][adr] += PROBE_RAD
-        turned[1][adr] -= PROBE_RAD
+        turned = q0.copy()
+        turned[adr] += PROBE_RAD
         out[hinge] = HingeProbe(
             hinge=hinge,
             axis=axes[hinge] / np.linalg.norm(axes[hinge]),
             before=MappingProxyType(before),
-            after=MappingProxyType(points(turned[0])),
-            minus=MappingProxyType(points(turned[1])),
+            after=MappingProxyType(points(turned)),
         )
     return out

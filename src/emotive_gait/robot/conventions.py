@@ -28,7 +28,7 @@ _LEFT: dict[JointRole, tuple[str, str]] = {
     JointRole.HIP_ROLL_L: ("knee_l", "outward"),
     JointRole.SHOULDER_PITCH_L: ("elbow_l", "backward"),
     JointRole.SHOULDER_ROLL_L: ("elbow_l", "outward"),
-    JointRole.ELBOW_L: ("wrist_l", "toward_shoulder"),
+    JointRole.ELBOW_L: ("wrist_l", "forward"),  # flexion swings the forearm forward
 }
 
 ROLE_CONVENTIONS: Mapping[JointRole, tuple[str, str]] = {
@@ -53,17 +53,10 @@ def convention_holds(
 
     ``before``/``after`` map landmark values to world points. The displacement is projected on
     the direction's unit vector and must be positive; ``"outward"`` is ``+left`` for ``_l`` roles
-    and ``-left`` for ``_r`` roles; ``"toward_shoulder"`` requires a shorter distance to
-    ``shoulder_<side>``.
+    and ``-left`` for ``_r`` roles.
     """
     landmark, direction = ROLE_CONVENTIONS[role]
     a, b = np.asarray(before[landmark], float), np.asarray(after[landmark], float)
-    if direction == "toward_shoulder":
-        shoulder = f"shoulder_{landmark[-1]}"
-        return bool(
-            np.linalg.norm(b - np.asarray(after[shoulder], float))
-            < np.linalg.norm(a - np.asarray(before[shoulder], float))
-        )
     if direction == "outward":
         axis = np.asarray(left, float) * (1.0 if role.value.endswith("_l") else -1.0)
     else:

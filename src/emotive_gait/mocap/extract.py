@@ -334,21 +334,38 @@ def _regular(s: int, e: int, events: tuple[FootEvents, FootEvents], typical: flo
     return one_swing and abs((e - s) / typical - 1.0) <= MAX_CYCLE_DEVIATION
 
 
-def _extract(clip: SkeletonClip, landmarks: LandmarkMap) -> tuple[list[GaitMeasurement], Counter]:
-    reasons: Counter = Counter()
+class NoTimingError(ValueError):
+    """The clip yields no gait timing; the message is the clip-level discard reason."""
+
+
+@dataclass(frozen=True)
+class GaitTiming:
+    """The extractor's timing: the stride-window path frame (origin: the event-filtered pelvis),
+    both feet's events in it, and the complete cycles ``(start, end)``."""
+
+    frame: PathFrame
+    events: tuple[FootEvents, FootEvents]
+    pairs: list[tuple[int, int]]
+
+
+def gait_timing(clip: SkeletonClip, landmarks: LandmarkMap) -> GaitTiming:
+    """Path frame, foot events and complete cycles, exactly as the extractor finds them.
+
+    Tracks are low-passed at ``EVENT_FILTER_HZ``; the foot is the toe, else the ankle. The path
+    frame is built, events and cycles found, then the frame is rebuilt with a heading window
+    of one measured stride (cancels the lateral sway exactly) and the events found again in it.
+    Raises :class:`NoTimingError` with the clip-level reason when there is no pelvis or ankle,
+    no forward travel or no complete cycle.
+    """
     fps = float(clip.fps)
     raw = clip.landmark_positions(landmarks)
     if any(k not in raw for k in (L.PELVIS, L.ANKLE_L, L.ANKLE_R)):
-        reasons["missing pelvis or ankle landmark"] += 1
-        return [], reasons
-    tracks = {k: _lowpass(v, fps, FILTER_HZ) for k, v in raw.items()}
+        raise NoTimingError("missing pelvis or ankle landmark")
     timing = {k: _lowpass(v, fps, EVENT_FILTER_HZ) for k, v in raw.items() if k in _TIMING}
     try:
         frame = path_frame(timing[L.PELVIS], fps)
     except ValueError:
-        reasons["no forward travel"] += 1
-        return [], reasons
-    feet = (tracks.get(L.TOE_L, tracks[L.ANKLE_L]), tracks.get(L.TOE_R, tracks[L.ANKLE_R]))
+        raise NoTimingError("no forward travel") from None
     timing_feet = (
         timing.get(L.TOE_L, timing[L.ANKLE_L]),
         timing.get(L.TOE_R, timing[L.ANKLE_R]),
@@ -356,17 +373,28 @@ def _extract(clip: SkeletonClip, landmarks: LandmarkMap) -> tuple[list[GaitMeasu
     events = (foot_events(timing_feet[0], frame, fps), foot_events(timing_feet[1], frame, fps))
     pairs = cycles(*events)
     if not pairs:
-        reasons["no complete cycle"] += 1
-        return [], reasons
-    # Rebuild the frame with a heading window of one measured stride (cancels the lateral sway
-    # exactly), then find the events again in it.
+        raise NoTimingError("no complete cycle")
     stride = float(np.median([e - s for s, e in pairs]))
     frame = path_frame(timing[L.PELVIS], fps, smooth_s=stride / fps)
     events = (foot_events(timing_feet[0], frame, fps), foot_events(timing_feet[1], frame, fps))
     pairs = cycles(*events)
     if not pairs:
-        reasons["no complete cycle"] += 1
+        raise NoTimingError("no complete cycle")
+    return GaitTiming(frame=frame, events=events, pairs=pairs)
+
+
+def _extract(clip: SkeletonClip, landmarks: LandmarkMap) -> tuple[list[GaitMeasurement], Counter]:
+    reasons: Counter = Counter()
+    fps = float(clip.fps)
+    try:
+        timing = gait_timing(clip, landmarks)
+    except NoTimingError as exc:
+        reasons[str(exc)] += 1
         return [], reasons
+    frame, events, pairs = timing.frame, timing.events, timing.pairs
+    raw = clip.landmark_positions(landmarks)
+    tracks = {k: _lowpass(v, fps, FILTER_HZ) for k, v in raw.items()}
+    feet = (tracks.get(L.TOE_L, tracks[L.ANKLE_L]), tracks.get(L.TOE_R, tracks[L.ANKLE_R]))
     typical = float(np.median([e - s for s, e in pairs]))
     heading = np.unwrap(np.arctan2(frame.forward[:, 1], frame.forward[:, 0]))
     frame = replace(frame, origin=tracks[L.PELVIS])

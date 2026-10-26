@@ -546,22 +546,12 @@ def _sign(role: JointRole, probe: HingeProbe) -> tuple[float, str]:
     """+1 when a positive probe follows the role's convention, else -1; and a note."""
     if role not in ROLE_CONVENTIONS:
         return 1.0, "no convention row, sign +1"
-    landmark, direction = ROLE_CONVENTIONS[role]
-    needed = [landmark]
-    if direction == "toward_shoulder":
-        needed.append(f"shoulder_{landmark[-1]}")
-    if any(n not in probe.before for n in needed):
-        return 1.0, f"no {' or '.join(needed)} landmark to probe, sign +1"
-    plus = convention_holds(role, probe.before, probe.after, **_PATH)
-    if direction == "toward_shoulder":
-        minus = convention_holds(role, probe.before, probe.minus, **_PATH)
-        if plus == minus:
-            # A straight elbow at the reference: both directions shorten the shoulder-wrist
-            # distance (to second order). Flexion is taken as the wrist moving forward.
-            moved = probe.after[landmark] - probe.before[landmark]
-            sign = 1.0 if float(moved @ _PATH["forward"]) > 0.0 else -1.0
-            return sign, "elbow straight at the reference, flexion taken as the wrist forward"
-    return (1.0, "probe follows the convention") if plus else (-1.0, "probe opposes it, flipped")
+    landmark, _ = ROLE_CONVENTIONS[role]
+    if landmark not in probe.before:
+        return 1.0, f"no {landmark} landmark to probe, sign +1"
+    if convention_holds(role, probe.before, probe.after, **_PATH):
+        return 1.0, "probe follows the convention"
+    return -1.0, "probe opposes it, flipped"
 
 
 def bind_roles(
@@ -602,6 +592,10 @@ def bind_roles(
         if hinge not in full.hinges:
             source = full.file.source or "the file"
             raise RigError(f"role override {key}={hinge}: no rotation channel {hinge} in {source}")
+        if role not in RANGES:
+            raise RigError(
+                f"role override {key}={hinge}: {key} has no range and is undriven on a rig"
+            )
         parsed[role] = hinge
 
     groups = [(b, c) for b, c in _role_groups(landmarks.trunk_root, lm) if b in by_bone]
@@ -626,7 +620,9 @@ def bind_roles(
                 continue
             hinge, purity = chosen[cls], share(chosen[cls], cls)
             if role not in RANGES:
-                decisions.append(Decision(role.value, "undriven", "geometry", f"{hinge}: no range"))
+                decisions.append(
+                    Decision(f"role:{role.value}", "undriven", "geometry", f"{hinge}: no range")
+                )
                 continue
             if purity < AXIS_PURITY_MIN:
                 skewed.append(role)
@@ -640,14 +636,16 @@ def bind_roles(
             sign, note = _sign(role, probes[hinge])
             roles[role] = RoleBinding(hinge=hinge, sign=sign, axis_purity=purity)
             decisions.append(
-                Decision(role.value, hinge, "geometry", f"purity {purity:.3f}, {note}")
+                Decision(f"role:{role.value}", hinge, "geometry", f"purity {purity:.3f}, {note}")
             )
 
     for role, hinge in parsed.items():
         purity = share(hinge, _axis_class(role))
         sign, note = _sign(role, probes[hinge])
         roles[role] = RoleBinding(hinge=hinge, sign=sign, axis_purity=purity)
-        decisions.append(Decision(role.value, hinge, "user", f"purity {purity:.3f}, {note}"))
+        decisions.append(
+            Decision(f"role:{role.value}", hinge, "user", f"purity {purity:.3f}, {note}")
+        )
         if purity < AXIS_PURITY_MIN:
             skewed.append(role)
             warnings.append(f"{role.value}: override {hinge} axis purity {purity:.2f} (skewed)")

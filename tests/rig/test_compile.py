@@ -197,12 +197,12 @@ def test_driven_chain_at_zero_equals_full_chain_at_the_reference(tmp_path, spec)
     assert set(got) == set(expected)
     for name in got:
         assert np.allclose(got[name], expected[name], atol=1e-9), (name, got[name] - expected[name])
-    # Root at the reference pelvis height; the foot sites sit at the profile's floor height.
+    # Root at the reference pelvis height. The floor is the foot point's own stance height, so
+    # the profile's foot-site floor height is zero; the reference foot height is a diagnostic.
     assert np.allclose(driven.model.body("pelvis").pos, [0.0, 0.0, ref.pelvis_height])
+    assert robot.profile.foot_site_floor_height == 0.0
     feet = [driven_data.site_xpos[driven.model.site(s).id] for s in robot.profile.foot_sites]
-    assert np.mean([f[2] for f in feet]) == pytest.approx(
-        robot.profile.foot_site_floor_height, abs=1e-12
-    )
+    assert np.mean([f[2] for f in feet]) == pytest.approx(ref.foot_height, abs=1e-12)
     # The left foot site is the toe landmark (toe bone, or the foot's End Site without toes).
     point = driven.landmark_sites[mapping.landmarks[Landmark.TOE_L]]
     assert np.allclose(feet[0], driven_data.site_xpos[driven.model.site(point).id], atol=1e-12)
