@@ -296,6 +296,20 @@ def test_cell_problems_name_the_cell_and_key(tmp_path, cell, key):
         load_artefact(_write(tmp_path, _artefact_yaml(cell)))
 
 
+@pytest.mark.parametrize(
+    "cell",
+    [
+        _cell_yaml(ci_low=None),
+        _cell_yaml(grounding="thin"),
+        _cell_yaml(grounding="missing", ci_high=None),
+    ],
+    ids=["fitted_without_interval", "thin_with_interval", "missing_with_half_interval"],
+)
+def test_interval_must_match_the_grounding(tmp_path, cell):
+    with pytest.raises(ArtefactSchemaError, match=r"cells\.froude\.sadness\.cadence"):
+        load_artefact(_write(tmp_path, _artefact_yaml(cell)))
+
+
 def test_unknown_parameter_is_rejected(tmp_path):
     data = _artefact_yaml()
     data["cells"]["froude"]["sadness"]["expansiveness"] = _cell_yaml()

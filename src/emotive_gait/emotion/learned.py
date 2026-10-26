@@ -115,6 +115,9 @@ def direction_check(
     is ``thin_unchecked`` without an interval. A signed claim compares the sign of ``estimate``
     (sign only when there is no interval) and the verdict gains ``_ci_spans_zero`` when the
     interval contains zero.
+
+    Callers pass ``claim_direction=0`` only for ``evidence.NO_CHANGE_CLAIMS`` and ``None`` for
+    the direction-0 claims that mean "not reported vs neutral".
     """
     if grounding not in GROUNDINGS:
         raise ValueError(f"grounding must be one of {GROUNDINGS}, got {grounding!r}")
@@ -190,6 +193,13 @@ def _cell(raw: object, emotion: str, parameter: str, where: str) -> ArtefactCell
         raise ArtefactSchemaError(
             f"artefact: {where + '.direction_check'!r} must be one of {DIRECTION_CHECKS}"
         )
+    ci_low = _number(v["ci_low"], where + ".ci_low")
+    ci_high = _number(v["ci_high"], where + ".ci_high")
+    has_interval = (ci_low, ci_high) != (None, None)
+    if v["grounding"] == "fitted" and (ci_low is None or ci_high is None):
+        raise ArtefactSchemaError(f"artefact: {where!r} is fitted but has no ci_low/ci_high")
+    if v["grounding"] != "fitted" and has_interval:
+        raise ArtefactSchemaError(f"artefact: {where!r} is {v['grounding']} but has an interval")
     reason = v["fallback_reason"]
     if reason is not None and not isinstance(reason, str):
         raise ArtefactSchemaError(
@@ -206,8 +216,8 @@ def _cell(raw: object, emotion: str, parameter: str, where: str) -> ArtefactCell
         emotion=emotion,
         parameter=parameter,
         estimate=estimate,
-        ci_low=_number(v["ci_low"], where + ".ci_low"),
-        ci_high=_number(v["ci_high"], where + ".ci_high"),
+        ci_low=ci_low,
+        ci_high=ci_high,
         between_actor_sd=_number_or_nan(v["between_actor_sd"], where + ".between_actor_sd"),
         residual_sd=_number_or_nan(v["residual_sd"], where + ".residual_sd"),
         n_actors=_count(v["n_actors"], where + ".n_actors"),

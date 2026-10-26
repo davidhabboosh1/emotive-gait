@@ -4,7 +4,12 @@ import math
 import pytest
 from artefacts import FULL_AGREEING, make_artefact
 
-from emotive_gait.emotion.evidence import GROUNDED_EMOTIONS, Emotion, claims_for
+from emotive_gait.emotion.evidence import (
+    GROUNDED_EMOTIONS,
+    NO_CHANGE_CLAIMS,
+    Emotion,
+    claims_for,
+)
 from emotive_gait.emotion.learned import LearnedEmotionModel
 from emotive_gait.emotion.model import (
     ANALYTIC,
@@ -37,11 +42,8 @@ def test_anger_speeds_up_and_flexes_the_elbows():
     assert q.speed > p.speed and q.elbow_flexion > p.elbow_flexion
 
 
-# Two kinds of direction-0 claim. These are "no change" findings: the source measured the cue
-# against neutral and found no effect, so the model must not move it. Every other direction-0
-# claim means "not reported vs neutral" (e.g. only compared with another emotion): the evidence
-# is silent, so the model is free there and the claim stays exempt.
-NO_CHANGE = {(Emotion.ANGER, "neck_pitch"), (Emotion.ANGER, "com_height_scale")}
+# The two kinds of direction-0 claim are explained beside NO_CHANGE_CLAIMS in evidence.py.
+NO_CHANGE = NO_CHANGE_CLAIMS
 
 
 def _reported(model: LearnedEmotionModel, emotion: str, parameter: str) -> bool:
@@ -54,16 +56,23 @@ def _reported(model: LearnedEmotionModel, emotion: str, parameter: str) -> bool:
 
 
 def _check_learned_cell(model: LearnedEmotionModel, claim) -> None:
-    """Spec 4.5: a fitted or thin cell agrees in sign, or is a reported contradiction."""
+    """Spec 4.5: a fitted or thin cell agrees in sign, or is a reported contradiction.
+
+    Recomputed from the estimate and interval, never from the artefact's own
+    ``direction_check``, so a writer bug cannot pass its own gate.
+    """
     emotion, parameter = claim.emotion.value, claim.parameter
     if _reported(model, emotion, parameter):
         return
     cell = model.cell(emotion, parameter)
     name = f"{emotion}.{parameter}"
     if claim.direction == 0:
-        assert cell.direction_check in ("agrees_ci_spans_zero", "thin_unchecked"), (
-            f"{name} moved off zero ({cell.direction_check}) and is not a reported "
-            f"contradiction ({claim.citation})"
+        if (claim.emotion, parameter) not in NO_CHANGE_CLAIMS or cell.grounding == "thin":
+            return  # "not reported vs neutral" is exempt; a thin cell has no interval
+        assert cell.ci_low is not None and cell.ci_high is not None, f"{name}: no interval"
+        assert cell.ci_low <= 0.0 <= cell.ci_high, (
+            f"{name} interval [{cell.ci_low}, {cell.ci_high}] excludes zero and is not a "
+            f"reported contradiction ({claim.citation})"
         )
         return
     assert cell.estimate * claim.direction > 0, (
@@ -131,6 +140,40 @@ def test_an_unreported_no_change_violation_fails_the_direction_test():
     m = LearnedEmotionModel(make_artefact({**FULL_AGREEING, ("anger", "neck_pitch"): 0.2}))
     with pytest.raises(AssertionError, match="anger.neck_pitch"):
         check_directions(m)
+
+
+def test_a_no_change_check_ignores_the_artefacts_own_verdict():
+    m = LearnedEmotionModel(make_artefact({**FULL_AGREEING, ("anger", "neck_pitch"): 0.2}))
+    cell = m.artefact.cells[("froude", "anger", "neck_pitch")]
+    lying = dataclasses.replace(cell, direction_check="agrees_ci_spans_zero")
+    art = dataclasses.replace(
+        m.artefact, cells={**m.artefact.cells, ("froude", "anger", "neck_pitch"): lying}
+    )
+    with pytest.raises(AssertionError, match="anger.neck_pitch"):
+        check_directions(LearnedEmotionModel(art))
+
+
+def test_a_not_reported_direction_zero_claim_is_exempt_for_the_learned_model():
+    # happiness cadence is direction 0 "not reported vs neutral", not a no-change claim
+    assert (Emotion.HAPPINESS, "cadence") not in NO_CHANGE_CLAIMS
+    check_directions(
+        LearnedEmotionModel(make_artefact({**FULL_AGREEING, ("happiness", "cadence"): 0.5}))
+    )
+
+
+# Fear's claims: cadence up, step length down, speed down. A big cadence rise with a small
+# step-length drop makes the modulated speed rise although both cells agree with their claims.
+_FEAR_FAST = {**FULL_AGREEING, ("fear", "cadence"): 0.3, ("fear", "step_length"): -0.01}
+
+
+def test_an_unreported_speed_contradiction_fails():
+    with pytest.raises(AssertionError, match="(?i)fear.speed contradicts"):
+        check_directions(LearnedEmotionModel(make_artefact(_FEAR_FAST)))
+
+
+def test_a_reported_speed_contradiction_passes():
+    reported = [{"emotion": "fear", "parameter": "speed", "scaling": "froude"}]
+    check_directions(LearnedEmotionModel(make_artefact(_FEAR_FAST, contradictions=reported)))
 
 
 def test_missing_cells_of_the_learned_model_are_checked_against_the_analytic_delta():

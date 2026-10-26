@@ -205,6 +205,14 @@ EVIDENCE: tuple[Claim, ...] = (
 )
 
 GROUNDED_EMOTIONS: frozenset[Emotion] = frozenset(_GROUNDED_ROWS)
+
+# Two kinds of direction-0 claim. These are "no change" findings: the source measured the cue
+# against neutral and found no effect, so the model must not move it. Every other direction-0
+# claim means "not reported vs neutral" (e.g. only compared with another emotion): the evidence
+# is silent, so the model is free there and the claim stays exempt.
+NO_CHANGE_CLAIMS: frozenset[tuple[Emotion, str]] = frozenset(
+    {(Emotion.ANGER, "neck_pitch"), (Emotion.ANGER, "com_height_scale")}
+)
 UNSOURCED_EMOTIONS: frozenset[Emotion] = frozenset(_UNSOURCED_ROWS)
 
 # Mean walking speeds in m/s (Roether 2011 ch.3).

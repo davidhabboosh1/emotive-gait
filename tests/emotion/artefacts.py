@@ -5,7 +5,12 @@ from __future__ import annotations
 from collections.abc import Iterable, Mapping
 from types import MappingProxyType
 
-from emotive_gait.emotion.evidence import GROUNDED_EMOTIONS, Emotion, claims_for
+from emotive_gait.emotion.evidence import (
+    GROUNDED_EMOTIONS,
+    NO_CHANGE_CLAIMS,
+    Emotion,
+    claims_for,
+)
 from emotive_gait.emotion.learned import Artefact, ArtefactCell, direction_check
 from emotive_gait.gait.scaling import MEASURED_FIELDS
 
@@ -33,7 +38,13 @@ def make_artefact(
         raise ValueError(f"thin cells need an effect: {sorted(thin - set(effects))}")
     cells: dict[tuple[str, str, str], ArtefactCell] = {}
     for emotion in FITTED_EMOTIONS:
-        directions = {c.parameter: c.direction for c in claims_for(Emotion(emotion))}
+        # The writer's convention: direction 0 only for no-change claims, None for the
+        # "not reported vs neutral" ones.
+        directions = {
+            c.parameter: c.direction
+            for c in claims_for(Emotion(emotion))
+            if c.direction != 0 or (c.emotion, c.parameter) in NO_CHANGE_CLAIMS
+        }
         for parameter in MEASURED_FIELDS:
             key = (emotion, parameter)
             if key not in effects:
@@ -97,10 +108,6 @@ FULL_AGREEING: Mapping[tuple[str, str], float] = MappingProxyType(
         for e in sorted(GROUNDED_EMOTIONS)
         for c in claims_for(e)
         if c.parameter in MEASURED_FIELDS
-        and (
-            c.direction != 0
-            or (c.emotion.value, c.parameter)
-            in {("anger", "neck_pitch"), ("anger", "com_height_scale")}
-        )
+        and (c.direction != 0 or (c.emotion, c.parameter) in NO_CHANGE_CLAIMS)
     }
 )

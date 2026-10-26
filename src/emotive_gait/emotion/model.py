@@ -187,7 +187,8 @@ def modulate(
 ) -> GaitParameters:
     """Return ``params`` shifted by the given emotion intensities.
 
-    ``model`` produces the deltas (default: the analytic model, ``ANALYTIC``). Cues the profile cannot show are dropped (see :func:`unexpressible`). Amplitude parameters
+    ``model`` produces the deltas (default: the analytic model, ``ANALYTIC``). Cues the profile
+    cannot show are dropped (see :func:`unexpressible`). Amplitude parameters
     (``arm_swing_amp``, ``arm_abduction``, ``expansiveness``, ``com_bounce_amp``,
     ``lateral_sway_amp``, ``step_height``, ``step_length``) are floored at 0.0: "less arm swing"
     saturates at none, and a negative amplitude is a phase flip, not a smaller motion. When
