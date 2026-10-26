@@ -429,7 +429,7 @@ def infer_scale_and_up(
 
     top = b.bound.get(L.HEAD, b.bound.get(L.NECK))
     if L.PELVIS not in b.bound or top is None:
-        raise RigError("cannot find the pelvis and head to infer the up-axis; pass --up-axis")
+        raise RigError("cannot find the pelvis and head to infer the up-axis; pass --up")
     extent = np.abs(rest[top] - rest[b.bound[L.PELVIS]])
     up: Literal["y", "z"] = "y" if extent[1] > extent[2] else "z"
     decisions = [
