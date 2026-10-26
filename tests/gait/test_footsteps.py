@@ -10,6 +10,7 @@ from emotive_gait.gait.footsteps import (
     pelvis_offset,
     pelvis_x,
     phase_at,
+    rule_double_support,
     swing_fraction,
 )
 from emotive_gait.gait.params import GaitParameters
@@ -100,3 +101,7 @@ def test_sway_goes_to_the_stance_side_and_bounce_has_two_periods():
 
 def test_pelvis_x_is_speed_times_time():
     assert pelvis_x(P, 2.0) == pytest.approx(2.0 * P.speed)
+
+
+def test_rule_double_support_reads_above_the_parameter_on_the_generator_shape():
+    assert rule_double_support(GaitParameters()) == pytest.approx(0.41, abs=0.02)  # 0.20 + ~0.21

@@ -1,4 +1,5 @@
 import math
+from dataclasses import replace
 
 import numpy as np
 import pytest
@@ -6,7 +7,7 @@ from conftest import PHASE0_PRESETS
 
 from emotive_gait.gait.footsteps import swing_fraction
 from emotive_gait.gait.generator import generate
-from emotive_gait.gait.ik import N_SAMPLES
+from emotive_gait.gait.ik import N_SAMPLES, weld_robot_for
 from emotive_gait.gait.params import GaitParameters
 from emotive_gait.gait.spline import PeriodicCurve
 from emotive_gait.robot.loader import load_robot
@@ -294,3 +295,21 @@ def test_every_preset_keeps_full_arm_swing_under_every_projection():
             print(f"{name} {mode.value}: shoulder peak {peak:.4f}")
             want = p.arm_swing_amp * p.expansiveness
             assert peak == pytest.approx(want, abs=1e-3), f"{name} {mode.value}"
+
+
+@pytest.fixture(scope="module")
+def robot():
+    return load_robot()
+
+
+def test_posture_map_writes_an_affine_combination_of_the_posture_parameters(robot):
+    row = {"trunk_pitch": 0.5, "neck_pitch": 0.0, "elbow_flexion": 0.0, "arm_abduction": 0.0}
+    profile = replace(robot.profile, posture_map={JointRole.WAIST_PITCH: {**row, "offset": 0.1}})
+    traj = generate(
+        GaitParameters(trunk_pitch=0.2),
+        replace(robot, profile=profile),
+        welded=weld_robot_for(robot.profile),
+    )
+    assert traj.angles_at(0.3)[JointRole.WAIST_PITCH] == pytest.approx(0.2)  # 0.5 * 0.2 + 0.1
+    plain = generate(GaitParameters(trunk_pitch=0.2), robot)
+    assert plain.angles_at(0.3)[JointRole.WAIST_PITCH] == pytest.approx(0.2)  # identity path

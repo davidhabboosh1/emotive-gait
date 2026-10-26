@@ -8,7 +8,7 @@ deliberately does not import mujoco.
 from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 
 
@@ -48,6 +48,24 @@ class JointRole(str, Enum):
         return self
 
 
+# The absolute posture parameters of ``GaitParameters`` (arm_abduction after expansiveness), and
+# the roles a profile's ``posture_map`` may write from them.
+POSTURE_PARAMETERS: tuple[str, ...] = (
+    "trunk_pitch",
+    "neck_pitch",
+    "elbow_flexion",
+    "arm_abduction",
+)
+POSTURE_ROLES: tuple[JointRole, ...] = (
+    JointRole.WAIST_PITCH,
+    JointRole.NECK_PITCH,
+    JointRole.ELBOW_L,
+    JointRole.ELBOW_R,
+    JointRole.SHOULDER_ROLL_L,
+    JointRole.SHOULDER_ROLL_R,
+)
+
+
 class MissingRoleError(KeyError):
     """Raised when a profile has no actuator for a requested role."""
 
@@ -65,6 +83,11 @@ class RobotProfile:
     (e.g. left/right roll joints), so symmetric modulations can negate rather than copy.
     ``leg_length`` is the hip-pitch joint height at ``qpos0`` (m), the ``l`` that re-dimensions
     Froude-scaled gait deltas.
+
+    ``posture_map`` is an affine map from the posture parameters to a posture role's angle: one
+    row per role in :data:`POSTURE_ROLES`, keyed by :data:`POSTURE_PARAMETERS` plus
+    ``"offset"``, giving ``offset + sum(row[k] * posture[k])``. A role without a row copies its
+    own parameter (rolls times ``sign``), so the empty default is the identity (the G1).
     """
 
     name: str
@@ -79,6 +102,8 @@ class RobotProfile:
     foot_sites: tuple[str, str] = ("left_foot", "right_foot")
     # Leg length (m): hip-pitch joint height at qpos0.
     leg_length: float = 0.69
+    # Affine posture map, role -> {parameter or "offset": coefficient}; empty is the identity.
+    posture_map: Mapping[JointRole, Mapping[str, float]] = field(default_factory=dict)
 
     def has(self, role: JointRole) -> bool:
         return role in self.actuator_for

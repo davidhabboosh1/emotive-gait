@@ -20,6 +20,8 @@ import math
 from dataclasses import dataclass
 from enum import Enum
 
+import numpy as np
+
 from emotive_gait.gait.params import GaitParameters
 
 
@@ -88,3 +90,17 @@ def pelvis_x(params: GaitParameters, t: float) -> float:
 
 def phase_at(params: GaitParameters, t: float) -> float:
     return (t * params.cadence / 2.0) % 1.0
+
+
+def rule_double_support(params: GaitParameters, samples: int = 4000) -> float:
+    """Double support that the position-extremum rule reads on the commanded foot path.
+
+    ``gait.footsteps.foot_point`` gives the foot's x in the pelvis frame (the coordinate the
+    rule uses). Its swing starts from the stance slope and overshoots +D/2 by about 11 %, so
+    the maximum (strike) comes before the swing ends and the minimum (toe-off) after it starts:
+    the rule's stance is longer than ``1 - swing_fraction``. Double support per half-cycle
+    step is then ``2 * stance - 1``.
+    """
+    x = np.array([foot_point(params, k / samples, Side.LEFT).x for k in range(samples)])
+    stance = ((int(np.argmin(x)) - int(np.argmax(x))) % samples) / samples
+    return 2.0 * stance - 1.0
