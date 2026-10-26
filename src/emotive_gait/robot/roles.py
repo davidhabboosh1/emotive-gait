@@ -104,6 +104,12 @@ class RobotProfile:
     leg_length: float = 0.69
     # Affine posture map, role -> {parameter or "offset": coefficient}; empty is the identity.
     posture_map: Mapping[JointRole, Mapping[str, float]] = field(default_factory=dict)
+    # Multiplier on the generator's elbow swing term ``ratio * (shoulder_pitch - stand)``. That
+    # term was tuned on the G1, whose positive elbow joint straightens the arm (the documented
+    # Phase 4 xfail); a profile where positive elbow is flexion, as every compiled rig is, sets
+    # -1.0 so the elbow flexes on the forward swing. A Phase 4 rendering fix would fold both
+    # into the convention.
+    elbow_swing_sign: float = 1.0
 
     def has(self, role: JointRole) -> bool:
         return role in self.actuator_for

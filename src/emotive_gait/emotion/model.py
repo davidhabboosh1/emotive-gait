@@ -128,7 +128,13 @@ class EmotionModel(Protocol):
     ``deltas`` validates ``intensities`` (as :func:`validate_intensities` does) and returns
     deltas keyed by ``GaitParameters`` field name, in the robot's units. Cue dropping, the
     amplitude floor and ``hold_speed`` are applied by :func:`modulate`, not by the model.
+
+    ``profile_aware`` says whether the deltas already depend on the profile's dimensions
+    (``leg_length``, ``nominal_pelvis_height``); a model without the attribute counts as
+    ``False``. ``rig.scaled.RigScaledModel`` re-dimensions the deltas of a model that is not.
     """
+
+    profile_aware: bool = False
 
     def deltas(
         self, intensities: Mapping[Emotion, float], profile: RobotProfile
@@ -140,6 +146,8 @@ class AnalyticEmotionModel:
 
     Its deltas do not depend on the profile (the axis gains are already in the G1's units).
     """
+
+    profile_aware = False
 
     def deltas(
         self, intensities: Mapping[Emotion, float], profile: RobotProfile

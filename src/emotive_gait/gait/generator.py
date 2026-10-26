@@ -69,6 +69,8 @@ class GaitTrajectory:
     _overrides: tuple[tuple[JointRole, PeriodicCurve], ...] = ()
     # The profile's affine posture map, role -> sorted (parameter or "offset", coefficient).
     _posture_map: tuple[tuple[JointRole, tuple[tuple[str, float], ...]], ...] = ()
+    # The profile's sign on the elbow swing term (``RobotProfile.elbow_swing_sign``).
+    _elbow_swing_sign: float = 1.0
 
     @property
     def offsets(self) -> Mapping[JointRole, PeriodicCurve]:
@@ -79,6 +81,11 @@ class GaitTrajectory:
     def overrides(self) -> Mapping[JointRole, PeriodicCurve]:
         """Hand-authored replacement curves, so a projected trajectory can be regenerated."""
         return dict(self._overrides)
+
+    @property
+    def elbow_swing_sign(self) -> float:
+        """The profile's sign on the elbow swing term (``RobotProfile.elbow_swing_sign``)."""
+        return self._elbow_swing_sign
 
     def root_offset_at(self, phase: float) -> np.ndarray:
         """Pelvis ``(x, y, z)`` relative to the walking line: sway, crouch and bounce.
@@ -128,8 +135,8 @@ class GaitTrajectory:
             # In phase with the shoulder deviation (elbow flexes more as the arm swings
             # forward) is a tuning choice; the amplitude semantics (elbow swing / shoulder
             # swing = elbow_swing_ratio) are what the emotion model relies on.
-            out[elbow] = mapped(elbow, p.elbow_flexion) + p.elbow_swing_ratio * (
-                out[arm] - stand[arm]
+            out[elbow] = mapped(elbow, p.elbow_flexion) + self._elbow_swing_sign * (
+                p.elbow_swing_ratio * (out[arm] - stand[arm])
             )
         out[JointRole.WAIST_PITCH] = mapped(JointRole.WAIST_PITCH, p.trunk_pitch)
         out[JointRole.NECK_PITCH] = mapped(JointRole.NECK_PITCH, p.neck_pitch)
@@ -232,4 +239,5 @@ def generate(
         _posture_map=_pairs(
             {role: tuple(sorted(row.items())) for role, row in profile.posture_map.items()}
         ),
+        _elbow_swing_sign=float(profile.elbow_swing_sign),
     )

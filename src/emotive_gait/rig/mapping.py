@@ -472,11 +472,20 @@ _PATH = {"forward": np.eye(3)[0], "left": np.eye(3)[1], "up": np.eye(3)[2]}
 
 @dataclass(frozen=True)
 class RoleBinding:
-    """The hinge (``"Bone/Channel"``) a role drives, its sign and the probe's axis purity."""
+    """The hinge (``"Bone/Channel"``) a role drives, its sign and the probe's axis purity.
+
+    ``zero_offset`` is the hinge angle (in the bound sign) at which the joint's bend is zero:
+    the knee and elbow ranges are about the STRAIGHT limb, not the calibrated zero (the walking
+    mean, whose knee is bent), so ``compile_driven`` shifts them by it. It is minus the bend at
+    the reference pose (the angle between hip->knee and knee->ankle, shoulder->elbow and
+    elbow->wrist), plus it for a reference bent past straight (hyperextended), and 0.0 for
+    every other role.
+    """
 
     hinge: str
     sign: float
     axis_purity: float
+    zero_offset: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -552,6 +561,39 @@ def _sign(role: JointRole, probe: HingeProbe) -> tuple[float, str]:
     if convention_holds(role, probe.before, probe.after, **_PATH):
         return 1.0, "probe follows the convention"
     return -1.0, "probe opposes it, flipped"
+
+
+# Bend roles -> (proximal, joint, distal) landmarks whose angle is the bend.
+_BEND_LIMBS: Mapping[JointRole, tuple[Landmark, Landmark, Landmark]] = {
+    JointRole.KNEE_L: (L.HIP_L, L.KNEE_L, L.ANKLE_L),
+    JointRole.KNEE_R: (L.HIP_R, L.KNEE_R, L.ANKLE_R),
+    JointRole.ELBOW_L: (L.SHOULDER_L, L.ELBOW_L, L.WRIST_L),
+    JointRole.ELBOW_R: (L.SHOULDER_R, L.ELBOW_R, L.WRIST_R),
+}
+
+
+def _bend(points: Mapping[str, np.ndarray], limb: tuple[Landmark, ...]) -> float | None:
+    """Unsigned angle (rad) between the limb's two segments; ``None`` without its landmarks."""
+    if any(lm.value not in points for lm in limb):
+        return None
+    a, b, c = (np.asarray(points[lm.value], dtype=float) for lm in limb)
+    u, v = b - a, c - b
+    cos = float(u @ v / (np.linalg.norm(u) * np.linalg.norm(v)))
+    return float(np.arccos(np.clip(cos, -1.0, 1.0)))
+
+
+def _zero_offset(role: JointRole, sign: float, probe: HingeProbe) -> float:
+    """The bound hinge angle at which ``role``'s limb is straight (``RoleBinding``)."""
+    limb = _BEND_LIMBS.get(role)
+    if limb is None:
+        return 0.0
+    before, after = _bend(probe.before, limb), _bend(probe.after, limb)
+    if before is None or after is None:
+        return 0.0
+    # +bound hinge is anatomical flexion; it bends a flexed limb further and unbends a
+    # hyperextended one, which tells the sign of the reference bend.
+    flexed = sign * (after - before) >= 0.0
+    return -before if flexed else before
 
 
 def bind_roles(
@@ -634,7 +676,12 @@ def bind_roles(
                     continue
                 warnings.append(f"{role.value}: {hinge} axis purity {purity:.2f} (skewed)")
             sign, note = _sign(role, probes[hinge])
-            roles[role] = RoleBinding(hinge=hinge, sign=sign, axis_purity=purity)
+            roles[role] = RoleBinding(
+                hinge=hinge,
+                sign=sign,
+                axis_purity=purity,
+                zero_offset=_zero_offset(role, sign, probes[hinge]),
+            )
             decisions.append(
                 Decision(f"role:{role.value}", hinge, "geometry", f"purity {purity:.3f}, {note}")
             )
@@ -642,7 +689,12 @@ def bind_roles(
     for role, hinge in parsed.items():
         purity = share(hinge, _axis_class(role))
         sign, note = _sign(role, probes[hinge])
-        roles[role] = RoleBinding(hinge=hinge, sign=sign, axis_purity=purity)
+        roles[role] = RoleBinding(
+            hinge=hinge,
+            sign=sign,
+            axis_purity=purity,
+            zero_offset=_zero_offset(role, sign, probes[hinge]),
+        )
         decisions.append(
             Decision(f"role:{role.value}", hinge, "user", f"purity {purity:.3f}, {note}")
         )

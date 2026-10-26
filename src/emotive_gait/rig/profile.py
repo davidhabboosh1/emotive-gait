@@ -1,9 +1,11 @@
 """A compiled rig as a ``RobotProfile`` and ``RobotModel`` the leg IK and the generator accept.
 
 Every role's sign is baked into its hinge axis (``compile_driven``), so ``sign_for`` is all
-+1.0; the stand pose is all zeros, which is the reference pose. The floor is ``floor_z`` of the
-reference, the median stance height of the very point each foot site sits on, so the sites'
-stance height above the floor (``foot_site_floor_height``) is zero by construction.
++1.0; the stand pose is all zeros, which is the reference pose. ``elbow_swing_sign`` is -1.0:
+positive elbow is anatomical flexion on every compiled rig (the G1's straightens). The floor is
+``floor_z`` of the reference, the median stance height of the very point each foot site sits
+on, so the sites' stance height above the floor (``foot_site_floor_height``) is zero by
+construction.
 """
 
 from __future__ import annotations
@@ -40,6 +42,7 @@ def rig_profile(
         foot_sites=FOOT_SITES,
         leg_length=float(mapping.leg_length),
         posture_map=MappingProxyType(dict(posture_map)),
+        elbow_swing_sign=-1.0,  # +elbow is flexion on a rig (RobotProfile.elbow_swing_sign)
     )
 
 

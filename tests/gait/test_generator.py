@@ -323,3 +323,28 @@ def test_posture_map_writes_an_affine_combination_of_the_posture_parameters(robo
         assert identity[JointRole.SHOULDER_ROLL_R] == pytest.approx(-0.15)  # sign * abduction
         assert mapped[JointRole.ELBOW_L] == pytest.approx(identity[JointRole.ELBOW_L] + 0.3)
         assert mapped[JointRole.ELBOW_R] == pytest.approx(identity[JointRole.ELBOW_R])
+
+
+def test_elbow_swing_sign_negates_the_elbow_swing_term_only(robot):
+    params = GaitParameters(elbow_swing_ratio=0.8, arm_swing_amp=0.4, elbow_flexion=0.8)
+    welded = weld_robot_for(robot.profile)
+    flipped = generate(
+        params,
+        replace(robot, profile=replace(robot.profile, elbow_swing_sign=-1.0)),
+        welded=welded,
+    )
+    plain = generate(params, robot)
+    assert plain == generate(params, robot, welded=welded)
+    stand = robot.stand_qpos
+    for phase in (0.1, 0.3, 0.6, 0.85):
+        a, b = plain.angles_at(phase), flipped.angles_at(phase)
+        for elbow, arm in (
+            (JointRole.ELBOW_L, JointRole.SHOULDER_PITCH_L),
+            (JointRole.ELBOW_R, JointRole.SHOULDER_PITCH_R),
+        ):
+            swing = params.elbow_swing_ratio * (a[arm] - stand[robot.qpos_adr(arm)])
+            assert abs(swing) > 0.01
+            assert b[elbow] == pytest.approx(a[elbow] - 2.0 * swing, abs=1e-12)
+        for role in a:
+            if role not in (JointRole.ELBOW_L, JointRole.ELBOW_R):
+                assert b[role] == a[role], role

@@ -308,9 +308,11 @@ def compile_driven(file: BvhFile, mapping: RigMapping, reference: ReferencePose)
     ``theta`` gets the axis ``R_post.T @ e_k`` (times the binding's sign), ``R_post`` the
     product of the rotations of the channels after ``k`` at ``theta``: then
     ``R_ref @ Rot(axis, d) == R_pre @ Rot(e_k, theta_k + d) @ R_post``, the BVH's own Euler
-    semantics for that channel. Ranges come from ``RANGES``. ``foot_l`` / ``foot_r`` sit on the
-    ankle bodies at the toe landmark (toe bone or End Site; the ankle origin without one); the
-    root ``pelvis`` is at ``(0, 0, reference.pelvis_height)``.
+    semantics for that channel. Ranges come from ``RANGES``, shifted by the binding's
+    ``zero_offset`` (non-zero for the knees and elbows only: their ranges start at straight).
+    ``foot_l`` / ``foot_r`` sit on the ankle bodies at the toe landmark (toe bone or End Site;
+    the ankle origin without one); the root ``pelvis`` is at ``(0, 0,
+    reference.pelvis_height)``.
     """
     p = _z_up_matrix(file.up_axis)
     names = [j.name for j in file.joints]
@@ -339,7 +341,12 @@ def compile_driven(file: BvhFile, mapping: RigMapping, reference: ReferencePose)
         return out
 
     def hinge_range(name: str) -> tuple[float, float] | None:
-        return RANGES.get(bound[name][0])
+        role, binding = bound[name]
+        limits = RANGES.get(role)
+        if limits is None:
+            return None
+        # Knee and elbow ranges are about the straight limb (RoleBinding.zero_offset).
+        return (limits[0] + binding.zero_offset, limits[1] + binding.zero_offset)
 
     sites: dict[str, list[tuple[str, np.ndarray]]] = {}
     for site, ankle_lm, toe_lm in (

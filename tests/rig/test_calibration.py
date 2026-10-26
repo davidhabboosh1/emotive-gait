@@ -96,9 +96,14 @@ def test_xyz_and_zyx_orders_bind_the_same_anatomical_hinges(tmp_path):
 
 def test_bound_hinges_get_the_committed_ranges(tmp_path):
     robot, mapping, _, _, _ = driven_rig(RigSpec(), tmp_path)
-    for role in mapping.roles:
-        assert robot.joint_range(role) == pytest.approx(RANGES[role])
+    for role, binding in mapping.roles.items():
+        shift = binding.zero_offset
+        if role.name.startswith(("KNEE", "ELBOW")):
+            assert robot.joint_range(role) == pytest.approx(np.add(RANGES[role], shift))
+        else:
+            assert shift == 0.0 and robot.joint_range(role) == pytest.approx(RANGES[role])
     assert robot.profile.sign_for == {role: 1.0 for role in mapping.roles}
+    assert robot.profile.elbow_swing_sign == -1.0
     assert np.all(robot.stand_qpos == 0.0) and robot.stand_qpos.shape == (robot.model.nq,)
     assert robot.model.nq == len(mapping.roles)  # undriven channels are not hinges
 
@@ -385,3 +390,54 @@ def test_a_half_bound_elbow_group_moves_the_bound_arm_by_the_command(tmp_path):
     left, right = _bends(robot, driven, mapping, hinges_from_posture(robot, rows, target))
     assert abs(left - zero[0] - 0.5) < 0.02, (zero, left)
     assert abs(right - zero[1]) < 1e-9 and abs(zero[1]) < 1e-6
+
+
+def _limb_bend(points: dict, a: str, b: str, c: str) -> float:
+    """Unsigned angle (rad) between ``a -> b`` and ``b -> c``: 0 when straight."""
+    u, v = points[b] - points[a], points[c] - points[b]
+    return float(np.arccos(np.clip(u @ v / np.linalg.norm(u) / np.linalg.norm(v), -1.0, 1.0)))
+
+
+_LIMBS = {
+    JointRole.KNEE_L: ("hip_l", "knee_l", "ankle_l"),
+    JointRole.KNEE_R: ("hip_r", "knee_r", "ankle_r"),
+    JointRole.ELBOW_L: ("shoulder_l", "elbow_l", "wrist_l"),
+    JointRole.ELBOW_R: ("shoulder_r", "elbow_r", "wrist_r"),
+}
+
+
+def test_knee_and_elbow_ranges_start_at_straight_not_at_the_walking_mean(tmp_path):
+    robot, mapping, _, driven, _ = driven_rig(RigSpec(), tmp_path)
+    data = mujoco.MjData(robot.model)
+    for role, limb in _LIMBS.items():
+        data.qpos[:] = 0.0
+        mujoco.mj_forward(robot.model, data)
+        bend = _limb_bend(landmark_points(driven, mapping, data), *limb)
+        lo, hi = robot.joint_range(role)
+        assert lo == pytest.approx(-bend, abs=0.01), role
+        assert hi - lo == pytest.approx(RANGES[role][1] - RANGES[role][0])
+        if role.name.startswith("KNEE"):
+            assert bend > 0.1  # the walking mean is bent, so the old range clamped
+        data.qpos[robot.qpos_adr(role)] = lo  # the lower bound is the straight limb
+        mujoco.mj_forward(robot.model, data)
+        assert _limb_bend(landmark_points(driven, mapping, data), *limb) < 0.01, role
+
+
+def test_a_hyperextended_reference_elbow_is_straight_above_its_zero(tmp_path):
+    full, ref, landmarks = _bound(RigSpec(), tmp_path)
+    for side in "lr":
+        ref = _with_elbow(ref, full.file, landmarks.landmarks[Landmark(f"elbow_{side}")], -20.0)
+    mapping = bind_roles(full, ref, landmarks)
+    driven = compile_driven(full.file, mapping, ref)
+    robot = rig_robot(driven, rig_profile("hyper", mapping, ref, posture_map={}))
+    data = mujoco.MjData(robot.model)
+    for role in (JointRole.ELBOW_L, JointRole.ELBOW_R):
+        offset = mapping.roles[role].zero_offset
+        data.qpos[:] = 0.0
+        mujoco.mj_forward(robot.model, data)
+        bend = _limb_bend(landmark_points(driven, mapping, data), *_LIMBS[role])
+        assert offset == pytest.approx(bend, abs=1e-9) and offset > 0.2  # straight is ABOVE 0
+        data.qpos[robot.qpos_adr(role)] = offset
+        mujoco.mj_forward(robot.model, data)
+        # The test's elbow tilt is not about the hinge axis, so a little bend stays off-plane.
+        assert _limb_bend(landmark_points(driven, mapping, data), *_LIMBS[role]) < 0.03
