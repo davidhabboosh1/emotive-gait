@@ -215,16 +215,27 @@ def test_offset_past_range_is_still_clamped():
 
 def test_every_preset_is_feasible():
     from emotive_gait.emotion.evidence import Emotion
-    from emotive_gait.emotion.model import PRESET_PARAMS, modulate
+    from emotive_gait.emotion.learned import LearnedEmotionModel, default_artefact_path
+    from emotive_gait.emotion.model import PRESET_PARAMS, learned_presets, modulate
     from emotive_gait.robot.profiles.g1 import G1_PROFILE_WITH_NECK
 
     r = load_robot()
     cases = dict(PRESET_PARAMS)
     cases |= {f"phase0_{k}": v for k, v in PHASE0_PRESETS.items()}
     cases |= {e.value: modulate(GaitParameters(), {e: 1.0}, G1_PROFILE_WITH_NECK) for e in Emotion}
+    # The learned presets join once the artefact is committed (Review Focus 5). An unreachable
+    # fitted magnitude fails here; the artefact is never edited to make it pass.
+    if default_artefact_path().exists():
+        learned = learned_presets(LearnedEmotionModel.default())
+        cases |= {f"learned_{k}": v for k, v in learned.items()}
     for name, p in cases.items():
         rep = generate(p, r).feasibility
-        assert rep.feasible, f"{name}: {rep}"
+        hint = (
+            "; a fitted magnitude the G1 cannot reach: see docs/reports/phase-4-5-fit-report.md"
+            if name.startswith("learned_")
+            else ""
+        )
+        assert rep.feasible, f"{name}: {rep}{hint}"
 
 
 def test_infeasible_stride_is_flagged_not_rescaled():

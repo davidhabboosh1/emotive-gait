@@ -5,7 +5,8 @@ magnitude, because the literature publishes no joint angles in degrees. The only
 are walking speeds in m/s and swing-phase percentages. Disgust and surprise have no gait
 kinematics in any source, so they ship as unsourced placements by arousal and valence. The
 parameters ``jerk`` and ``swing_phase_fraction`` are kept as inert claims with no gait parameter.
-Provenance for every row is in design Appendix A.
+Provenance for every row is in design Appendix A. Fitted magnitudes from motion capture live in
+the generated artefact (``emotion/data/learned_coefficients.yaml``), never here.
 """
 
 from dataclasses import dataclass
