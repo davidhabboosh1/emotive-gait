@@ -222,6 +222,9 @@ def test_every_preset_is_feasible():
     cases = dict(PRESET_PARAMS)
     cases |= {f"phase0_{k}": v for k, v in PHASE0_PRESETS.items()}
     cases |= {e.value: modulate(GaitParameters(), {e: 1.0}, G1_PROFILE_WITH_NECK) for e in Emotion}
+    # Analytic presets only. The learned presets are flagged and rendered, not gated (spec 4.5,
+    # decision 2026-10-26): their residuals are documented in docs/reports/phase-4-5-fit-report.md
+    # and pinned by tests/emotion/test_artefact_committed.py.
     for name, p in cases.items():
         rep = generate(p, r).feasibility
         assert rep.feasible, f"{name}: {rep}"

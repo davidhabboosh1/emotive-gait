@@ -2,9 +2,16 @@ import dataclasses
 import math
 
 import pytest
+from artefacts import FULL_AGREEING, make_artefact
+from directions import check_directions
 
-from emotive_gait.emotion.evidence import GROUNDED_EMOTIONS, Emotion, claims_for
+from emotive_gait.emotion.evidence import (
+    NO_CHANGE_CLAIMS,
+    Emotion,
+)
+from emotive_gait.emotion.learned import LearnedEmotionModel
 from emotive_gait.emotion.model import (
+    ANALYTIC,
     PRESET_PARAMS,
     IntensityError,
     modulate,
@@ -33,28 +40,89 @@ def test_anger_speeds_up_and_flexes_the_elbows():
     assert q.speed > p.speed and q.elbow_flexion > p.elbow_flexion
 
 
-# Two kinds of direction-0 claim. These are "no change" findings: the source measured the cue
-# against neutral and found no effect, so the model must not move it. Every other direction-0
-# claim means "not reported vs neutral" (e.g. only compared with another emotion): the evidence
-# is silent, so the model is free there and the claim stays exempt.
-NO_CHANGE = {(Emotion.ANGER, "neck_pitch"), (Emotion.ANGER, "com_height_scale")}
+_LEARNED_FROUDE = LearnedEmotionModel(make_artefact(FULL_AGREEING))
+_LEARNED_RATIO = LearnedEmotionModel(make_artefact(FULL_AGREEING), scaling="ratio")
 
 
-def test_modulation_direction_agrees_with_every_grounded_claim():
-    p = GaitParameters()
-    for emotion in GROUNDED_EMOTIONS:
-        q = modulate(p, {emotion: 1.0}, G1_PROFILE_WITH_NECK)
-        for c in claims_for(emotion):
-            if not hasattr(p, c.parameter):
-                continue
-            delta = getattr(q, c.parameter) - getattr(p, c.parameter)
-            if (emotion, c.parameter) in NO_CHANGE:
-                assert c.direction == 0, f"{emotion}.{c.parameter} is no longer a no-change claim"
-                assert abs(delta) < 1e-9, f"{emotion}.{c.parameter} moved by {delta} ({c.citation})"
-                continue
-            if c.direction == 0:
-                continue
-            assert delta * c.direction >= 0, f"{emotion}.{c.parameter} contradicts {c.citation}"
+@pytest.mark.parametrize(
+    "model",
+    [ANALYTIC, _LEARNED_FROUDE, _LEARNED_RATIO],
+    ids=["analytic", "learned_froude", "learned_ratio"],
+)
+def test_modulation_direction_agrees_with_every_grounded_claim(model):
+    check_directions(model)
+
+
+def test_an_unreported_contradiction_fails_the_direction_test():
+    m = LearnedEmotionModel(make_artefact({**FULL_AGREEING, ("sadness", "arm_swing_amp"): +0.3}))
+    with pytest.raises(AssertionError, match="sadness.arm_swing_amp"):
+        check_directions(m)
+
+
+def test_a_reported_contradiction_passes():
+    m = LearnedEmotionModel(
+        make_artefact(
+            {**FULL_AGREEING, ("sadness", "arm_swing_amp"): +0.3},
+            contradictions=[{"emotion": "sadness", "parameter": "arm_swing_amp"}],
+        )
+    )
+    check_directions(m)
+
+
+def test_an_unreported_no_change_violation_fails_the_direction_test():
+    m = LearnedEmotionModel(make_artefact({**FULL_AGREEING, ("anger", "neck_pitch"): 0.2}))
+    with pytest.raises(AssertionError, match="anger.neck_pitch"):
+        check_directions(m)
+
+
+def test_a_no_change_check_ignores_the_artefacts_own_verdict():
+    m = LearnedEmotionModel(make_artefact({**FULL_AGREEING, ("anger", "neck_pitch"): 0.2}))
+    cell = m.artefact.cells[("froude", "anger", "neck_pitch")]
+    lying = dataclasses.replace(cell, direction_check="agrees_ci_spans_zero")
+    art = dataclasses.replace(
+        m.artefact, cells={**m.artefact.cells, ("froude", "anger", "neck_pitch"): lying}
+    )
+    with pytest.raises(AssertionError, match="anger.neck_pitch"):
+        check_directions(LearnedEmotionModel(art))
+
+
+def test_a_not_reported_direction_zero_claim_is_exempt_for_the_learned_model():
+    # happiness cadence is direction 0 "not reported vs neutral", not a no-change claim
+    assert (Emotion.HAPPINESS, "cadence") not in NO_CHANGE_CLAIMS
+    check_directions(
+        LearnedEmotionModel(make_artefact({**FULL_AGREEING, ("happiness", "cadence"): 0.5}))
+    )
+
+
+# Fear's claims: cadence up, step length down, speed down. A big cadence rise with a small
+# step-length drop makes the modulated speed rise although both cells agree with their claims.
+_FEAR_FAST = {**FULL_AGREEING, ("fear", "cadence"): 0.3, ("fear", "step_length"): -0.01}
+
+
+def test_an_unreported_speed_contradiction_fails():
+    with pytest.raises(AssertionError, match="(?i)fear.speed contradicts"):
+        check_directions(LearnedEmotionModel(make_artefact(_FEAR_FAST)))
+
+
+def test_a_reported_speed_contradiction_passes():
+    reported = [{"emotion": "fear", "parameter": "speed", "scaling": "froude"}]
+    check_directions(LearnedEmotionModel(make_artefact(_FEAR_FAST, contradictions=reported)))
+
+
+def test_missing_cells_of_the_learned_model_are_checked_against_the_analytic_delta():
+    effects = {k: v for k, v in FULL_AGREEING.items() if k != ("sadness", "trunk_pitch")}
+    flipped = LearnedEmotionModel(make_artefact(effects), fallback=_NegatedSadness())
+    assert ("sadness", "trunk_pitch") in flipped.analytic_cells
+    with pytest.raises(AssertionError, match="(?i)sadness.trunk_pitch contradicts"):
+        check_directions(flipped)  # the analytic share now has the wrong sign
+
+
+class _NegatedSadness:
+    """The analytic model with every sadness delta's sign flipped."""
+
+    def deltas(self, intensities, profile):
+        d = ANALYTIC.deltas(intensities, profile)
+        return {k: -v for k, v in d.items()} if Emotion.SADNESS in intensities else d
 
 
 def test_hold_speed_pins_speed_while_posture_still_varies():
@@ -138,3 +206,13 @@ def test_every_preset_has_non_negative_amplitudes():
     for name, p in PRESET_PARAMS.items():
         for field in _AMPLITUDES:
             assert getattr(p, field) >= 0.0, f"{name}.{field}"
+
+
+def test_analytic_model_object_matches_modulate_defaults():
+    for e in Emotion:
+        a = modulate(GaitParameters(), {e: 0.7}, G1_PROFILE_WITH_NECK)
+        b = modulate(GaitParameters(), {e: 0.7}, G1_PROFILE_WITH_NECK, model=ANALYTIC)
+        assert a == b
+    assert PRESET_PARAMS["angry"] == modulate(
+        GaitParameters(), {Emotion.ANGER: 1.0}, G1_PROFILE_WITH_NECK
+    )

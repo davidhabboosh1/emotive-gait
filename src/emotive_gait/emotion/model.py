@@ -1,9 +1,12 @@
 """Emotion intensities to gait parameters.
 
 Six emotion intensities become changes to the gait *parameters* (never to joint angles
-directly) through three affective axes plus a few category offsets. This module is the one
-sanctioned meeting point of the emotion and robot layers: it asks a :class:`RobotProfile`
-which cues the robot can physically show and drops the rest.
+directly). An :class:`EmotionModel` turns intensities into parameter deltas in the robot's
+units; :class:`AnalyticEmotionModel` (``ANALYTIC``, the default) does it through three affective
+axes plus a few category offsets, and ``emotion/learned.py`` supplies a data-derived one. This
+module is the one sanctioned meeting point of the emotion and robot layers: it asks a
+:class:`RobotProfile` which cues the robot can physically show and drops the rest, whichever
+model produced them.
 """
 
 from __future__ import annotations
@@ -12,6 +15,7 @@ import math
 from collections.abc import Mapping
 from dataclasses import replace
 from types import MappingProxyType
+from typing import Protocol
 
 from emotive_gait.emotion.axes import CATEGORY_OFFSETS, AffectiveAxes, axes_from
 from emotive_gait.emotion.evidence import Emotion
@@ -87,7 +91,8 @@ _NONNEGATIVE_AMPLITUDES = (
 )
 
 
-def _validate(intensities: Mapping[Emotion, float]) -> dict[Emotion, float]:
+def validate_intensities(intensities: Mapping[Emotion, float]) -> dict[Emotion, float]:
+    """Normalise keys to :class:`Emotion` and check each intensity is finite and in [0, 1]."""
     clean: dict[Emotion, float] = {}
     for key, value in intensities.items():
         try:
@@ -117,25 +122,55 @@ def _deltas(axes: AffectiveAxes, offsets: Mapping[Emotion, float]) -> dict[str, 
     return deltas
 
 
+class EmotionModel(Protocol):
+    """Anything that turns emotion intensities into gait-parameter deltas.
+
+    ``deltas`` validates ``intensities`` (as :func:`validate_intensities` does) and returns
+    deltas keyed by ``GaitParameters`` field name, in the robot's units. Cue dropping, the
+    amplitude floor and ``hold_speed`` are applied by :func:`modulate`, not by the model.
+    """
+
+    def deltas(
+        self, intensities: Mapping[Emotion, float], profile: RobotProfile
+    ) -> Mapping[str, float]: ...
+
+
+class AnalyticEmotionModel:
+    """The hand-tuned model: ``AXIS_GAINS`` on the three axes plus ``CATEGORY_OFFSETS``.
+
+    Its deltas do not depend on the profile (the axis gains are already in the G1's units).
+    """
+
+    def deltas(
+        self, intensities: Mapping[Emotion, float], profile: RobotProfile
+    ) -> Mapping[str, float]:
+        clean = validate_intensities(intensities)
+        return _deltas(axes_from(clean), clean)
+
+
+ANALYTIC = AnalyticEmotionModel()
+
+
 def _plan(
-    intensities: Mapping[Emotion, float], profile: RobotProfile
+    intensities: Mapping[Emotion, float], profile: RobotProfile, model: EmotionModel | None
 ) -> tuple[dict[str, float], tuple[tuple[Emotion, str], ...]]:
     """Validate, build parameter deltas, and drop those the profile cannot carry.
 
     Returns the surviving deltas and the dropped ``(emotion, parameter)`` pairs.
     """
-    clean = _validate(intensities)
+    model = ANALYTIC if model is None else model
+    clean = validate_intensities(intensities)
 
     def carried(param: str) -> bool:
         roles = _PARAMETER_ROLES.get(param, ())
         return not roles or any(profile.has(r) for r in roles)
 
-    total = _deltas(axes_from(clean), clean)
+    total = model.deltas(clean, profile)
     dropped = tuple(
         (emotion, param)
         for emotion, intensity in clean.items()
         if intensity != 0.0
-        for param, delta in _deltas(axes_from({emotion: intensity}), {emotion: intensity}).items()
+        for param, delta in model.deltas({emotion: intensity}, profile).items()
         if delta != 0.0 and not carried(param)
     )
     return {p: d for p, d in total.items() if carried(p)}, dropped
@@ -146,18 +181,20 @@ def modulate(
     intensities: Mapping[Emotion, float],
     profile: RobotProfile,
     *,
+    model: EmotionModel | None = None,
     hold_speed: float | None = None,
     speed_mode: SpeedMode = SpeedMode.PROPORTIONAL,
 ) -> GaitParameters:
     """Return ``params`` shifted by the given emotion intensities.
 
-    Cues the profile cannot show are dropped (see :func:`unexpressible`). Amplitude parameters
+    ``model`` produces the deltas (default: the analytic model, ``ANALYTIC``). Cues the profile
+    cannot show are dropped (see :func:`unexpressible`). Amplitude parameters
     (``arm_swing_amp``, ``arm_abduction``, ``expansiveness``, ``com_bounce_amp``,
     ``lateral_sway_amp``, ``step_height``, ``step_length``) are floored at 0.0: "less arm swing"
     saturates at none, and a negative amplitude is a phase flip, not a smaller motion. When
     ``hold_speed`` is given, speed is pinned to it last, so posture cues survive.
     """
-    deltas, _ = _plan(intensities, profile)
+    deltas, _ = _plan(intensities, profile, model)
     result = replace(params, **{p: getattr(params, p) + d for p, d in deltas.items()})
     # "Less arm swing" saturates at none: a negative amplitude is a phase flip (e.g. ipsilateral
     # arm swing), not a smaller motion. Only negative values are touched, so a value that is
@@ -171,10 +208,12 @@ def modulate(
 
 
 def unexpressible(
-    intensities: Mapping[Emotion, float], profile: RobotProfile
+    intensities: Mapping[Emotion, float],
+    profile: RobotProfile,
+    model: EmotionModel | None = None,
 ) -> tuple[tuple[Emotion, str], ...]:
     """``(emotion, parameter)`` pairs the model would move but the profile cannot show."""
-    return _plan(intensities, profile)[1]
+    return _plan(intensities, profile, model)[1]
 
 
 PRESET_PARAMS: Mapping[str, GaitParameters] = MappingProxyType(
@@ -185,3 +224,21 @@ PRESET_PARAMS: Mapping[str, GaitParameters] = MappingProxyType(
         "happy": modulate(GaitParameters(), {Emotion.HAPPINESS: 1.0}, G1_PROFILE_WITH_NECK),
     }
 )
+
+
+def learned_presets(model: EmotionModel) -> Mapping[str, GaitParameters]:
+    """The four ``PRESET_PARAMS`` presets produced by ``model`` instead of the analytic one."""
+    return MappingProxyType(
+        {
+            "neutral": GaitParameters(),
+            "sad": modulate(
+                GaitParameters(), {Emotion.SADNESS: 1.0}, G1_PROFILE_WITH_NECK, model=model
+            ),
+            "angry": modulate(
+                GaitParameters(), {Emotion.ANGER: 1.0}, G1_PROFILE_WITH_NECK, model=model
+            ),
+            "happy": modulate(
+                GaitParameters(), {Emotion.HAPPINESS: 1.0}, G1_PROFILE_WITH_NECK, model=model
+            ),
+        }
+    )

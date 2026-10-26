@@ -1,0 +1,27 @@
+:version 1.10
+:name VICON
+:units
+  mass 1.0
+  length 0.45
+  angle deg
+:documentation
+  hand-written two-bone fixture
+:root
+  order TX TY TZ RX RY RZ
+  axis XYZ
+  position 0 0 0
+  orientation 0 0 0
+:bonedata
+  begin
+    id 1
+    name lfemur
+    direction 0 -1 0
+    length 20
+    axis 0 0 0 XYZ
+    dof rx
+    limits (-160.0 20.0)
+  end
+:hierarchy
+  begin
+    root lfemur
+  end

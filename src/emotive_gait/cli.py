@@ -1,4 +1,9 @@
-"""Command line: ``emotive-gait demo`` renders a stimulus, ``emotive-gait evidence`` lists claims."""
+"""Command line: ``demo`` renders a stimulus, ``evidence`` lists claims, ``fit`` and ``fetch``
+build the learned emotion model from the data manifest.
+
+``cli`` imports ``learn/`` (and so ``pandas`` and ``statsmodels``) only inside the ``fit`` and
+``fetch`` handlers: ``demo --model learned`` needs ``pyyaml`` alone.
+"""
 
 from __future__ import annotations
 
@@ -15,7 +20,10 @@ from pathlib import Path
 from emotive_gait.emotion.evidence import EVIDENCE, UNSOURCED_EMOTIONS, Emotion
 from emotive_gait.emotion.model import IntensityError, modulate
 from emotive_gait.gait.params import GaitParameters, SpeedConstraintError
+from emotive_gait.gait.scaling import MEASURED_FIELDS
 
+_REPORT = "docs/reports/phase-4-5-fit-report.md"
+_DERIVED = "data/derived"
 _ROOTS = {"free": "FREE", "z-rail": "Z_RAIL", "xz-rail": "XZ_RAIL", "weld": "WELD"}
 _DIRECTION = {1: "+", 0: "0", -1: "-"}
 
@@ -104,9 +112,70 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="print the modulated parameters and exit; loads no model",
     )
+    _add_model_arguments(d)
 
-    sub.add_parser("evidence", help="print every literature claim with its grounding")
+    e = sub.add_parser("evidence", help="print every literature claim with its grounding")
+    _add_model_arguments(e)
+
+    f = sub.add_parser("fit", help="fit the learned emotion model from the data manifest")
+    _add_data_arguments(f)
+    f.add_argument("--datasets", nargs="+", metavar="ID", help="fit only these dataset ids")
+    f.add_argument(
+        "--include-uncommittable",
+        action="store_true",
+        help="include datasets whose numbers may not be committed (needs --out outside src/)",
+    )
+    f.add_argument(
+        "--out", default=None, metavar="PATH", help="artefact path (default: the packaged one)"
+    )
+    f.add_argument(
+        "--report",
+        default=None,
+        help=f"report path (default {_REPORT}; with --out, fit-report.md beside --out)",
+    )
+    f.add_argument("--derived", default=_DERIVED, help=f"per-cycle tables (default {_DERIVED})")
+    f.add_argument(
+        "--check",
+        action="store_true",
+        help="refit to a temporary file and compare every estimate with the artefact",
+    )
+
+    g = sub.add_parser("fetch", help="download and verify the manifest's data files")
+    _add_data_arguments(g)
+    g.add_argument("--datasets", nargs="+", metavar="ID", help="fetch only these dataset ids")
+    g.add_argument(
+        "--from",
+        dest="from_paths",
+        action="append",
+        default=[],
+        metavar="ID=PATH",
+        help="use a local copy instead of downloading (an archive, or a directory); repeatable",
+    )
     return p
+
+
+def _add_model_arguments(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--model",
+        choices=["analytic", "learned"],
+        default="analytic",
+        help="emotion model (default analytic; learned needs the fitted artefact)",
+    )
+    parser.add_argument(
+        "--scaling",
+        choices=["froude", "ratio"],
+        default="froude",
+        help="re-dimensioning of the learned model's effects (default froude)",
+    )
+
+
+def _add_data_arguments(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--root", default="data/raw", help="raw data folder (default data/raw)")
+    parser.add_argument(
+        "--manifest",
+        default="data/manifest.yaml",
+        help="data manifest (default data/manifest.yaml)",
+    )
 
 
 def _print_params(params: GaitParameters) -> None:
@@ -174,13 +243,27 @@ def _demo(args: argparse.Namespace) -> int:
 
     from emotive_gait.robot.profiles.g1 import G1_PROFILE_WITH_NECK
 
+    model = None
+    if args.model == "learned":
+        model = _load_learned(args.scaling)
+        if model is None:
+            return 1
     try:
         params = modulate(
-            GaitParameters(), intensities, G1_PROFILE_WITH_NECK, hold_speed=args.hold_speed
+            GaitParameters(),
+            intensities,
+            G1_PROFILE_WITH_NECK,
+            model=model,
+            hold_speed=args.hold_speed,
         )
     except (IntensityError, SpeedConstraintError) as exc:
         _err(str(exc))
         return 2
+    if model is None:
+        print("model: analytic")
+    else:
+        _warn_learned_cells(model, intensities)
+        print(f"model: learned ({args.scaling})")
     if args.dry_run:
         _print_params(params)
         return 0
@@ -284,18 +367,299 @@ def _demo(args: argparse.Namespace) -> int:
     return 0
 
 
-def _evidence() -> int:
-    rows = [("EMOTION", "PARAMETER", "DIR", "GROUNDING", "CITATION")]
+def _load_learned(scaling: str):
+    """The learned model on the packaged artefact, or ``None`` after printing why not."""
+    from emotive_gait.emotion.learned import (
+        ArtefactMissingError,
+        ArtefactSchemaError,
+        LearnedEmotionModel,
+    )
+
+    try:
+        return LearnedEmotionModel.default(scaling=scaling)
+    except (ArtefactMissingError, ArtefactSchemaError, ValueError) as exc:
+        _err(str(exc))
+        return None
+
+
+def _warn_learned_cells(model, intensities: dict[Emotion, float]) -> None:
+    """One warning for the thin cells and one for the delegated cells of the requested emotions."""
+    from emotive_gait.emotion.learned import describe_thin
+
+    asked = {e.value for e, v in intensities.items() if v > 0}
+    thin = describe_thin(
+        (e, p, model.cell(e, p).n_actors) for e, p in model.thin_cells if e in asked
+    )
+    if thin:
+        _err(
+            "warning: thin cells (one or two actors, no interval) in the learned model: "
+            + ", ".join(thin)
+        )
+    delegated: dict[str, list[str]] = {}
+    for e, p in model.analytic_cells:
+        if e in asked:
+            delegated.setdefault(e, []).append(p)
+    if delegated:
+        parts = [
+            f"{e} (all)" if len(ps) == len(MEASURED_FIELDS) else f"{e}.{', '.join(ps)}"
+            for e, ps in sorted(delegated.items())
+        ]
+        _err("warning: cells taken from the analytic model, not measured: " + "; ".join(parts))
+
+
+def _learned_columns(cell) -> list[str]:
+    if cell is None:
+        return ["-", "-", "-"]
+    if cell.grounding == "missing":
+        return ["-", "-", cell.direction_check]
+    if cell.grounding == "fitted":
+        interval = f"[{cell.ci_low:.4f}, {cell.ci_high:.4f}]"
+    else:
+        interval = f"{cell.n_actors} actors"
+    return [f"{cell.estimate:+.4f}", interval, cell.direction_check]
+
+
+def _evidence(args: argparse.Namespace) -> int:
+    artefact = None
+    if args.model == "learned":
+        from emotive_gait.emotion import learned
+
+        try:
+            artefact = learned.load_artefact(learned.default_artefact_path())
+        except (learned.ArtefactMissingError, learned.ArtefactSchemaError) as exc:
+            _err(str(exc))
+            return 1
+    head = ["EMOTION", "PARAMETER", "DIR", "GROUNDING"]
+    if artefact is not None:
+        head += ["ESTIMATE", "CI", "CHECK"]
+    rows = [(*head, "CITATION")]
     last = None
     for c in EVIDENCE:
         label = c.emotion.value if c.emotion is not last else ""
         last = c.emotion
-        rows.append(
-            (label, c.parameter, _DIRECTION[c.direction], c.grounding.value.upper(), c.citation)
-        )
-    widths = [max(len(r[i]) for r in rows) for i in range(4)]
+        row = [label, c.parameter, _DIRECTION[c.direction], c.grounding.value.upper()]
+        if artefact is not None:
+            row += _learned_columns(
+                artefact.cells.get((args.scaling, c.emotion.value, c.parameter))
+            )
+        rows.append((*row, c.citation))
+    widths = [max(len(r[i]) for r in rows) for i in range(len(rows[0]) - 1)]
     for r in rows:
-        print("  ".join(r[i].ljust(widths[i]) for i in range(4)) + "  " + r[4])
+        print("  ".join(r[i].ljust(widths[i]) for i in range(len(widths))) + "  " + r[-1])
+    return 0
+
+
+def _fit_import():
+    """``learn.pipeline`` or ``None`` after printing the install hint (fit extra missing)."""
+    try:
+        from emotive_gait.learn import pipeline
+    except ImportError as exc:
+        _err(
+            f"the fit pipeline needs {exc.name or 'a fit dependency'}; "
+            'install the fit extra with: pip install -e ".[fit]"'
+        )
+        return None
+    return pipeline
+
+
+def _fit(args: argparse.Namespace) -> int:
+    from emotive_gait.emotion.learned import (
+        ArtefactMissingError,
+        ArtefactSchemaError,
+        default_artefact_path,
+    )
+
+    pipeline = _fit_import()
+    if pipeline is None:
+        return 1
+    if args.include_uncommittable and args.out is None:
+        _err("--include-uncommittable needs --out PATH outside src/ (its numbers stay local)")
+        return 2
+    target = Path(args.out) if args.out else default_artefact_path()
+    if args.report:
+        report = Path(args.report)
+    elif args.out:
+        # beside --out, so a local experiment never overwrites the committed report
+        report = target.parent / "fit-report.md"
+    else:
+        report = Path(_REPORT)
+    common = {"datasets": args.datasets, "include_uncommittable": args.include_uncommittable}
+    try:
+        if args.check:
+            return _fit_check(pipeline, args, target, common)
+        summary = pipeline.run_fit(
+            Path(args.manifest),
+            Path(args.root),
+            out_artefact=target,
+            out_report=report,
+            derived=Path(args.derived),
+            **common,
+        )
+        from emotive_gait.learn.console import print_summary
+
+        print_summary(summary)
+    except pipeline.FitInputError as exc:
+        _err(str(exc))
+        return 2
+    except (pipeline.FitEnvironmentError, ArtefactMissingError, ArtefactSchemaError) as exc:
+        _err(str(exc))
+        return 1
+    except OSError as exc:
+        _err(f"environment failure: {exc}")
+        return 1
+    except ValueError as exc:
+        _err(f"fit failed: {exc}")
+        return 1
+    try:
+        _report_feasibility(target, report)
+    except Exception as exc:  # noqa: BLE001 - the artefact is written; the check is a report extra
+        print(
+            "note: feasibility of the learned presets not reported "
+            f"({type(exc).__name__}: {exc}); the artefact and report are written"
+        )
+    return 0
+
+
+def _feasibility_row(preset: str, scaling: str, params, artefact, robot) -> dict:
+    """One row for ``learn.report.append_feasibility``: the IK verdict and the driving cells."""
+    from emotive_gait.emotion.evidence import Emotion
+    from emotive_gait.gait.generator import generate
+    from emotive_gait.gait.params import GaitParameters
+    from emotive_gait.gait.scaling import MEASURED_FIELDS
+
+    rep = generate(params, robot).feasibility
+    emotion = {"sad": Emotion.SADNESS, "angry": Emotion.ANGER, "happy": Emotion.HAPPINESS}.get(
+        preset
+    )
+    driving = []
+    if not rep.feasible and emotion is not None:
+        neutral = GaitParameters()
+        for name in MEASURED_FIELDS:
+            if getattr(params, name) == getattr(neutral, name):
+                continue
+            trial = dataclasses.replace(params, **{name: getattr(neutral, name)})
+            if generate(trial, robot).feasibility.feasible:
+                cell = artefact.cells.get((scaling, emotion.value, name))
+                driving.append(
+                    {
+                        "parameter": name,
+                        "value": getattr(params, name),
+                        "estimate": None if cell is None else cell.estimate,
+                        "per_dataset": {} if cell is None else dict(cell.per_dataset),
+                    }
+                )
+    return {
+        "preset": preset,
+        "scaling": scaling,
+        "feasible": rep.feasible,
+        "position_error_mm": rep.max_foot_position_error_m * 1000.0,
+        "orientation_error_rad": rep.max_foot_orientation_error_rad,
+        "roles_at_limit": [r.value for r in rep.roles_at_limit],
+        "stride": {
+            "step_length": params.step_length,
+            "cadence": params.cadence,
+            "double_support_frac": params.double_support_frac,
+        },
+        "driving": driving,
+    }
+
+
+def _report_feasibility(artefact_path: Path, report: Path) -> None:
+    """Run the G1 IK on the learned presets and append the result to the report (spec 4.5).
+
+    Learned presets are flagged and rendered, not gated (decision 2026-10-26). Skipped with a
+    note when the robot model cannot be loaded; the fit's exit code does not change.
+    """
+    from emotive_gait.emotion.learned import SCALINGS, LearnedEmotionModel, load_artefact
+    from emotive_gait.emotion.model import learned_presets
+    from emotive_gait.learn.report import append_feasibility
+
+    try:
+        from emotive_gait.robot.loader import ModelUnavailableError, load_robot
+
+        robot = load_robot()
+    except (ImportError, OSError, ModelUnavailableError) as exc:
+        print(f"feasibility of the learned presets skipped (robot model unavailable: {exc})")
+        return
+    artefact = load_artefact(artefact_path)
+    scalings = [s for s in SCALINGS if any(k[0] == s for k in artefact.cells)]
+    rows = []
+    for scaling in scalings:
+        presets = learned_presets(LearnedEmotionModel(artefact, scaling=scaling))
+        for preset, params in presets.items():
+            rows.append(_feasibility_row(preset, scaling, params, artefact, robot))
+    append_feasibility(report, rows)
+    bad = [f"{r['preset']} ({r['scaling']})" for r in rows if not r["feasible"]]
+    if bad:
+        print(
+            "learned presets the G1 cannot reach at the IK thresholds (flagged, still rendered): "
+            + ", ".join(bad)
+        )
+
+
+def _fit_check(pipeline, args: argparse.Namespace, target: Path, common: dict) -> int:
+    from emotive_gait.emotion.learned import load_artefact
+    from emotive_gait.learn.artefact import first_difference
+
+    committed = load_artefact(target)
+    with tempfile.TemporaryDirectory() as tmp:
+        scratch = Path(tmp)
+        pipeline.run_fit(
+            Path(args.manifest),
+            Path(args.root),
+            out_artefact=scratch / "refit.yaml",
+            out_report=scratch / "report.md",
+            derived=scratch / "derived",
+            **common,
+        )
+        refit = load_artefact(scratch / "refit.yaml")
+    difference = first_difference(committed, refit)
+    if difference is not None:
+        _err(f"--check: the refit differs from {target}: {difference}")
+        return 2
+    print(f"--check: the refit matches {target} (every estimate within 1e-6)")
+    return 0
+
+
+def _source_url(manifest, shown_path: str) -> str:
+    """Where ``<dataset>/<path>`` comes from: the archive URL, or the base URL joined with path."""
+    dataset_id, _, rest = shown_path.partition("/")
+    dataset = manifest.dataset(dataset_id)
+    if dataset.archive is not None:
+        return dataset.url
+    return dataset.url.rstrip("/") + "/" + rest
+
+
+def _fetch(args: argparse.Namespace) -> int:
+    import zipfile
+
+    from emotive_gait.learn.fetch import fetch
+    from emotive_gait.learn.manifest import ManifestError, describe_problem, load_manifest
+
+    from_paths: dict[str, Path] = {}
+    for spec in args.from_paths:
+        dataset_id, sep, path = spec.partition("=")
+        if not sep or not path:
+            _err(f"--from {spec!r} must look like ID=PATH")
+            return 2
+        from_paths[dataset_id] = Path(path)
+    try:
+        manifest = load_manifest(Path(args.manifest))
+        problems = fetch(manifest, Path(args.root), from_paths=from_paths, datasets=args.datasets)
+    except (ManifestError, ValueError, zipfile.BadZipFile) as exc:
+        _err(str(exc) if isinstance(exc, ManifestError) else f"{args.manifest}: {exc}")
+        return 2
+    except OSError as exc:
+        _err(f"environment failure: {exc}")
+        return 1
+    for problem in problems:
+        print(describe_problem(problem), file=sys.stderr)
+        if problem.error is not None or problem.actual is None:
+            print(f"  fetch by hand: {_source_url(manifest, problem.path)}", file=sys.stderr)
+    if problems:
+        _err(f"{len(problems)} file(s) missing or with a different hash")
+        return 2
+    print(f"fetched and verified every file under {args.root}")
     return 0
 
 
@@ -307,7 +671,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     except SystemExit as exc:
         return exc.code if isinstance(exc.code, int) else 2
     if args.command == "evidence":
-        return _evidence()
+        return _evidence(args)
+    if args.command == "fit":
+        return _fit(args)
+    if args.command == "fetch":
+        return _fetch(args)
     return _demo(args)
 
 

@@ -1,0 +1,2160 @@
+cells:
+  froude:
+    anger:
+      arm_abduction:
+        between_actor_sd: 0.08650424012478898
+        ci_high: null
+        ci_low: null
+        converged_maximal: false
+        direction_check: no_claim
+        estimate: 0.019547231163446577
+        fallback_reason: maximal_raised
+        grounding: thin
+        n_actors: 1
+        n_cycles: 9
+        n_datasets: 1
+        n_mapped_actors: 0
+        per_dataset:
+          100style: 0.009855471090807005
+        residual_sd: 0.03969943836160222
+      arm_swing_amp:
+        between_actor_sd: 0.1858499017793193
+        ci_high: null
+        ci_low: null
+        converged_maximal: false
+        direction_check: contradicts
+        estimate: -0.046562187286644754
+        fallback_reason: maximal_raised
+        grounding: thin
+        n_actors: 1
+        n_cycles: 9
+        n_datasets: 1
+        n_mapped_actors: 0
+        per_dataset:
+          100style: 0.02018660343719081
+        residual_sd: 0.0819864811817597
+      cadence:
+        between_actor_sd: 0.0708089874508463
+        ci_high: null
+        ci_low: null
+        converged_maximal: false
+        direction_check: agrees
+        estimate: 0.2538275126654674
+        fallback_reason: maximal_raised
+        grounding: thin
+        n_actors: 1
+        n_cycles: 9
+        n_datasets: 1
+        n_mapped_actors: 0
+        per_dataset:
+          100style: 0.2665210184964689
+        residual_sd: 0.03882252842455847
+      com_bounce_amp:
+        between_actor_sd: 0.02834085186085685
+        ci_high: null
+        ci_low: null
+        converged_maximal: false
+        direction_check: no_claim
+        estimate: 0.01633780437136821
+        fallback_reason: maximal_raised
+        grounding: thin
+        n_actors: 1
+        n_cycles: 9
+        n_datasets: 1
+        n_mapped_actors: 0
+        per_dataset:
+          100style: 0.017550309978769454
+        residual_sd: 0.007954569969577092
+      com_height_scale:
+        between_actor_sd: 0.015747601593598032
+        ci_high: null
+        ci_low: null
+        converged_maximal: false
+        direction_check: thin_unchecked
+        estimate: -0.020167900522318233
+        fallback_reason: maximal_raised
+        grounding: thin
+        n_actors: 1
+        n_cycles: 9
+        n_datasets: 1
+        n_mapped_actors: 0
+        per_dataset:
+          100style: -0.015508780151936019
+        residual_sd: 0.008147680032128434
+      double_support_frac:
+        between_actor_sd: 0.0702792764405707
+        ci_high: null
+        ci_low: null
+        converged_maximal: false
+        direction_check: no_claim
+        estimate: -0.09858499492415172
+        fallback_reason: maximal_raised
+        grounding: thin
+        n_actors: 1
+        n_cycles: 9
+        n_datasets: 1
+        n_mapped_actors: 0
+        per_dataset:
+          100style: -0.1146267743114811
+        residual_sd: 0.035833372425531584
+      elbow_flexion:
+        between_actor_sd: 0.23378846499937628
+        ci_high: null
+        ci_low: null
+        converged_maximal: false
+        direction_check: agrees
+        estimate: 0.2957489650335681
+        fallback_reason: maximal_raised
+        grounding: thin
+        n_actors: 1
+        n_cycles: 9
+        n_datasets: 1
+        n_mapped_actors: 0
+        per_dataset:
+          100style: 0.32220039888809393
+        residual_sd: 0.07269324679193953
+      elbow_swing_ratio:
+        between_actor_sd: 0.5271880844543251
+        ci_high: null
+        ci_low: null
+        converged_maximal: false
+        direction_check: no_claim
+        estimate: 2.1587750658268323
+        fallback_reason: maximal_raised
+        grounding: thin
+        n_actors: 1
+        n_cycles: 9
+        n_datasets: 1
+        n_mapped_actors: 0
+        per_dataset:
+          100style: 2.1266321940913313
+        residual_sd: 0.4182583674998377
+      feet_spacing:
+        between_actor_sd: 0.03952261369197087
+        ci_high: null
+        ci_low: null
+        converged_maximal: false
+        direction_check: no_claim
+        estimate: -0.010739620094302467
+        fallback_reason: maximal_raised
+        grounding: thin
+        n_actors: 1
+        n_cycles: 9
+        n_datasets: 1
+        n_mapped_actors: 0
+        per_dataset:
+          100style: -0.01013886922275506
+        residual_sd: 0.02714869831328452
+      lateral_sway_amp:
+        between_actor_sd: 0.006924270876067501
+        ci_high: null
+        ci_low: null
+        converged_maximal: false
+        direction_check: no_claim
+        estimate: -0.012737522413190202
+        fallback_reason: maximal_raised
+        grounding: thin
+        n_actors: 1
+        n_cycles: 9
+        n_datasets: 1
+        n_mapped_actors: 0
+        per_dataset:
+          100style: -0.013493749487830303
+        residual_sd: 0.009294440867118527
+      neck_pitch:
+        between_actor_sd: 0.07642347235905221
+        ci_high: null
+        ci_low: null
+        converged_maximal: false
+        direction_check: thin_unchecked
+        estimate: 0.17997228529573117
+        fallback_reason: maximal_raised
+        grounding: thin
+        n_actors: 1
+        n_cycles: 9
+        n_datasets: 1
+        n_mapped_actors: 0
+        per_dataset:
+          100style: 0.15048999723277445
+        residual_sd: 0.08044663013640543
+      step_height:
+        between_actor_sd: 0.025599609461289297
+        ci_high: null
+        ci_low: null
+        converged_maximal: false
+        direction_check: no_claim
+        estimate: 0.003595881513040161
+        fallback_reason: maximal_raised
+        grounding: thin
+        n_actors: 1
+        n_cycles: 9
+        n_datasets: 1
+        n_mapped_actors: 0
+        per_dataset:
+          100style: -0.0008128183762047825
+        residual_sd: 0.01963678415736195
+      step_length:
+        between_actor_sd: 0.043710940225230574
+        ci_high: null
+        ci_low: null
+        converged_maximal: false
+        direction_check: agrees
+        estimate: 0.21274509427948804
+        fallback_reason: maximal_raised
+        grounding: thin
+        n_actors: 1
+        n_cycles: 9
+        n_datasets: 1
+        n_mapped_actors: 0
+        per_dataset:
+          100style: 0.2091436476932933
+        residual_sd: 0.11298737171579577
+      trunk_pitch:
+        between_actor_sd: 0.10564719543050818
+        ci_high: null
+        ci_low: null
+        converged_maximal: false
+        direction_check: agrees
+        estimate: 0.11626534228185663
+        fallback_reason: maximal_raised
+        grounding: thin
+        n_actors: 1
+        n_cycles: 9
+        n_datasets: 1
+        n_mapped_actors: 0
+        per_dataset:
+          100style: 0.12319391592116619
+        residual_sd: 0.052305972100303036
+    fear:
+      arm_abduction:
+        between_actor_sd: 0.08650424012478898
+        ci_high: null
+        ci_low: null
+        converged_maximal: false
+        direction_check: no_claim
+        estimate: 0.02576075584277364
+        fallback_reason: maximal_raised
+        grounding: thin
+        n_actors: 1
+        n_cycles: 3
+        n_datasets: 1
+        n_mapped_actors: 0
+        per_dataset:
+          cmu: 0.039954184322150435
+        residual_sd: 0.03969943836160222
+      arm_swing_amp:
+        between_actor_sd: 0.1858499017793193
+        ci_high: null
+        ci_low: null
+        converged_maximal: false
+        direction_check: agrees
+        estimate: -0.07033178647194008
+        fallback_reason: maximal_raised
+        grounding: thin
+        n_actors: 1
+        n_cycles: 3
+        n_datasets: 1
+        n_mapped_actors: 0
+        per_dataset:
+          cmu: -0.10417348277390334
+        residual_sd: 0.0819864811817597
+      cadence:
+        between_actor_sd: 0.0708089874508463
+        ci_high: null
+        ci_low: null
+        converged_maximal: false
+        direction_check: contradicts
+        estimate: -0.26047159347135707
+        fallback_reason: maximal_raised
+        grounding: thin
+        n_actors: 1
+        n_cycles: 3
+        n_datasets: 1
+        n_mapped_actors: 0
+        per_dataset:
+          cmu: -0.27885097046153684
+        residual_sd: 0.03882252842455847
+      com_bounce_amp:
+        between_actor_sd: 0.02834085186085685
+        ci_high: null
+        ci_low: null
+        converged_maximal: false
+        direction_check: no_claim
+        estimate: 0.008550793937329814
+        fallback_reason: maximal_raised
+        grounding: thin
+        n_actors: 1
+        n_cycles: 3
+        n_datasets: 1
+        n_mapped_actors: 0
+        per_dataset:
+          cmu: 0.00796487818788134
+        residual_sd: 0.007954569969577092
+      com_height_scale:
+        between_actor_sd: 0.015747601593598032
+        ci_high: null
+        ci_low: null
+        converged_maximal: false
+        direction_check: agrees
+        estimate: -0.004913796471656313
+        fallback_reason: maximal_raised
+        grounding: thin
+        n_actors: 1
+        n_cycles: 3
+        n_datasets: 1
+        n_mapped_actors: 0
+        per_dataset:
+          cmu: -0.010798150059138534
+        residual_sd: 0.008147680032128434
+      double_support_frac:
+        between_actor_sd: 0.0702792764405707
+        ci_high: null
+        ci_low: null
+        converged_maximal: false
+        direction_check: no_claim
+        estimate: -0.01851326983437153
+        fallback_reason: maximal_raised
+        grounding: thin
+        n_actors: 1
+        n_cycles: 3
+        n_datasets: 1
+        n_mapped_actors: 0
+        per_dataset:
+          cmu: -0.003300834566826505
+        residual_sd: 0.035833372425531584
+      elbow_flexion:
+        between_actor_sd: 0.23378846499937628
+        ci_high: null
+        ci_low: null
+        converged_maximal: false
+        direction_check: agrees
+        estimate: 0.15310355952376503
+        fallback_reason: maximal_raised
+        grounding: thin
+        n_actors: 1
+        n_cycles: 3
+        n_datasets: 1
+        n_mapped_actors: 0
+        per_dataset:
+          cmu: 0.1398263084364909
+        residual_sd: 0.07269324679193953
+      elbow_swing_ratio:
+        between_actor_sd: 0.5271880844543251
+        ci_high: null
+        ci_low: null
+        converged_maximal: false
+        direction_check: contradicts
+        estimate: -0.33461833421669124
+        fallback_reason: maximal_raised
+        grounding: thin
+        n_actors: 1
+        n_cycles: 3
+        n_datasets: 1
+        n_mapped_actors: 0
+        per_dataset:
+          cmu: -0.23889193892420957
+        residual_sd: 0.4182583674998377
+      feet_spacing:
+        between_actor_sd: 0.03952261369197087
+        ci_high: null
+        ci_low: null
+        converged_maximal: false
+        direction_check: no_claim
+        estimate: -0.014021263697342051
+        fallback_reason: maximal_raised
+        grounding: thin
+        n_actors: 1
+        n_cycles: 3
+        n_datasets: 1
+        n_mapped_actors: 0
+        per_dataset:
+          cmu: -0.019358265645115447
+        residual_sd: 0.02714869831328452
+      lateral_sway_amp:
+        between_actor_sd: 0.006924270876067501
+        ci_high: null
+        ci_low: null
+        converged_maximal: false
+        direction_check: no_claim
+        estimate: 0.02158091952195504
+        fallback_reason: maximal_raised
+        grounding: thin
+        n_actors: 1
+        n_cycles: 3
+        n_datasets: 1
+        n_mapped_actors: 0
+        per_dataset:
+          cmu: 0.02152212209431517
+        residual_sd: 0.009294440867118527
+      neck_pitch:
+        between_actor_sd: 0.07642347235905221
+        ci_high: null
+        ci_low: null
+        converged_maximal: false
+        direction_check: contradicts
+        estimate: 0.08763079508534788
+        fallback_reason: maximal_raised
+        grounding: thin
+        n_actors: 1
+        n_cycles: 3
+        n_datasets: 1
+        n_mapped_actors: 0
+        per_dataset:
+          cmu: 0.12062217817129653
+        residual_sd: 0.08044663013640543
+      step_height:
+        between_actor_sd: 0.025599609461289297
+        ci_high: null
+        ci_low: null
+        converged_maximal: false
+        direction_check: no_claim
+        estimate: 0.012090286932043275
+        fallback_reason: maximal_raised
+        grounding: thin
+        n_actors: 1
+        n_cycles: 3
+        n_datasets: 1
+        n_mapped_actors: 0
+        per_dataset:
+          cmu: 0.016067576041689027
+        residual_sd: 0.01963678415736195
+      step_length:
+        between_actor_sd: 0.043710940225230574
+        ci_high: null
+        ci_low: null
+        converged_maximal: false
+        direction_check: contradicts
+        estimate: 0.04905890558316112
+        fallback_reason: maximal_raised
+        grounding: thin
+        n_actors: 1
+        n_cycles: 3
+        n_datasets: 1
+        n_mapped_actors: 0
+        per_dataset:
+          cmu: 0.06276458620141134
+        residual_sd: 0.11298737171579577
+      trunk_pitch:
+        between_actor_sd: 0.10564719543050818
+        ci_high: null
+        ci_low: null
+        converged_maximal: false
+        direction_check: agrees
+        estimate: 0.09179196755084817
+        fallback_reason: maximal_raised
+        grounding: thin
+        n_actors: 1
+        n_cycles: 3
+        n_datasets: 1
+        n_mapped_actors: 0
+        per_dataset:
+          cmu: 0.08090641684427699
+        residual_sd: 0.052305972100303036
+    happiness:
+      arm_abduction:
+        between_actor_sd: 0.08650424012478898
+        ci_high: 0.20651689761979355
+        ci_low: 0.1523240718982762
+        converged_maximal: false
+        direction_check: no_claim
+        estimate: 0.17942048475903488
+        fallback_reason: maximal_raised
+        grounding: fitted
+        n_actors: 3
+        n_cycles: 11
+        n_datasets: 2
+        n_mapped_actors: 3
+        per_dataset:
+          100style: 0.20393166538580562
+          cmu: 0.10831116751822391
+        residual_sd: 0.03969943836160222
+      arm_swing_amp:
+        between_actor_sd: 0.1858499017793193
+        ci_high: 0.5073712050677992
+        ci_low: 0.39398158706500713
+        converged_maximal: false
+        direction_check: agrees
+        estimate: 0.45067639606640314
+        fallback_reason: maximal_raised
+        grounding: fitted
+        n_actors: 3
+        n_cycles: 11
+        n_datasets: 2
+        n_mapped_actors: 3
+        per_dataset:
+          100style: 0.5937363983822256
+          cmu: 0.23486403972574538
+        residual_sd: 0.0819864811817597
+      cadence:
+        between_actor_sd: 0.0708089874508463
+        ci_high: 0.13517050325594493
+        ci_low: 0.08203107418288726
+        converged_maximal: false
+        direction_check: no_claim
+        estimate: 0.1086007887194161
+        fallback_reason: maximal_raised
+        grounding: fitted
+        n_actors: 3
+        n_cycles: 11
+        n_datasets: 2
+        n_mapped_actors: 3
+        per_dataset:
+          100style: 0.11449066957678367
+          cmu: 0.13472181032122166
+        residual_sd: 0.03882252842455847
+      com_bounce_amp:
+        between_actor_sd: 0.02834085186085685
+        ci_high: 0.05470413395860687
+        ci_low: 0.04386319537515634
+        converged_maximal: false
+        direction_check: agrees
+        estimate: 0.0492836646668816
+        fallback_reason: maximal_raised
+        grounding: fitted
+        n_actors: 3
+        n_cycles: 11
+        n_datasets: 2
+        n_mapped_actors: 3
+        per_dataset:
+          100style: 0.053855398156698105
+          cmu: 0.041838541227773
+        residual_sd: 0.007954569969577092
+      com_height_scale:
+        between_actor_sd: 0.015747601593598032
+        ci_high: -0.0020412332897408944
+        ci_low: -0.013168437125555443
+        converged_maximal: false
+        direction_check: no_claim
+        estimate: -0.0076048352076481685
+        fallback_reason: maximal_raised
+        grounding: fitted
+        n_actors: 3
+        n_cycles: 11
+        n_datasets: 2
+        n_mapped_actors: 3
+        per_dataset:
+          100style: -0.00814129503171701
+          cmu: 0.004550513175391568
+        residual_sd: 0.008147680032128434
+      double_support_frac:
+        between_actor_sd: 0.0702792764405707
+        ci_high: -0.06322145430796536
+        ci_low: -0.11277125707587826
+        converged_maximal: false
+        direction_check: no_claim
+        estimate: -0.08799635569192181
+        fallback_reason: maximal_raised
+        grounding: fitted
+        n_actors: 3
+        n_cycles: 11
+        n_datasets: 2
+        n_mapped_actors: 3
+        per_dataset:
+          100style: -0.08991569209449307
+          cmu: -0.11063727061578715
+        residual_sd: 0.035833372425531584
+      elbow_flexion:
+        between_actor_sd: 0.23378846499937628
+        ci_high: 0.5194546972022723
+        ci_low: 0.4201895268289325
+        converged_maximal: false
+        direction_check: contradicts
+        estimate: 0.4698221120156024
+        fallback_reason: maximal_raised
+        grounding: fitted
+        n_actors: 3
+        n_cycles: 11
+        n_datasets: 2
+        n_mapped_actors: 3
+        per_dataset:
+          100style: 0.5643559231561123
+          cmu: 0.31774249484700123
+        residual_sd: 0.07269324679193953
+      elbow_swing_ratio:
+        between_actor_sd: 0.5271880844543251
+        ci_high: 0.49106959156678365
+        ci_low: -0.07928538317070519
+        converged_maximal: false
+        direction_check: no_claim
+        estimate: 0.20589210419803924
+        fallback_reason: maximal_raised
+        grounding: fitted
+        n_actors: 3
+        n_cycles: 11
+        n_datasets: 2
+        n_mapped_actors: 3
+        per_dataset:
+          100style: 0.4919873788200859
+          cmu: -0.5099834608201202
+        residual_sd: 0.4182583674998377
+      feet_spacing:
+        between_actor_sd: 0.03952261369197087
+        ci_high: 0.030633802564770295
+        ci_low: -0.006416438669065301
+        converged_maximal: false
+        direction_check: no_claim
+        estimate: 0.012108681947852496
+        fallback_reason: maximal_raised
+        grounding: fitted
+        n_actors: 3
+        n_cycles: 11
+        n_datasets: 2
+        n_mapped_actors: 3
+        per_dataset:
+          100style: 0.002458615795665142
+          cmu: 0.04188823942995331
+        residual_sd: 0.02714869831328452
+      lateral_sway_amp:
+        between_actor_sd: 0.006924270876067501
+        ci_high: 0.002771654926591345
+        ci_low: -0.00993607416798518
+        converged_maximal: false
+        direction_check: no_claim
+        estimate: -0.0035822096206969173
+        fallback_reason: maximal_raised
+        grounding: fitted
+        n_actors: 3
+        n_cycles: 11
+        n_datasets: 2
+        n_mapped_actors: 3
+        per_dataset:
+          100style: -0.005454429577358009
+          cmu: 0.00040833917853973223
+        residual_sd: 0.009294440867118527
+      neck_pitch:
+        between_actor_sd: 0.07642347235905221
+        ci_high: 0.060026821156065474
+        ci_low: -0.04982412651417335
+        converged_maximal: false
+        direction_check: contradicts_ci_spans_zero
+        estimate: 0.005101347320946061
+        fallback_reason: maximal_raised
+        grounding: fitted
+        n_actors: 3
+        n_cycles: 11
+        n_datasets: 2
+        n_mapped_actors: 3
+        per_dataset:
+          100style: -0.033705127939721524
+          cmu: 0.012645937359460069
+        residual_sd: 0.08044663013640543
+      step_height:
+        between_actor_sd: 0.025599609461289297
+        ci_high: 0.03815962543561223
+        ci_low: 0.011861674847729408
+        converged_maximal: false
+        direction_check: no_claim
+        estimate: 0.02501065014167082
+        fallback_reason: maximal_raised
+        grounding: fitted
+        n_actors: 3
+        n_cycles: 11
+        n_datasets: 2
+        n_mapped_actors: 3
+        per_dataset:
+          100style: 0.015299039591196495
+          cmu: 0.03536927074782047
+        residual_sd: 0.01963678415736195
+      step_length:
+        between_actor_sd: 0.043710940225230574
+        ci_high: 0.1807729536632549
+        ci_low: 0.026912064816377215
+        converged_maximal: false
+        direction_check: agrees
+        estimate: 0.10384250923981607
+        fallback_reason: maximal_raised
+        grounding: fitted
+        n_actors: 3
+        n_cycles: 11
+        n_datasets: 2
+        n_mapped_actors: 3
+        per_dataset:
+          100style: 0.12167604573325219
+          cmu: 0.04107070377032335
+        residual_sd: 0.11298737171579577
+      trunk_pitch:
+        between_actor_sd: 0.10564719543050818
+        ci_high: 0.03413706108517005
+        ci_low: -0.037212683088715184
+        converged_maximal: false
+        direction_check: agrees_ci_spans_zero
+        estimate: -0.0015378110017725676
+        fallback_reason: maximal_raised
+        grounding: fitted
+        n_actors: 3
+        n_cycles: 11
+        n_datasets: 2
+        n_mapped_actors: 3
+        per_dataset:
+          100style: -0.0220333995240216
+          cmu: 0.05634691544910924
+        residual_sd: 0.052305972100303036
+    sadness:
+      arm_abduction:
+        between_actor_sd: 0.08650424012478898
+        ci_high: -0.01862550555143255
+        ci_low: -0.05220288485081444
+        converged_maximal: false
+        direction_check: no_claim
+        estimate: -0.035414195201123495
+        fallback_reason: maximal_raised
+        grounding: fitted
+        n_actors: 3
+        n_cycles: 43
+        n_datasets: 2
+        n_mapped_actors: 2
+        per_dataset:
+          100style: -0.06065376535466577
+          cmu: -0.003995741944984294
+        residual_sd: 0.03969943836160222
+      arm_swing_amp:
+        between_actor_sd: 0.1858499017793193
+        ci_high: 0.014974452425400547
+        ci_low: -0.054361029622049944
+        converged_maximal: false
+        direction_check: agrees_ci_spans_zero
+        estimate: -0.0196932885983247
+        fallback_reason: maximal_raised
+        grounding: fitted
+        n_actors: 3
+        n_cycles: 43
+        n_datasets: 2
+        n_mapped_actors: 2
+        per_dataset:
+          100style: 0.07610810871666435
+          cmu: -0.09431642476910179
+        residual_sd: 0.0819864811817597
+      cadence:
+        between_actor_sd: 0.0708089874508463
+        ci_high: -0.04071280904331877
+        ci_low: -0.07353502722445547
+        converged_maximal: false
+        direction_check: agrees
+        estimate: -0.05712391813388712
+        fallback_reason: maximal_raised
+        grounding: fitted
+        n_actors: 3
+        n_cycles: 43
+        n_datasets: 2
+        n_mapped_actors: 2
+        per_dataset:
+          100style: -0.03320924022614502
+          cmu: -0.05392462552409186
+        residual_sd: 0.03882252842455847
+      com_bounce_amp:
+        between_actor_sd: 0.02834085186085685
+        ci_high: 0.004621575983346199
+        ci_low: -0.002105550285954292
+        converged_maximal: false
+        direction_check: contradicts_ci_spans_zero
+        estimate: 0.0012580128486959533
+        fallback_reason: maximal_raised
+        grounding: fitted
+        n_actors: 3
+        n_cycles: 43
+        n_datasets: 2
+        n_mapped_actors: 2
+        per_dataset:
+          100style: 0.0025128276862691565
+          cmu: -0.002966646006889836
+        residual_sd: 0.007954569969577092
+      com_height_scale:
+        between_actor_sd: 0.015747601593598032
+        ci_high: 0.010290620110001394
+        ci_low: 0.0033933833049449415
+        converged_maximal: false
+        direction_check: no_claim
+        estimate: 0.006842001707473168
+        fallback_reason: maximal_raised
+        grounding: fitted
+        n_actors: 3
+        n_cycles: 43
+        n_datasets: 2
+        n_mapped_actors: 2
+        per_dataset:
+          100style: 0.016220084165702198
+          cmu: -0.0046632411235263405
+        residual_sd: 0.008147680032128434
+      double_support_frac:
+        between_actor_sd: 0.0702792764405707
+        ci_high: -0.015026411123675039
+        ci_low: -0.04500851522126408
+        converged_maximal: false
+        direction_check: no_claim
+        estimate: -0.03001746317246956
+        fallback_reason: maximal_raised
+        grounding: fitted
+        n_actors: 3
+        n_cycles: 43
+        n_datasets: 2
+        n_mapped_actors: 2
+        per_dataset:
+          100style: -0.06276402286635208
+          cmu: 0.011224833539606766
+        residual_sd: 0.035833372425531584
+      elbow_flexion:
+        between_actor_sd: 0.23378846499937628
+        ci_high: 0.0392989077191635
+        ci_low: -0.02223513249033984
+        converged_maximal: false
+        direction_check: contradicts_ci_spans_zero
+        estimate: 0.008531887614411832
+        fallback_reason: maximal_raised
+        grounding: fitted
+        n_actors: 3
+        n_cycles: 43
+        n_datasets: 2
+        n_mapped_actors: 2
+        per_dataset:
+          100style: 0.03606861197184169
+          cmu: -0.008748507884139611
+        residual_sd: 0.07269324679193953
+      elbow_swing_ratio:
+        between_actor_sd: 0.5271880844543251
+        ci_high: 0.22902905197249449
+        ci_low: -0.12436635801271959
+        converged_maximal: false
+        direction_check: contradicts_ci_spans_zero
+        estimate: 0.05233134697988745
+        fallback_reason: maximal_raised
+        grounding: fitted
+        n_actors: 3
+        n_cycles: 43
+        n_datasets: 2
+        n_mapped_actors: 2
+        per_dataset:
+          100style: -0.0791630577845367
+          cmu: 0.44203081813890066
+        residual_sd: 0.4182583674998377
+      feet_spacing:
+        between_actor_sd: 0.03952261369197087
+        ci_high: 0.011281757544589042
+        ci_low: -0.011682421756131689
+        converged_maximal: false
+        direction_check: no_claim
+        estimate: -0.00020033210577132335
+        fallback_reason: maximal_raised
+        grounding: fitted
+        n_actors: 3
+        n_cycles: 43
+        n_datasets: 2
+        n_mapped_actors: 2
+        per_dataset:
+          100style: 0.0041430638087259775
+          cmu: -0.0032096812715074197
+        residual_sd: 0.02714869831328452
+      lateral_sway_amp:
+        between_actor_sd: 0.006924270876067501
+        ci_high: 0.0039426418079118
+        ci_low: -0.0039047928371872074
+        converged_maximal: false
+        direction_check: agrees_ci_spans_zero
+        estimate: 1.89244853622966e-05
+        fallback_reason: maximal_raised
+        grounding: fitted
+        n_actors: 3
+        n_cycles: 43
+        n_datasets: 2
+        n_mapped_actors: 2
+        per_dataset:
+          100style: -0.0009485551846993151
+          cmu: -0.0012338535448474953
+        residual_sd: 0.009294440867118527
+      neck_pitch:
+        between_actor_sd: 0.07642347235905221
+        ci_high: 0.4386386043383293
+        ci_low: 0.37054974762078724
+        converged_maximal: false
+        direction_check: agrees
+        estimate: 0.40459417597955827
+        fallback_reason: maximal_raised
+        grounding: fitted
+        n_actors: 3
+        n_cycles: 43
+        n_datasets: 2
+        n_mapped_actors: 2
+        per_dataset:
+          100style: 0.3570956348152363
+          cmu: 0.39028475771538196
+        residual_sd: 0.08044663013640543
+      step_height:
+        between_actor_sd: 0.025599609461289297
+        ci_high: -0.007416172063659559
+        ci_low: -0.023997172630725722
+        converged_maximal: false
+        direction_check: no_claim
+        estimate: -0.01570667234719264
+        fallback_reason: maximal_raised
+        grounding: fitted
+        n_actors: 3
+        n_cycles: 43
+        n_datasets: 2
+        n_mapped_actors: 2
+        per_dataset:
+          100style: -0.025680959919998095
+          cmu: -0.009385414059599369
+        residual_sd: 0.01963678415736195
+      step_length:
+        between_actor_sd: 0.043710940225230574
+        ci_high: 0.01271382461263948
+        ci_low: -0.08270104024300587
+        converged_maximal: false
+        direction_check: agrees_ci_spans_zero
+        estimate: -0.034993607815183195
+        fallback_reason: maximal_raised
+        grounding: fitted
+        n_actors: 3
+        n_cycles: 43
+        n_datasets: 2
+        n_mapped_actors: 2
+        per_dataset:
+          100style: -0.05174377367608213
+          cmu: -0.030840075007371737
+        residual_sd: 0.11298737171579577
+      trunk_pitch:
+        between_actor_sd: 0.10564719543050818
+        ci_high: 0.1659677589633397
+        ci_low: 0.12172876123281796
+        converged_maximal: false
+        direction_check: agrees
+        estimate: 0.14384826009807883
+        fallback_reason: maximal_raised
+        grounding: fitted
+        n_actors: 3
+        n_cycles: 43
+        n_datasets: 2
+        n_mapped_actors: 2
+        per_dataset:
+          100style: 0.16340155687487568
+          cmu: 0.08988725012877818
+        residual_sd: 0.052305972100303036
+  ratio:
+    anger:
+      arm_abduction:
+        between_actor_sd: 0.08650424012478898
+        ci_high: null
+        ci_low: null
+        converged_maximal: false
+        direction_check: no_claim
+        estimate: 0.019547231163446577
+        fallback_reason: maximal_raised
+        grounding: thin
+        n_actors: 1
+        n_cycles: 9
+        n_datasets: 1
+        n_mapped_actors: 0
+        per_dataset:
+          100style: 0.009855471090807005
+        residual_sd: 0.03969943836160222
+      arm_swing_amp:
+        between_actor_sd: 0.1858499017793193
+        ci_high: null
+        ci_low: null
+        converged_maximal: false
+        direction_check: contradicts
+        estimate: -0.046562187286644754
+        fallback_reason: maximal_raised
+        grounding: thin
+        n_actors: 1
+        n_cycles: 9
+        n_datasets: 1
+        n_mapped_actors: 0
+        per_dataset:
+          100style: 0.02018660343719081
+        residual_sd: 0.0819864811817597
+      cadence:
+        between_actor_sd: 0.15436289686994328
+        ci_high: null
+        ci_low: null
+        converged_maximal: false
+        direction_check: agrees
+        estimate: 0.5419431848103178
+        fallback_reason: maximal_raised
+        grounding: thin
+        n_actors: 1
+        n_cycles: 9
+        n_datasets: 1
+        n_mapped_actors: 0
+        per_dataset:
+          100style: 0.5712769236197668
+        residual_sd: 0.08528833299865879
+      com_bounce_amp:
+        between_actor_sd: 1.8813571372676927
+        ci_high: null
+        ci_low: null
+        converged_maximal: false
+        direction_check: no_claim
+        estimate: 1.1228231811148672
+        fallback_reason: maximal_raised
+        grounding: thin
+        n_actors: 1
+        n_cycles: 9
+        n_datasets: 1
+        n_mapped_actors: 0
+        per_dataset:
+          100style: 1.2126930828155604
+        residual_sd: 0.533704559389216
+      com_height_scale:
+        between_actor_sd: 0.01557282540267852
+        ci_high: null
+        ci_low: null
+        converged_maximal: false
+        direction_check: thin_unchecked
+        estimate: -0.019988054432843124
+        fallback_reason: maximal_raised
+        grounding: thin
+        n_actors: 1
+        n_cycles: 9
+        n_datasets: 1
+        n_mapped_actors: 0
+        per_dataset:
+          100style: -0.01622921341996908
+        residual_sd: 0.007852100142770808
+      double_support_frac:
+        between_actor_sd: 0.0702792764405707
+        ci_high: null
+        ci_low: null
+        converged_maximal: false
+        direction_check: no_claim
+        estimate: -0.09858499492415172
+        fallback_reason: maximal_raised
+        grounding: thin
+        n_actors: 1
+        n_cycles: 9
+        n_datasets: 1
+        n_mapped_actors: 0
+        per_dataset:
+          100style: -0.1146267743114811
+        residual_sd: 0.035833372425531584
+      elbow_flexion:
+        between_actor_sd: 0.23378846499937628
+        ci_high: null
+        ci_low: null
+        converged_maximal: false
+        direction_check: agrees
+        estimate: 0.2957489650335681
+        fallback_reason: maximal_raised
+        grounding: thin
+        n_actors: 1
+        n_cycles: 9
+        n_datasets: 1
+        n_mapped_actors: 0
+        per_dataset:
+          100style: 0.32220039888809393
+        residual_sd: 0.07269324679193953
+      elbow_swing_ratio:
+        between_actor_sd: 0.5271880844543251
+        ci_high: null
+        ci_low: null
+        converged_maximal: false
+        direction_check: no_claim
+        estimate: 2.1587750658268323
+        fallback_reason: maximal_raised
+        grounding: thin
+        n_actors: 1
+        n_cycles: 9
+        n_datasets: 1
+        n_mapped_actors: 0
+        per_dataset:
+          100style: 2.1266321940913313
+        residual_sd: 0.4182583674998377
+      feet_spacing:
+        between_actor_sd: 0.31977661399581564
+        ci_high: null
+        ci_low: null
+        converged_maximal: false
+        direction_check: no_claim
+        estimate: -0.07371507814528942
+        fallback_reason: maximal_raised
+        grounding: thin
+        n_actors: 1
+        n_cycles: 9
+        n_datasets: 1
+        n_mapped_actors: 0
+        per_dataset:
+          100style: -0.06078725678152275
+        residual_sd: 0.21625699650449634
+      lateral_sway_amp:
+        between_actor_sd: 0.2429994036018142
+        ci_high: null
+        ci_low: null
+        converged_maximal: false
+        direction_check: no_claim
+        estimate: -0.3751428953704916
+        fallback_reason: maximal_raised
+        grounding: thin
+        n_actors: 1
+        n_cycles: 9
+        n_datasets: 1
+        n_mapped_actors: 0
+        per_dataset:
+          100style: -0.37539954417526666
+        residual_sd: 0.2482461799913409
+      neck_pitch:
+        between_actor_sd: 0.07642347235905221
+        ci_high: null
+        ci_low: null
+        converged_maximal: false
+        direction_check: thin_unchecked
+        estimate: 0.17997228529573117
+        fallback_reason: maximal_raised
+        grounding: thin
+        n_actors: 1
+        n_cycles: 9
+        n_datasets: 1
+        n_mapped_actors: 0
+        per_dataset:
+          100style: 0.15048999723277445
+        residual_sd: 0.08044663013640543
+      step_height:
+        between_actor_sd: 0.2860343006051348
+        ci_high: null
+        ci_low: null
+        converged_maximal: false
+        direction_check: no_claim
+        estimate: 0.048880758014460166
+        fallback_reason: maximal_raised
+        grounding: thin
+        n_actors: 1
+        n_cycles: 9
+        n_datasets: 1
+        n_mapped_actors: 0
+        per_dataset:
+          100style: -0.008125569785068065
+        residual_sd: 0.1906110407699419
+      step_length:
+        between_actor_sd: 0.07963153160457957
+        ci_high: null
+        ci_low: null
+        converged_maximal: false
+        direction_check: agrees
+        estimate: 0.3948863567029748
+        fallback_reason: maximal_raised
+        grounding: thin
+        n_actors: 1
+        n_cycles: 9
+        n_datasets: 1
+        n_mapped_actors: 0
+        per_dataset:
+          100style: 0.39488635661367977
+        residual_sd: 0.20482519959381265
+      trunk_pitch:
+        between_actor_sd: 0.10564719543050818
+        ci_high: null
+        ci_low: null
+        converged_maximal: false
+        direction_check: agrees
+        estimate: 0.11626534228185663
+        fallback_reason: maximal_raised
+        grounding: thin
+        n_actors: 1
+        n_cycles: 9
+        n_datasets: 1
+        n_mapped_actors: 0
+        per_dataset:
+          100style: 0.12319391592116619
+        residual_sd: 0.052305972100303036
+    fear:
+      arm_abduction:
+        between_actor_sd: 0.08650424012478898
+        ci_high: null
+        ci_low: null
+        converged_maximal: false
+        direction_check: no_claim
+        estimate: 0.02576075584277364
+        fallback_reason: maximal_raised
+        grounding: thin
+        n_actors: 1
+        n_cycles: 3
+        n_datasets: 1
+        n_mapped_actors: 0
+        per_dataset:
+          cmu: 0.039954184322150435
+        residual_sd: 0.03969943836160222
+      arm_swing_amp:
+        between_actor_sd: 0.1858499017793193
+        ci_high: null
+        ci_low: null
+        converged_maximal: false
+        direction_check: agrees
+        estimate: -0.07033178647194008
+        fallback_reason: maximal_raised
+        grounding: thin
+        n_actors: 1
+        n_cycles: 3
+        n_datasets: 1
+        n_mapped_actors: 0
+        per_dataset:
+          cmu: -0.10417348277390334
+        residual_sd: 0.0819864811817597
+      cadence:
+        between_actor_sd: 0.15436289686994328
+        ci_high: null
+        ci_low: null
+        converged_maximal: false
+        direction_check: contradicts
+        estimate: -0.5887821283027164
+        fallback_reason: maximal_raised
+        grounding: thin
+        n_actors: 1
+        n_cycles: 3
+        n_datasets: 1
+        n_mapped_actors: 0
+        per_dataset:
+          cmu: -0.6288652061587066
+        residual_sd: 0.08528833299865879
+      com_bounce_amp:
+        between_actor_sd: 1.8813571372676927
+        ci_high: null
+        ci_low: null
+        converged_maximal: false
+        direction_check: no_claim
+        estimate: 0.5384879140995129
+        fallback_reason: maximal_raised
+        grounding: thin
+        n_actors: 1
+        n_cycles: 3
+        n_datasets: 1
+        n_mapped_actors: 0
+        per_dataset:
+          cmu: 0.49917617272378156
+        residual_sd: 0.533704559389216
+      com_height_scale:
+        between_actor_sd: 0.01557282540267852
+        ci_high: null
+        ci_low: null
+        converged_maximal: false
+        direction_check: agrees
+        estimate: -0.0033997663959061254
+        fallback_reason: maximal_raised
+        grounding: thin
+        n_actors: 1
+        n_cycles: 3
+        n_datasets: 1
+        n_mapped_actors: 0
+        per_dataset:
+          cmu: -0.008813155079728241
+        residual_sd: 0.007852100142770808
+      double_support_frac:
+        between_actor_sd: 0.0702792764405707
+        ci_high: null
+        ci_low: null
+        converged_maximal: false
+        direction_check: no_claim
+        estimate: -0.01851326983437153
+        fallback_reason: maximal_raised
+        grounding: thin
+        n_actors: 1
+        n_cycles: 3
+        n_datasets: 1
+        n_mapped_actors: 0
+        per_dataset:
+          cmu: -0.003300834566826505
+        residual_sd: 0.035833372425531584
+      elbow_flexion:
+        between_actor_sd: 0.23378846499937628
+        ci_high: null
+        ci_low: null
+        converged_maximal: false
+        direction_check: agrees
+        estimate: 0.15310355952376503
+        fallback_reason: maximal_raised
+        grounding: thin
+        n_actors: 1
+        n_cycles: 3
+        n_datasets: 1
+        n_mapped_actors: 0
+        per_dataset:
+          cmu: 0.1398263084364909
+        residual_sd: 0.07269324679193953
+      elbow_swing_ratio:
+        between_actor_sd: 0.5271880844543251
+        ci_high: null
+        ci_low: null
+        converged_maximal: false
+        direction_check: contradicts
+        estimate: -0.33461833421669124
+        fallback_reason: maximal_raised
+        grounding: thin
+        n_actors: 1
+        n_cycles: 3
+        n_datasets: 1
+        n_mapped_actors: 0
+        per_dataset:
+          cmu: -0.23889193892420957
+        residual_sd: 0.4182583674998377
+      feet_spacing:
+        between_actor_sd: 0.31977661399581564
+        ci_high: null
+        ci_low: null
+        converged_maximal: false
+        direction_check: no_claim
+        estimate: -0.14612887568271937
+        fallback_reason: maximal_raised
+        grounding: thin
+        n_actors: 1
+        n_cycles: 3
+        n_datasets: 1
+        n_mapped_actors: 0
+        per_dataset:
+          cmu: -0.1874422670446404
+        residual_sd: 0.21625699650449634
+      lateral_sway_amp:
+        between_actor_sd: 0.2429994036018142
+        ci_high: null
+        ci_low: null
+        converged_maximal: false
+        direction_check: no_claim
+        estimate: 0.5118541834044386
+        fallback_reason: maximal_raised
+        grounding: thin
+        n_actors: 1
+        n_cycles: 3
+        n_datasets: 1
+        n_mapped_actors: 0
+        per_dataset:
+          cmu: 0.5120868743361584
+        residual_sd: 0.2482461799913409
+      neck_pitch:
+        between_actor_sd: 0.07642347235905221
+        ci_high: null
+        ci_low: null
+        converged_maximal: false
+        direction_check: contradicts
+        estimate: 0.08763079508534788
+        fallback_reason: maximal_raised
+        grounding: thin
+        n_actors: 1
+        n_cycles: 3
+        n_datasets: 1
+        n_mapped_actors: 0
+        per_dataset:
+          cmu: 0.12062217817129653
+        residual_sd: 0.08044663013640543
+      step_height:
+        between_actor_sd: 0.2860343006051348
+        ci_high: null
+        ci_low: null
+        converged_maximal: false
+        direction_check: no_claim
+        estimate: 0.11634099191755005
+        fallback_reason: maximal_raised
+        grounding: thin
+        n_actors: 1
+        n_cycles: 3
+        n_datasets: 1
+        n_mapped_actors: 0
+        per_dataset:
+          cmu: 0.16020414541790085
+        residual_sd: 0.1906110407699419
+      step_length:
+        between_actor_sd: 0.07963153160457957
+        ci_high: null
+        ci_low: null
+        converged_maximal: false
+        direction_check: contradicts
+        estimate: 0.09795663121136802
+        fallback_reason: maximal_raised
+        grounding: thin
+        n_actors: 1
+        n_cycles: 3
+        n_datasets: 1
+        n_mapped_actors: 0
+        per_dataset:
+          cmu: 0.09795663132088772
+        residual_sd: 0.20482519959381265
+      trunk_pitch:
+        between_actor_sd: 0.10564719543050818
+        ci_high: null
+        ci_low: null
+        converged_maximal: false
+        direction_check: agrees
+        estimate: 0.09179196755084817
+        fallback_reason: maximal_raised
+        grounding: thin
+        n_actors: 1
+        n_cycles: 3
+        n_datasets: 1
+        n_mapped_actors: 0
+        per_dataset:
+          cmu: 0.08090641684427699
+        residual_sd: 0.052305972100303036
+    happiness:
+      arm_abduction:
+        between_actor_sd: 0.08650424012478898
+        ci_high: 0.20651689761979355
+        ci_low: 0.1523240718982762
+        converged_maximal: false
+        direction_check: no_claim
+        estimate: 0.17942048475903488
+        fallback_reason: maximal_raised
+        grounding: fitted
+        n_actors: 3
+        n_cycles: 11
+        n_datasets: 2
+        n_mapped_actors: 3
+        per_dataset:
+          100style: 0.20393166538580562
+          cmu: 0.10831116751822391
+        residual_sd: 0.03969943836160222
+      arm_swing_amp:
+        between_actor_sd: 0.1858499017793193
+        ci_high: 0.5073712050677992
+        ci_low: 0.39398158706500713
+        converged_maximal: false
+        direction_check: agrees
+        estimate: 0.45067639606640314
+        fallback_reason: maximal_raised
+        grounding: fitted
+        n_actors: 3
+        n_cycles: 11
+        n_datasets: 2
+        n_mapped_actors: 3
+        per_dataset:
+          100style: 0.5937363983822256
+          cmu: 0.23486403972574538
+        residual_sd: 0.0819864811817597
+      cadence:
+        between_actor_sd: 0.15436289686994328
+        ci_high: 0.2870738074276945
+        ci_low: 0.17023671308838784
+        converged_maximal: false
+        direction_check: no_claim
+        estimate: 0.22865526025804117
+        fallback_reason: maximal_raised
+        grounding: fitted
+        n_actors: 3
+        n_cycles: 11
+        n_datasets: 2
+        n_mapped_actors: 3
+        per_dataset:
+          100style: 0.24465572892773713
+          cmu: 0.2788618306189616
+        residual_sd: 0.08528833299865879
+      com_bounce_amp:
+        between_actor_sd: 1.8813571372676927
+        ci_high: 3.7215219122035794
+        ci_low: 2.9939044718718426
+        converged_maximal: false
+        direction_check: agrees
+        estimate: 3.357713192037711
+        fallback_reason: maximal_raised
+        grounding: fitted
+        n_actors: 3
+        n_cycles: 11
+        n_datasets: 2
+        n_mapped_actors: 3
+        per_dataset:
+          100style: 3.729110406976054
+          cmu: 2.7386449930594194
+        residual_sd: 0.533704559389216
+      com_height_scale:
+        between_actor_sd: 0.01557282540267852
+        ci_high: 0.00029072332983117594
+        ci_low: -0.010448565568835682
+        converged_maximal: false
+        direction_check: no_claim
+        estimate: -0.005078921119502253
+        fallback_reason: maximal_raised
+        grounding: fitted
+        n_actors: 3
+        n_cycles: 11
+        n_datasets: 2
+        n_mapped_actors: 3
+        per_dataset:
+          100style: -0.007334078387883913
+          cmu: 0.009581945050064933
+        residual_sd: 0.007852100142770808
+      double_support_frac:
+        between_actor_sd: 0.0702792764405707
+        ci_high: -0.06322145430796536
+        ci_low: -0.11277125707587826
+        converged_maximal: false
+        direction_check: no_claim
+        estimate: -0.08799635569192181
+        fallback_reason: maximal_raised
+        grounding: fitted
+        n_actors: 3
+        n_cycles: 11
+        n_datasets: 2
+        n_mapped_actors: 3
+        per_dataset:
+          100style: -0.08991569209449307
+          cmu: -0.11063727061578715
+        residual_sd: 0.035833372425531584
+      elbow_flexion:
+        between_actor_sd: 0.23378846499937628
+        ci_high: 0.5194546972022723
+        ci_low: 0.4201895268289325
+        converged_maximal: false
+        direction_check: contradicts
+        estimate: 0.4698221120156024
+        fallback_reason: maximal_raised
+        grounding: fitted
+        n_actors: 3
+        n_cycles: 11
+        n_datasets: 2
+        n_mapped_actors: 3
+        per_dataset:
+          100style: 0.5643559231561123
+          cmu: 0.31774249484700123
+        residual_sd: 0.07269324679193953
+      elbow_swing_ratio:
+        between_actor_sd: 0.5271880844543251
+        ci_high: 0.49106959156678365
+        ci_low: -0.07928538317070519
+        converged_maximal: false
+        direction_check: no_claim
+        estimate: 0.20589210419803924
+        fallback_reason: maximal_raised
+        grounding: fitted
+        n_actors: 3
+        n_cycles: 11
+        n_datasets: 2
+        n_mapped_actors: 3
+        per_dataset:
+          100style: 0.4919873788200859
+          cmu: -0.5099834608201202
+        residual_sd: 0.4182583674998377
+      feet_spacing:
+        between_actor_sd: 0.31977661399581564
+        ci_high: 0.5378110709647049
+        ci_low: -0.3586518987658197
+        converged_maximal: false
+        direction_check: no_claim
+        estimate: 0.08957958609944264
+        fallback_reason: maximal_raised
+        grounding: fitted
+        n_actors: 3
+        n_cycles: 11
+        n_datasets: 2
+        n_mapped_actors: 3
+        per_dataset:
+          100style: 0.015576568913352018
+          cmu: 0.312672478557079
+        residual_sd: 0.21625699650449634
+      lateral_sway_amp:
+        between_actor_sd: 0.2429994036018142
+        ci_high: 0.06176748379989132
+        ci_low: -0.25561529659240817
+        converged_maximal: false
+        direction_check: no_claim
+        estimate: -0.09692390639625843
+        fallback_reason: maximal_raised
+        grounding: fitted
+        n_actors: 3
+        n_cycles: 11
+        n_datasets: 2
+        n_mapped_actors: 3
+        per_dataset:
+          100style: -0.15082388791594625
+          cmu: -0.0029881794625302716
+        residual_sd: 0.2482461799913409
+      neck_pitch:
+        between_actor_sd: 0.07642347235905221
+        ci_high: 0.060026821156065474
+        ci_low: -0.04982412651417335
+        converged_maximal: false
+        direction_check: contradicts_ci_spans_zero
+        estimate: 0.005101347320946061
+        fallback_reason: maximal_raised
+        grounding: fitted
+        n_actors: 3
+        n_cycles: 11
+        n_datasets: 2
+        n_mapped_actors: 3
+        per_dataset:
+          100style: -0.033705127939721524
+          cmu: 0.012645937359460069
+        residual_sd: 0.08044663013640543
+      step_height:
+        between_actor_sd: 0.2860343006051348
+        ci_high: 0.3886362846118768
+        ci_low: 0.1307269576642903
+        converged_maximal: false
+        direction_check: no_claim
+        estimate: 0.2596816211380836
+        fallback_reason: maximal_raised
+        grounding: fitted
+        n_actors: 3
+        n_cycles: 11
+        n_datasets: 2
+        n_mapped_actors: 3
+        per_dataset:
+          100style: 0.14470898619183492
+          cmu: 0.3939805943927877
+        residual_sd: 0.1906110407699419
+      step_length:
+        between_actor_sd: 0.07963153160457957
+        ci_high: 0.3310963700355912
+        ci_low: 0.010447573618693418
+        converged_maximal: false
+        direction_check: agrees
+        estimate: 0.17077197182714232
+        fallback_reason: maximal_raised
+        grounding: fitted
+        n_actors: 3
+        n_cycles: 11
+        n_datasets: 2
+        n_mapped_actors: 3
+        per_dataset:
+          100style: 0.23129338819722922
+          cmu: 0.06485949297267435
+        residual_sd: 0.20482519959381265
+      trunk_pitch:
+        between_actor_sd: 0.10564719543050818
+        ci_high: 0.03413706108517005
+        ci_low: -0.037212683088715184
+        converged_maximal: false
+        direction_check: agrees_ci_spans_zero
+        estimate: -0.0015378110017725676
+        fallback_reason: maximal_raised
+        grounding: fitted
+        n_actors: 3
+        n_cycles: 11
+        n_datasets: 2
+        n_mapped_actors: 3
+        per_dataset:
+          100style: -0.0220333995240216
+          cmu: 0.05634691544910924
+        residual_sd: 0.052305972100303036
+    sadness:
+      arm_abduction:
+        between_actor_sd: 0.08650424012478898
+        ci_high: -0.01862550555143255
+        ci_low: -0.05220288485081444
+        converged_maximal: false
+        direction_check: no_claim
+        estimate: -0.035414195201123495
+        fallback_reason: maximal_raised
+        grounding: fitted
+        n_actors: 3
+        n_cycles: 43
+        n_datasets: 2
+        n_mapped_actors: 2
+        per_dataset:
+          100style: -0.06065376535466577
+          cmu: -0.003995741944984294
+        residual_sd: 0.03969943836160222
+      arm_swing_amp:
+        between_actor_sd: 0.1858499017793193
+        ci_high: 0.014974452425400547
+        ci_low: -0.054361029622049944
+        converged_maximal: false
+        direction_check: agrees_ci_spans_zero
+        estimate: -0.0196932885983247
+        fallback_reason: maximal_raised
+        grounding: fitted
+        n_actors: 3
+        n_cycles: 43
+        n_datasets: 2
+        n_mapped_actors: 2
+        per_dataset:
+          100style: 0.07610810871666435
+          cmu: -0.09431642476910179
+        residual_sd: 0.0819864811817597
+      cadence:
+        between_actor_sd: 0.15436289686994328
+        ci_high: -0.09267846384544778
+        ci_low: -0.16455511432021766
+        converged_maximal: false
+        direction_check: agrees
+        estimate: -0.12861678908283272
+        fallback_reason: maximal_raised
+        grounding: fitted
+        n_actors: 3
+        n_cycles: 43
+        n_datasets: 2
+        n_mapped_actors: 2
+        per_dataset:
+          100style: -0.07165957151081359
+          cmu: -0.1242329457695785
+        residual_sd: 0.08528833299865879
+      com_bounce_amp:
+        between_actor_sd: 1.8813571372676927
+        ci_high: 0.31319823263353186
+        ci_low: -0.13809092128574235
+        converged_maximal: false
+        direction_check: contradicts_ci_spans_zero
+        estimate: 0.08755365567389477
+        fallback_reason: maximal_raised
+        grounding: fitted
+        n_actors: 3
+        n_cycles: 43
+        n_datasets: 2
+        n_mapped_actors: 2
+        per_dataset:
+          100style: 0.17511919010270227
+          cmu: -0.16312723313955257
+        residual_sd: 0.533704559389216
+      com_height_scale:
+        between_actor_sd: 0.01557282540267852
+        ci_high: 0.012707024951018156
+        ci_low: 0.00607155470872609
+        converged_maximal: false
+        direction_check: no_claim
+        estimate: 0.009389289829872123
+        fallback_reason: maximal_raised
+        grounding: fitted
+        n_actors: 3
+        n_cycles: 43
+        n_datasets: 2
+        n_mapped_actors: 2
+        per_dataset:
+          100style: 0.01761237224005696
+          cmu: 0.001960536089745779
+        residual_sd: 0.007852100142770808
+      double_support_frac:
+        between_actor_sd: 0.0702792764405707
+        ci_high: -0.015026411123675039
+        ci_low: -0.04500851522126408
+        converged_maximal: false
+        direction_check: no_claim
+        estimate: -0.03001746317246956
+        fallback_reason: maximal_raised
+        grounding: fitted
+        n_actors: 3
+        n_cycles: 43
+        n_datasets: 2
+        n_mapped_actors: 2
+        per_dataset:
+          100style: -0.06276402286635208
+          cmu: 0.011224833539606766
+        residual_sd: 0.035833372425531584
+      elbow_flexion:
+        between_actor_sd: 0.23378846499937628
+        ci_high: 0.0392989077191635
+        ci_low: -0.02223513249033984
+        converged_maximal: false
+        direction_check: contradicts_ci_spans_zero
+        estimate: 0.008531887614411832
+        fallback_reason: maximal_raised
+        grounding: fitted
+        n_actors: 3
+        n_cycles: 43
+        n_datasets: 2
+        n_mapped_actors: 2
+        per_dataset:
+          100style: 0.03606861197184169
+          cmu: -0.008748507884139611
+        residual_sd: 0.07269324679193953
+      elbow_swing_ratio:
+        between_actor_sd: 0.5271880844543251
+        ci_high: 0.22902905197249449
+        ci_low: -0.12436635801271959
+        converged_maximal: false
+        direction_check: contradicts_ci_spans_zero
+        estimate: 0.05233134697988745
+        fallback_reason: maximal_raised
+        grounding: fitted
+        n_actors: 3
+        n_cycles: 43
+        n_datasets: 2
+        n_mapped_actors: 2
+        per_dataset:
+          100style: -0.0791630577845367
+          cmu: 0.44203081813890066
+        residual_sd: 0.4182583674998377
+      feet_spacing:
+        between_actor_sd: 0.31977661399581564
+        ci_high: 0.21270824622773735
+        ci_low: -0.24738436523627058
+        converged_maximal: false
+        direction_check: no_claim
+        estimate: -0.01733805950426661
+        fallback_reason: maximal_raised
+        grounding: fitted
+        n_actors: 3
+        n_cycles: 43
+        n_datasets: 2
+        n_mapped_actors: 2
+        per_dataset:
+          100style: 0.02580912729280982
+          cmu: -0.016603195055771958
+        residual_sd: 0.21625699650449634
+      lateral_sway_amp:
+        between_actor_sd: 0.2429994036018142
+        ci_high: 0.08480307205910986
+        ci_low: -0.11343079012819773
+        converged_maximal: false
+        direction_check: contradicts_ci_spans_zero
+        estimate: -0.014313859034543935
+        fallback_reason: maximal_raised
+        grounding: fitted
+        n_actors: 3
+        n_cycles: 43
+        n_datasets: 2
+        n_mapped_actors: 2
+        per_dataset:
+          100style: -0.02526420229227211
+          cmu: -0.04820250749332444
+        residual_sd: 0.2482461799913409
+      neck_pitch:
+        between_actor_sd: 0.07642347235905221
+        ci_high: 0.4386386043383293
+        ci_low: 0.37054974762078724
+        converged_maximal: false
+        direction_check: agrees
+        estimate: 0.40459417597955827
+        fallback_reason: maximal_raised
+        grounding: fitted
+        n_actors: 3
+        n_cycles: 43
+        n_datasets: 2
+        n_mapped_actors: 2
+        per_dataset:
+          100style: 0.3570956348152363
+          cmu: 0.39028475771538196
+        residual_sd: 0.08044663013640543
+      step_height:
+        between_actor_sd: 0.2860343006051348
+        ci_high: -0.06065099605452601
+        ci_low: -0.2226514098968118
+        converged_maximal: false
+        direction_check: no_claim
+        estimate: -0.1416512029756689
+        fallback_reason: maximal_raised
+        grounding: fitted
+        n_actors: 3
+        n_cycles: 43
+        n_datasets: 2
+        n_mapped_actors: 2
+        per_dataset:
+          100style: -0.2402522391790124
+          cmu: -0.07672457176827358
+        residual_sd: 0.1906110407699419
+      step_length:
+        between_actor_sd: 0.07963153160457957
+        ci_high: 0.02624289346090628
+        ci_low: -0.15039598463405912
+        converged_maximal: false
+        direction_check: agrees_ci_spans_zero
+        estimate: -0.062076545586576416
+        fallback_reason: maximal_raised
+        grounding: fitted
+        n_actors: 3
+        n_cycles: 43
+        n_datasets: 2
+        n_mapped_actors: 2
+        per_dataset:
+          100style: -0.09684796427612097
+          cmu: -0.03471348492905785
+        residual_sd: 0.20482519959381265
+      trunk_pitch:
+        between_actor_sd: 0.10564719543050818
+        ci_high: 0.1659677589633397
+        ci_low: 0.12172876123281796
+        converged_maximal: false
+        direction_check: agrees
+        estimate: 0.14384826009807883
+        fallback_reason: maximal_raised
+        grounding: fitted
+        n_actors: 3
+        n_cycles: 43
+        n_datasets: 2
+        n_mapped_actors: 2
+        per_dataset:
+          100style: 0.16340155687487568
+          cmu: 0.08988725012877818
+        residual_sd: 0.052305972100303036
+contradictions:
+- ci_high: null
+  ci_low: null
+  citation: Roether 2011 ch.3
+  emotion: anger
+  estimate: -0.046562187286644754
+  parameter: arm_swing_amp
+  scaling: froude
+- ci_high: null
+  ci_low: null
+  citation: Halovic & Kroos 2018
+  emotion: fear
+  estimate: -0.26047159347135707
+  parameter: cadence
+  scaling: froude
+- ci_high: null
+  ci_low: null
+  citation: Halovic & Kroos 2018
+  emotion: fear
+  estimate: -0.33461833421669124
+  parameter: elbow_swing_ratio
+  scaling: froude
+- ci_high: null
+  ci_low: null
+  citation: Roether 2011 ch.3
+  emotion: fear
+  estimate: 0.08763079508534788
+  parameter: neck_pitch
+  scaling: froude
+- ci_high: null
+  ci_low: null
+  citation: Halovic & Kroos 2018
+  emotion: fear
+  estimate: 0.04905890558316112
+  parameter: step_length
+  scaling: froude
+- ci_high: 0.5194546972022723
+  ci_low: 0.4201895268289325
+  citation: Roether 2011 ch.3
+  emotion: happiness
+  estimate: 0.4698221120156024
+  parameter: elbow_flexion
+  scaling: froude
+- ci_high: 0.060026821156065474
+  ci_low: -0.04982412651417335
+  citation: Roether 2011 ch.3
+  emotion: happiness
+  estimate: 0.005101347320946061
+  parameter: neck_pitch
+  scaling: froude
+- ci_high: 0.004621575983346199
+  ci_low: -0.002105550285954292
+  citation: Michalak 2009
+  emotion: sadness
+  estimate: 0.0012580128486959533
+  parameter: com_bounce_amp
+  scaling: froude
+- ci_high: 0.0392989077191635
+  ci_low: -0.02223513249033984
+  citation: Roether 2011 ch.3
+  emotion: sadness
+  estimate: 0.008531887614411832
+  parameter: elbow_flexion
+  scaling: froude
+- ci_high: 0.22902905197249449
+  ci_low: -0.12436635801271959
+  citation: Halovic & Kroos 2018
+  emotion: sadness
+  estimate: 0.05233134697988745
+  parameter: elbow_swing_ratio
+  scaling: froude
+- ci_high: null
+  ci_low: null
+  citation: Roether 2011 ch.3
+  emotion: anger
+  estimate: -0.046562187286644754
+  parameter: arm_swing_amp
+  scaling: ratio
+- ci_high: null
+  ci_low: null
+  citation: Halovic & Kroos 2018
+  emotion: fear
+  estimate: -0.5887821283027164
+  parameter: cadence
+  scaling: ratio
+- ci_high: null
+  ci_low: null
+  citation: Halovic & Kroos 2018
+  emotion: fear
+  estimate: -0.33461833421669124
+  parameter: elbow_swing_ratio
+  scaling: ratio
+- ci_high: null
+  ci_low: null
+  citation: Roether 2011 ch.3
+  emotion: fear
+  estimate: 0.08763079508534788
+  parameter: neck_pitch
+  scaling: ratio
+- ci_high: null
+  ci_low: null
+  citation: Halovic & Kroos 2018
+  emotion: fear
+  estimate: 0.09795663121136802
+  parameter: step_length
+  scaling: ratio
+- ci_high: 0.5194546972022723
+  ci_low: 0.4201895268289325
+  citation: Roether 2011 ch.3
+  emotion: happiness
+  estimate: 0.4698221120156024
+  parameter: elbow_flexion
+  scaling: ratio
+- ci_high: 0.060026821156065474
+  ci_low: -0.04982412651417335
+  citation: Roether 2011 ch.3
+  emotion: happiness
+  estimate: 0.005101347320946061
+  parameter: neck_pitch
+  scaling: ratio
+- ci_high: 0.31319823263353186
+  ci_low: -0.13809092128574235
+  citation: Michalak 2009
+  emotion: sadness
+  estimate: 0.08755365567389477
+  parameter: com_bounce_amp
+  scaling: ratio
+- ci_high: 0.0392989077191635
+  ci_low: -0.02223513249033984
+  citation: Roether 2011 ch.3
+  emotion: sadness
+  estimate: 0.008531887614411832
+  parameter: elbow_flexion
+  scaling: ratio
+- ci_high: 0.22902905197249449
+  ci_low: -0.12436635801271959
+  citation: Halovic & Kroos 2018
+  emotion: sadness
+  estimate: 0.05233134697988745
+  parameter: elbow_swing_ratio
+  scaling: ratio
+- ci_high: 0.08480307205910986
+  ci_low: -0.11343079012819773
+  citation: Michalak 2009
+  emotion: sadness
+  estimate: -0.014313859034543935
+  parameter: lateral_sway_amp
+  scaling: ratio
+provenance:
+  actors_per_emotion:
+    anger: 1
+    fear: 1
+    happiness: 3
+    neutral: 4
+    sadness: 3
+  cycles_per_emotion:
+    anger: 9
+    fear: 3
+    happiness: 11
+    neutral: 48
+    sadness: 43
+  datasets_excluded:
+  - committable: false
+    id: bml
+    permission: ''
+    reason: not committable
+  datasets_included:
+  - committable: true
+    id: 100style
+    licence: CC BY 4.0
+    n_actors: 1
+    n_clips: 4
+    n_cycles: 63
+    name: 100STYLE
+    permission: ''
+  - committable: true
+    id: cmu
+    licence: Free for all uses; the data was obtained from mocap.cs.cmu.edu, created
+      with funding from NSF EIA-0196217.
+    n_actors: 3
+    n_clips: 12
+    n_cycles: 51
+    name: CMU Graphics Lab Motion Capture Database
+    permission: ''
+  event_rule: Gait events by the position-extremum rule (Zeni, Richards & Higginson
+    2008) on tracks low-passed at 6 Hz; extrema of one kind closer than 0.4 s are
+    one event (MIN_PEAK_S); an extremum must stand out by 0.3 of the 5th-95th percentile
+    range of the foot's forward coordinate (PROMINENCE_FRAC); measurements are low-passed
+    at 12 Hz.
+  fallbacks:
+  - parameter: arm_abduction
+    reason: maximal_raised
+    scaling: froude
+  - parameter: arm_swing_amp
+    reason: maximal_raised
+    scaling: froude
+  - parameter: cadence
+    reason: maximal_raised
+    scaling: froude
+  - parameter: com_bounce_amp
+    reason: maximal_raised
+    scaling: froude
+  - parameter: com_height_scale
+    reason: maximal_raised
+    scaling: froude
+  - parameter: double_support_frac
+    reason: maximal_raised
+    scaling: froude
+  - parameter: elbow_flexion
+    reason: maximal_raised
+    scaling: froude
+  - parameter: elbow_swing_ratio
+    reason: maximal_raised
+    scaling: froude
+  - parameter: feet_spacing
+    reason: maximal_raised
+    scaling: froude
+  - parameter: lateral_sway_amp
+    reason: maximal_raised
+    scaling: froude
+  - parameter: neck_pitch
+    reason: maximal_raised
+    scaling: froude
+  - parameter: step_height
+    reason: maximal_raised
+    scaling: froude
+  - parameter: step_length
+    reason: maximal_raised
+    scaling: froude
+  - parameter: trunk_pitch
+    reason: maximal_raised
+    scaling: froude
+  - parameter: arm_abduction
+    reason: maximal_raised
+    scaling: ratio
+  - parameter: arm_swing_amp
+    reason: maximal_raised
+    scaling: ratio
+  - parameter: cadence
+    reason: maximal_raised
+    scaling: ratio
+  - parameter: com_bounce_amp
+    reason: maximal_raised
+    scaling: ratio
+  - parameter: com_height_scale
+    reason: maximal_raised
+    scaling: ratio
+  - parameter: double_support_frac
+    reason: maximal_raised
+    scaling: ratio
+  - parameter: elbow_flexion
+    reason: maximal_raised
+    scaling: ratio
+  - parameter: elbow_swing_ratio
+    reason: maximal_raised
+    scaling: ratio
+  - parameter: feet_spacing
+    reason: maximal_raised
+    scaling: ratio
+  - parameter: lateral_sway_amp
+    reason: maximal_raised
+    scaling: ratio
+  - parameter: neck_pitch
+    reason: maximal_raised
+    scaling: ratio
+  - parameter: step_height
+    reason: maximal_raised
+    scaling: ratio
+  - parameter: step_length
+    reason: maximal_raised
+    scaling: ratio
+  - parameter: trunk_pitch
+    reason: maximal_raised
+    scaling: ratio
+  fit_date: '2026-10-26'
+  git_commit: d6b1c2cbbd6c1f38feb04d5ef7ef4a4b6b64c163
+  hand_tuned:
+    froude:
+      e_fit: 1.1894358774527352
+      e_fit_natural: 0.13769829682751025
+      e_hand: 1.7018899962591203
+      e_hand_natural: 0.18146713382142027
+      e_zero: 1.413335019778834
+      n_pairs: 6
+    ratio:
+      e_fit: 1.1754331911640634
+      e_fit_natural: 0.33835725281486717
+      e_hand: 1.755891393551417
+      e_hand_natural: 0.44876733730493173
+      e_zero: 1.4071714209091175
+      n_pairs: 6
+  manifest_sha256: 2ebda4e6ebd6fc86c01bebe3154a5cd2e03bed625ec8ceea30260a6273ecf3c8
+  model_formula: parameter ~ C(emotion, Treatment('neutral')) + (1 + C(emotion, Treatment('neutral'))
+    | dataset/actor), REML; falls back to (1 | dataset/actor) when the maximal fit
+    raises, does not converge or is singular
+  numpy_version: 2.4.6
+  pandas_version: 3.1.0
+  schema_version: 1
+  seed: 0
+  statsmodels_version: 0.15.0
+schema_version: 1

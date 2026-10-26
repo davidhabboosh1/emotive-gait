@@ -1,0 +1,3118 @@
+# Data manifest for the learned emotion model (see emotive_gait.learn.manifest for the layout).
+# Frozen 2026-10-26 (Phase 4.5, Task 9). Every file below was hashed after download; `fit` and
+# `fetch` refuse a file whose SHA-256 differs. Label kinds follow spec 4.1: `exact` for
+# angry/happy/sad/scared/neutral/normal, `mapped` for Depressed, Elated, HappyGoLucky, the
+# ambiguous "happy or fast walk forward" and BML `af`. Actor ids: one per performer.
+#
+# Data decisions (verified on the downloaded files):
+# 100STYLE (Mason, Starke & Komura 2022; Zenodo 8127870, CC BY 4.0)
+#   - Archive 1,468,515,354 bytes, md5 3cf627852fd8192024c04a8d0ef49583 (matches Zenodo).
+#   - BVH bones (Neutral_FW.bvh header): Hips (root, 6 channels), Chest, Chest2, Chest3, Chest4,
+#     Neck, Head, Right/LeftCollar, Right/LeftShoulder, Right/LeftElbow, Right/LeftWrist,
+#     Right/LeftHip, Right/LeftKnee, Right/LeftAnkle, Right/LeftToe (23 joints in the file,
+#     not the 28 bones the dataset page states). 60 fps, y up.
+#   - Unit: OFFSETs are centimetres (Hips->Chest 12.95), scale 0.01; with it the Neutral hips
+#     sit at 0.97 m and the head at 1.60 m.
+#   - Frame cuts (Frame_Cuts.csv FW_START/FW_STOP): Angry 569-4407, Depressed 410-9154,
+#     Elated 482-4956, Neutral 327-7445. Proud (497-6181) excluded: not a basic emotion.
+#     100STYLE has no Sad, Happy or Fear style; Depressed -> sadness and Elated -> happiness
+#     are `mapped`. One actor (100style_actor).
+# CMU Graphics Lab MoCap (free for all uses; "The data used in this project was obtained from
+#   mocap.cs.cmu.edu. The database was created with funding from NSF EIA-0196217.")
+#   - Trial numbers are zero-padded to two digits in the URLs (104_02).
+#   - Subject 82: normal walk 11 and 13; sad 10; happy 12 ("happy or fast walk forward",
+#     ambiguous label: mapped). 8 (stand still; casual walk) and 9 (confident) excluded.
+#   - Subject 91: normal walk 29, 31, 34; sad 13 (SadWalk, exact) and 14 (DepressedWalk,
+#     mapped); scared 32 (ScaredWalk). Shy 20, Macho 33, TooCool 12 excluded (not basic
+#     emotions). Other neutral-looking trials (2/36 WalkStraight, 4 Walking, 57 WalkForward)
+#     not used: the three NormalWalk trials are the labelled neutral.
+#   - Subject 104: neutral 02 ("neutral Male walk, exact footfalls"); happy 11
+#     (HappyGoLuckWalk, mapped). Excited 12 and Stern 28/29 excluded (not basic emotions);
+#     22 RegularWalk8 excluded (figure eight, turning); 14 HappyStartWalk not used (a walk
+#     started from standing, outside the brief's verified list); 19 CasualWalk not used (02
+#     is the labelled neutral).
+#   - Subjects 91 and 105 are byte-identical uploads (same SHA-256 for the ASF and all six
+#     AMC trials, re-checked in Task 9): one performer; 105 excluded as a duplicate (Ruling K),
+#     not merged, so no cycle is counted twice. Actor cmu_91.
+#   - Subject 142 excluded: no normal or neutral walk (13 Relaxed considered and rejected),
+#     per-actor-neutral rule (spec 4.1). Fear therefore rests on cmu_91 trial 32 alone: thin.
+# Body Movement Library (Ma, Paterson & Pollick 2006; PACO lab, Glasgow)
+#   - committable: false until the PACO lab's written permission arrives (contact: Professor
+#     Frank Pollick, frank.pollick@glasgow.ac.uk); local fits only.
+#   - PTD format: line 1 = frame count N, then N (sometimes N+1, the last a duplicate) rows of
+#     45 floats, no frame-number column, 60 Hz, INCHES (scale 0.0254), z up.
+#   - The 15 columns (JointIndex.jpg order): Head, Neck, LShoulder, LElbow, LWrist, RShoulder,
+#     RElbow, RWrist, Pelvis, LHip, LKnee, LAnkle, RHip, RKnee, RAnkle. Head AND neck points
+#     exist, so neck_pitch is measured; no CSM fallback is needed.
+#   - Walk records: record 1 = anticlockwise, record 2 = clockwise (data page). The archive has
+#     NO start/end-frame files for walks (only for throw/seq/lift/knock): walks are used whole
+#     and turning cycles are rejected by the extractor's per-cycle heading rule.
+#   - Codes an/ha/sa/nu are `exact`. A fifth code `af` exists for 7 actors (ale, jan, jua,
+#     lin, mac, pet, she; records 1 and 2): undocumented in the archive (Key.pdf is the actor
+#     table, alt_naming_convention_PTD.pdf a marker list); assumed 'afraid' and mapped to fear.
+#   - Archive defects ("Problems with the data.pdf"): kat walk_sa_1 head point buried in the
+#     chest (the extracted neck_pitch is implausible): excluded. The PDF says chr walk_nu_2 is
+#     missing "so there is no anticlockwise walk"; in the PTD set chr_walk_nu_2 is a real
+#     clockwise walk and chr_walk_nu_1 (the anticlockwise record) is a static placeholder
+#     (every frame identical): nu_1 excluded, nu_2 kept.
+datasets:
+- id: 100style
+  name: 100STYLE
+  url: https://zenodo.org/records/8127870/files/100STYLE.zip
+  archive: 100STYLE.zip
+  archive_sha256: 2c3b4017f8e2397ee6904c9b9f43551d8b426d39ddc3558d121fee9e55cb2d58
+  archive_md5: 3cf627852fd8192024c04a8d0ef49583
+  archive_bytes: 1468515354
+  licence: CC BY 4.0
+  committable: true
+  permission: ''
+  reader: bvh
+  reader_args:
+    scale: 0.01
+    up_axis: y
+  aux_files:
+  - path: Frame_Cuts.csv
+    sha256: e3c1d2beab6486e083622cef6a5402fe9b20edc75a9963ea30675c67ec29ee82
+    archive_member: 100STYLE/Frame_Cuts.csv
+  files:
+  - path: Angry_FW.bvh
+    sha256: 8b9972926e14b73134abced127be068c9d99b6b9fd77fdbf585ae26bdd6739e4
+    subject: 100style_actor
+    actor: 100style_actor
+    emotion: anger
+    label: Angry
+    label_kind: exact
+    start_frame: 569
+    end_frame: 4407
+    archive_member: 100STYLE/Angry/Angry_FW.bvh
+    extra: {}
+  - path: Depressed_FW.bvh
+    sha256: 16e5a44ae16fbf732a52dca8e59d2a9b6eeb7be9822ad5758402f73828088b66
+    subject: 100style_actor
+    actor: 100style_actor
+    emotion: sadness
+    label: Depressed
+    label_kind: mapped
+    start_frame: 410
+    end_frame: 9154
+    archive_member: 100STYLE/Depressed/Depressed_FW.bvh
+    extra: {}
+  - path: Elated_FW.bvh
+    sha256: c7dd0a6b9c85d6cac9946ac403f173facbdea06e227d3c57b1a1d40b6725f9e2
+    subject: 100style_actor
+    actor: 100style_actor
+    emotion: happiness
+    label: Elated
+    label_kind: mapped
+    start_frame: 482
+    end_frame: 4956
+    archive_member: 100STYLE/Elated/Elated_FW.bvh
+    extra: {}
+  - path: Neutral_FW.bvh
+    sha256: 2f28800baa299547c42c257d1c926172542a1e69b46a3d3e6aa0aded0e9b40f6
+    subject: 100style_actor
+    actor: 100style_actor
+    emotion: neutral
+    label: Neutral
+    label_kind: exact
+    start_frame: 327
+    end_frame: 7445
+    archive_member: 100STYLE/Neutral/Neutral_FW.bvh
+    extra: {}
+  excluded:
+  - path: Proud_FW.bvh
+    reason: Proud is not one of the six basic emotions
+  - path: <other 95 styles>
+    reason: not basic emotions; 100STYLE has no Sad, Happy or Fear style
+  - path: <non-FW files of the four used styles>
+    reason: forward-walk (FW) files only, trimmed by Frame_Cuts.csv FW_START/FW_STOP
+- id: cmu
+  name: CMU Graphics Lab Motion Capture Database
+  url: http://mocap.cs.cmu.edu/subjects/
+  archive: null
+  licence: Free for all uses; the data was obtained from mocap.cs.cmu.edu, created with funding from NSF
+    EIA-0196217.
+  committable: true
+  permission: ''
+  reader: asf_amc
+  reader_args: {}
+  aux_files:
+  - path: 82/82.asf
+    sha256: 32f0f3a53099526ed4df3ef443d4ba65419e4952ab3fd6bdf89d901addda4a1f
+    archive_member: null
+  - path: 91/91.asf
+    sha256: de06a1ee5d917e4bd23461e22e49b43591ed8d9bd84a92d6b6927f423a972b30
+    archive_member: null
+  - path: 104/104.asf
+    sha256: 89cbe32f72f93c1fd71df364d2dd7a15a6738b19f20bf3858d211bf9460c0c0b
+    archive_member: null
+  files:
+  - path: 82/82_10.amc
+    sha256: c857767b40f7d4300b13a7c55daa9ace302ceda559fa02f4b922ab9ddb682731
+    subject: '82'
+    actor: cmu_82
+    emotion: sadness
+    label: sad walk forward
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: null
+    extra:
+      asf: 82/82.asf
+  - path: 82/82_11.amc
+    sha256: b862ac59eada88eb30bcff35c81798eb840d6caa1a12ac07832d94fcbb901e13
+    subject: '82'
+    actor: cmu_82
+    emotion: neutral
+    label: normal walk forward
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: null
+    extra:
+      asf: 82/82.asf
+  - path: 82/82_12.amc
+    sha256: 24a7af4a51b88c4ebabf98fb51cd1ac77b0b80883d752ae5903783e57115c8ee
+    subject: '82'
+    actor: cmu_82
+    emotion: happiness
+    label: happy or fast walk forward
+    label_kind: mapped
+    start_frame: null
+    end_frame: null
+    archive_member: null
+    extra:
+      asf: 82/82.asf
+  - path: 82/82_13.amc
+    sha256: 7dba2926f0adb0008355a6cf90d708cbbceb1871b52af51bad64166aea22863c
+    subject: '82'
+    actor: cmu_82
+    emotion: neutral
+    label: normal walk forward
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: null
+    extra:
+      asf: 82/82.asf
+  - path: 91/91_13.amc
+    sha256: f735b79e67c94c82dabeb638049a6e81f633d5b0ef7a3f378a0888539c1119e6
+    subject: '91'
+    actor: cmu_91
+    emotion: sadness
+    label: SadWalk
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: null
+    extra:
+      asf: 91/91.asf
+  - path: 91/91_14.amc
+    sha256: d9a0321c1bc641af868d29acb2d10d01cf044a25e103b5515cd4e6861002a4fc
+    subject: '91'
+    actor: cmu_91
+    emotion: sadness
+    label: DepressedWalk
+    label_kind: mapped
+    start_frame: null
+    end_frame: null
+    archive_member: null
+    extra:
+      asf: 91/91.asf
+  - path: 91/91_29.amc
+    sha256: a1dd0136f60022c7f6189fc04c3591fb251b691c5edaf7337f4daddea6ae53c2
+    subject: '91'
+    actor: cmu_91
+    emotion: neutral
+    label: NormalWalk
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: null
+    extra:
+      asf: 91/91.asf
+  - path: 91/91_31.amc
+    sha256: b7878cddc6ac028a07c1c97f0fb2df8c160736cc62a89f1e4e14bb20ce0d2482
+    subject: '91'
+    actor: cmu_91
+    emotion: neutral
+    label: NormalWalk
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: null
+    extra:
+      asf: 91/91.asf
+  - path: 91/91_32.amc
+    sha256: dc26f2252b7b657981df1317e8a5373422208bc4d45916aa6238fa4c27013fa2
+    subject: '91'
+    actor: cmu_91
+    emotion: fear
+    label: ScaredWalk
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: null
+    extra:
+      asf: 91/91.asf
+  - path: 91/91_34.amc
+    sha256: ff6b59f2ccbdfab80836bca5447d0d60464b8ba0eb5205d1c6bc4a41aafdfa91
+    subject: '91'
+    actor: cmu_91
+    emotion: neutral
+    label: NormalWalk
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: null
+    extra:
+      asf: 91/91.asf
+  - path: 104/104_02.amc
+    sha256: 5089003234405b9daa6836133cce276d062caee68959b63fe3ef9160cf76aadf
+    subject: '104'
+    actor: cmu_104
+    emotion: neutral
+    label: neutral Male walk, exact footfalls
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: null
+    extra:
+      asf: 104/104.asf
+  - path: 104/104_11.amc
+    sha256: 6ca2d7f1a6e29c68b1d6d26738e906971ecf69aefb2c9437808bda5e5add755e
+    subject: '104'
+    actor: cmu_104
+    emotion: happiness
+    label: HappyGoLuckWalk
+    label_kind: mapped
+    start_frame: null
+    end_frame: null
+    archive_member: null
+    extra:
+      asf: 104/104.asf
+  excluded:
+  - path: 105/*
+    reason: byte-identical upload of subject 91 (same SHA-256 for the ASF and all six AMC trials, e.g.
+      .asf=de06a1ee5d91, _13.amc=f735b79e67c9, _32.amc=dc26f2252b7b); one performer, counted once as cmu_91
+  - path: 142/*
+    reason: no normal or neutral walk (13 Relaxed considered and rejected); per-actor-neutral rule
+  - path: 82/82_08.amc
+    reason: 'stand still; casual walk forward: not the labelled normal'
+  - path: 82/82_09.amc
+    reason: 'confident walk forward: not a basic emotion'
+  - path: 91/91_12.amc
+    reason: 'TooCoolWalk: not a basic emotion'
+  - path: 91/91_20.amc
+    reason: 'ShyWalk: not a basic emotion'
+  - path: 91/91_33.amc
+    reason: 'MachoWalk: not a basic emotion'
+  - path: 104/104_12.amc
+    reason: 'ExcitedWalk: not a basic emotion'
+  - path: 104/104_14.amc
+    reason: 'HappyStartWalk: gait initiation from standing'
+  - path: 104/104_19.amc
+    reason: 'CasualWalk: 104_02 is the labelled neutral'
+  - path: 104/104_22.amc
+    reason: 'RegularWalk8: figure eight (turning throughout)'
+  - path: 104/104_28.amc
+    reason: 'SternWalk: not a basic emotion'
+  - path: 104/104_29.amc
+    reason: 'SternWalk: not a basic emotion'
+- id: bml
+  name: Body Movement Library (point-tracked data)
+  url: http://paco.psy.gla.ac.uk/wp-content/uploads/2018/05/full_set_of_ptd_data.zip
+  archive: full_set_of_ptd_data.zip
+  archive_sha256: 763870c0ae8e6b29590ab829d22b660fcb4b1b288a1bc63ff065100556c14d9c
+  archive_bytes: 263914453
+  licence: No licence stated
+  committable: false
+  permission: ''
+  reader: ptd
+  reader_args:
+    scale: 0.0254
+    up_axis: z
+    fps: 60.0
+  aux_files: []
+  files:
+  - path: ale/ale_walk_af_1_fin.ptd
+    sha256: 34df1252d1ec905be51099ecd4dd158d5592ed7ed0d65f6d68c612fb8e7107df
+    subject: ale
+    actor: ale
+    emotion: fear
+    label: af
+    label_kind: mapped
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/ale_pt.zip::ale_walk_af_1_fin.ptd
+    extra: {}
+  - path: ale/ale_walk_af_2_fin.ptd
+    sha256: 047bf9cbe948fead0aaf8b619bf756ed2d6726bb95d0447a72f75a83e5b98db9
+    subject: ale
+    actor: ale
+    emotion: fear
+    label: af
+    label_kind: mapped
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/ale_pt.zip::ale_walk_af_2_fin.ptd
+    extra: {}
+  - path: ale/ale_walk_an_1_fin.ptd
+    sha256: de391fedeadf348fde99a66d3ce4a60b6c222be2097e18341e86df779f5bac7e
+    subject: ale
+    actor: ale
+    emotion: anger
+    label: an
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/ale_pt.zip::ale_walk_an_1_fin.ptd
+    extra: {}
+  - path: ale/ale_walk_an_2_fin.ptd
+    sha256: 29af4f18f971beea8b3526ba26f7e7c47b42ad58070e74133a99cc3c90ccc4d4
+    subject: ale
+    actor: ale
+    emotion: anger
+    label: an
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/ale_pt.zip::ale_walk_an_2_fin.ptd
+    extra: {}
+  - path: ale/ale_walk_ha_1_fin.ptd
+    sha256: c35654690e8116aa90feea5f6276f160c5cd5299cde27168de2c244df6ca2f48
+    subject: ale
+    actor: ale
+    emotion: happiness
+    label: ha
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/ale_pt.zip::ale_walk_ha_1_fin.ptd
+    extra: {}
+  - path: ale/ale_walk_ha_2_fin.ptd
+    sha256: 2e2f9acf7c184efdfbfee1cc2d5a81171eb497c2cd9312e48bd582ca45d5c266
+    subject: ale
+    actor: ale
+    emotion: happiness
+    label: ha
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/ale_pt.zip::ale_walk_ha_2_fin.ptd
+    extra: {}
+  - path: ale/ale_walk_nu_1_fin.ptd
+    sha256: e49906291752f0ee1c5a2e51843e5472af2e8af3036fea5e820715b3eeddcd94
+    subject: ale
+    actor: ale
+    emotion: neutral
+    label: nu
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/ale_pt.zip::ale_walk_nu_1_fin.ptd
+    extra: {}
+  - path: ale/ale_walk_nu_2_fin.ptd
+    sha256: 1ede060d0ae6e30e268361a44546d9bae1a2904f22e0250ea640b95879d20a4b
+    subject: ale
+    actor: ale
+    emotion: neutral
+    label: nu
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/ale_pt.zip::ale_walk_nu_2_fin.ptd
+    extra: {}
+  - path: ale/ale_walk_sa_1_fin.ptd
+    sha256: 63b79b0af62014a229b158c8acd6030049c7de5f8e4dca6c20c2c14f598a96e3
+    subject: ale
+    actor: ale
+    emotion: sadness
+    label: sa
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/ale_pt.zip::ale_walk_sa_1_fin.ptd
+    extra: {}
+  - path: ale/ale_walk_sa_2_fin.ptd
+    sha256: bb52cfe79cd1d41ee2635c7abb1bfb657d55463e6b2913c21674123098e308dd
+    subject: ale
+    actor: ale
+    emotion: sadness
+    label: sa
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/ale_pt.zip::ale_walk_sa_2_fin.ptd
+    extra: {}
+  - path: ali/ali_walk_an_1_fin.ptd
+    sha256: c3cbe7f282d7f19cc5ffa5d449941c1ec6b11d39dbff60cd3e35e53bfe7d3d4a
+    subject: ali
+    actor: ali
+    emotion: anger
+    label: an
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/ali_pt.zip::ali_walk_an_1_fin.ptd
+    extra: {}
+  - path: ali/ali_walk_an_2_fin.ptd
+    sha256: 71fbed57c220d245af2cb3544cd5e631a876616b2e162588b2b3d5a5f97e73f2
+    subject: ali
+    actor: ali
+    emotion: anger
+    label: an
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/ali_pt.zip::ali_walk_an_2_fin.ptd
+    extra: {}
+  - path: ali/ali_walk_ha_1_fin.ptd
+    sha256: f93e853b261caa8e1e316818e0d644229589258e71ab7fdb62138ad244fac293
+    subject: ali
+    actor: ali
+    emotion: happiness
+    label: ha
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/ali_pt.zip::ali_walk_ha_1_fin.ptd
+    extra: {}
+  - path: ali/ali_walk_ha_2_fin.ptd
+    sha256: 9f2a8608aa8725a48964d23ce170fbf543bd7a0308c32c340f8a35cbe3fec964
+    subject: ali
+    actor: ali
+    emotion: happiness
+    label: ha
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/ali_pt.zip::ali_walk_ha_2_fin.ptd
+    extra: {}
+  - path: ali/ali_walk_nu_1_fin.ptd
+    sha256: f1229edd61f7aef5059bf063503b11e71a69ea4524b830dd6befc9eb066b41db
+    subject: ali
+    actor: ali
+    emotion: neutral
+    label: nu
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/ali_pt.zip::ali_walk_nu_1_fin.ptd
+    extra: {}
+  - path: ali/ali_walk_nu_2_fin.ptd
+    sha256: 01f821f10e781ef69c07d04b1db0c4d18b798e706a7c330fcb515aa6ca7c903b
+    subject: ali
+    actor: ali
+    emotion: neutral
+    label: nu
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/ali_pt.zip::ali_walk_nu_2_fin.ptd
+    extra: {}
+  - path: ali/ali_walk_sa_1_fin.ptd
+    sha256: fdd9c1c0fbd2bce1849f237527c96e30723e03171c2c762640bd6a8e151af9d2
+    subject: ali
+    actor: ali
+    emotion: sadness
+    label: sa
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/ali_pt.zip::ali_walk_sa_1_fin.ptd
+    extra: {}
+  - path: ali/ali_walk_sa_2_fin.ptd
+    sha256: 9e07e49a3765112b4dafad3cdbb53f7b175dfc10312d2ca7926e70d570f5668b
+    subject: ali
+    actor: ali
+    emotion: sadness
+    label: sa
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/ali_pt.zip::ali_walk_sa_2_fin.ptd
+    extra: {}
+  - path: alx/alx_walk_an_1_fin.ptd
+    sha256: fa57c8d4bed6a2e01631cf273672e4ff9d9dc8dd6551a38152f8e937d5065456
+    subject: alx
+    actor: alx
+    emotion: anger
+    label: an
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/alx_pt.zip::alx_walk_an_1_fin.ptd
+    extra: {}
+  - path: alx/alx_walk_an_2_fin.ptd
+    sha256: ce2b6f44686d9168a90b65572ca63e7e33985298988d479f9785eb3fed535490
+    subject: alx
+    actor: alx
+    emotion: anger
+    label: an
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/alx_pt.zip::alx_walk_an_2_fin.ptd
+    extra: {}
+  - path: alx/alx_walk_ha_1_fin.ptd
+    sha256: 8a76bb3d61ba2530cba1d112defc9185a91a1c534d9e14e04fe7d967cb986249
+    subject: alx
+    actor: alx
+    emotion: happiness
+    label: ha
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/alx_pt.zip::alx_walk_ha_1_fin.ptd
+    extra: {}
+  - path: alx/alx_walk_ha_2_fin.ptd
+    sha256: f0f6334d83991f37fdd1142be27517700f63cda94fb12ae91c14760b45194468
+    subject: alx
+    actor: alx
+    emotion: happiness
+    label: ha
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/alx_pt.zip::alx_walk_ha_2_fin.ptd
+    extra: {}
+  - path: alx/alx_walk_nu_1_fin.ptd
+    sha256: 2250313ec59826dc206586477d11189925ca22635747dfe2d22d94409c238dfc
+    subject: alx
+    actor: alx
+    emotion: neutral
+    label: nu
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/alx_pt.zip::alx_walk_nu_1_fin.ptd
+    extra: {}
+  - path: alx/alx_walk_nu_2_fin.ptd
+    sha256: a7da6a67fe5f0e82e20d7d608d865f0eaf2311877f11fba01f71b51485a358d5
+    subject: alx
+    actor: alx
+    emotion: neutral
+    label: nu
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/alx_pt.zip::alx_walk_nu_2_fin.ptd
+    extra: {}
+  - path: alx/alx_walk_sa_1_fin.ptd
+    sha256: a9d815642e94f8e3da792e7263913a13515e2a73c7222591e4b78cad7a6c97df
+    subject: alx
+    actor: alx
+    emotion: sadness
+    label: sa
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/alx_pt.zip::alx_walk_sa_1_fin.ptd
+    extra: {}
+  - path: alx/alx_walk_sa_2_fin.ptd
+    sha256: a69c1cd9e4ecbdf9169adce61b15e37770863dd458378dd7061712ebebf73e25
+    subject: alx
+    actor: alx
+    emotion: sadness
+    label: sa
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/alx_pt.zip::alx_walk_sa_2_fin.ptd
+    extra: {}
+  - path: amc/amc_walk_an_1_fin.ptd
+    sha256: 0b98d4256b468c9a85441b0425ecc567f1c852e139833713a2f4670bd442e7ba
+    subject: amc
+    actor: amc
+    emotion: anger
+    label: an
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/amc_pt.zip::amc_walk_an_1_fin.ptd
+    extra: {}
+  - path: amc/amc_walk_an_2_fin.ptd
+    sha256: 62e1dedd7762793a62e08af7b4e98a4ac498b6bcaa402c73552b57dbd1af660e
+    subject: amc
+    actor: amc
+    emotion: anger
+    label: an
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/amc_pt.zip::amc_walk_an_2_fin.ptd
+    extra: {}
+  - path: amc/amc_walk_ha_1_fin.ptd
+    sha256: 49379090e6ddc24e5087daeccffcd3b138ab1749f79a3f18eceee51bcd64651a
+    subject: amc
+    actor: amc
+    emotion: happiness
+    label: ha
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/amc_pt.zip::amc_walk_ha_1_fin.ptd
+    extra: {}
+  - path: amc/amc_walk_ha_2_fin.ptd
+    sha256: e92d22c2ee4bb5b91b0b9262e29d08c940efcd96e449b3c764280062b87be129
+    subject: amc
+    actor: amc
+    emotion: happiness
+    label: ha
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/amc_pt.zip::amc_walk_ha_2_fin.ptd
+    extra: {}
+  - path: amc/amc_walk_nu_1_fin.ptd
+    sha256: 1209455be9f05a4972c729642c22999eb70188ab328c3d70646b8441d1dd5398
+    subject: amc
+    actor: amc
+    emotion: neutral
+    label: nu
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/amc_pt.zip::amc_walk_nu_1_fin.ptd
+    extra: {}
+  - path: amc/amc_walk_nu_2_fin.ptd
+    sha256: a3fc46b835f75bd6acdaf6f6e10237ab823f93f3bfa271c6226d609f9ace453c
+    subject: amc
+    actor: amc
+    emotion: neutral
+    label: nu
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/amc_pt.zip::amc_walk_nu_2_fin.ptd
+    extra: {}
+  - path: amc/amc_walk_sa_1_fin.ptd
+    sha256: ea4e8e09ca86de2aafc0b91b6879a1016fbb4cc121c487d4086fb645de75be8a
+    subject: amc
+    actor: amc
+    emotion: sadness
+    label: sa
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/amc_pt.zip::amc_walk_sa_1_fin.ptd
+    extra: {}
+  - path: amc/amc_walk_sa_2_fin.ptd
+    sha256: 1e82546a755c14404da03f968751e2f477e2dd6c65fc1563d9fef14568585134
+    subject: amc
+    actor: amc
+    emotion: sadness
+    label: sa
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/amc_pt.zip::amc_walk_sa_2_fin.ptd
+    extra: {}
+  - path: bar/bar_walk_an_1_fin.ptd
+    sha256: 5eaa5bf38f7318d913c804f662136fa645b9983fb14ed7ed53d821be8f375d34
+    subject: bar
+    actor: bar
+    emotion: anger
+    label: an
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/bar_pt.zip::bar_walk_an_1_fin.ptd
+    extra: {}
+  - path: bar/bar_walk_an_2_fin.ptd
+    sha256: 8acae7b036a6bf34be056c9cab81639221343d61fd9f601decfd616227ba7d4f
+    subject: bar
+    actor: bar
+    emotion: anger
+    label: an
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/bar_pt.zip::bar_walk_an_2_fin.ptd
+    extra: {}
+  - path: bar/bar_walk_ha_1_fin.ptd
+    sha256: dd36de3bbe7cb0ddc7459112c97e9b64669bc225ac690d2c903b043358820687
+    subject: bar
+    actor: bar
+    emotion: happiness
+    label: ha
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/bar_pt.zip::bar_walk_ha_1_fin.ptd
+    extra: {}
+  - path: bar/bar_walk_ha_2_fin.ptd
+    sha256: ffe3fed5e03da711dfa12672fcede43261710418401f299b1d4afebd13c0ce19
+    subject: bar
+    actor: bar
+    emotion: happiness
+    label: ha
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/bar_pt.zip::bar_walk_ha_2_fin.ptd
+    extra: {}
+  - path: bar/bar_walk_nu_1_fin.ptd
+    sha256: 3c0ec3043814e857e09b4029706e350db03a0ee77e5fadd4f89d480829fc4638
+    subject: bar
+    actor: bar
+    emotion: neutral
+    label: nu
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/bar_pt.zip::bar_walk_nu_1_fin.ptd
+    extra: {}
+  - path: bar/bar_walk_nu_2_fin.ptd
+    sha256: db70213ea3f77e323b281e3f603af95591a32b81f26d7b1e2a645f91269b3ca7
+    subject: bar
+    actor: bar
+    emotion: neutral
+    label: nu
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/bar_pt.zip::bar_walk_nu_2_fin.ptd
+    extra: {}
+  - path: bar/bar_walk_sa_1_fin.ptd
+    sha256: 4ecf945934eb29d6a2623255a4c54fd03ceb08b019a019d6e59772458fdfeb79
+    subject: bar
+    actor: bar
+    emotion: sadness
+    label: sa
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/bar_pt.zip::bar_walk_sa_1_fin.ptd
+    extra: {}
+  - path: bar/bar_walk_sa_2_fin.ptd
+    sha256: 4e741f7d464853a5a962ed5ea77e944a0f8ed36d4c92368dd687eb75b0aadf0e
+    subject: bar
+    actor: bar
+    emotion: sadness
+    label: sa
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/bar_pt.zip::bar_walk_sa_2_fin.ptd
+    extra: {}
+  - path: boo/boo_walk_an_1_fin.ptd
+    sha256: 348d357d4ebc0e9631c8d20b5ba383a4bb1546f97f07bbf819485678a9a065da
+    subject: boo
+    actor: boo
+    emotion: anger
+    label: an
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/boo_pt.zip::boo_walk_an_1_fin.ptd
+    extra: {}
+  - path: boo/boo_walk_an_2_fin.ptd
+    sha256: 57358d371c27d8572d02fbb47e621f10b1fc28314360934ea627d74afa96a905
+    subject: boo
+    actor: boo
+    emotion: anger
+    label: an
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/boo_pt.zip::boo_walk_an_2_fin.ptd
+    extra: {}
+  - path: boo/boo_walk_ha_1_fin.ptd
+    sha256: 8229d71fdddd072ab2cb2e62ae4f0ee76bb6a104272432178679d51226180094
+    subject: boo
+    actor: boo
+    emotion: happiness
+    label: ha
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/boo_pt.zip::boo_walk_ha_1_fin.ptd
+    extra: {}
+  - path: boo/boo_walk_ha_2_fin.ptd
+    sha256: 3474edcf78fcc8e3cb167b6f46f41baf1764d2fdb25928b5108f156ec20b6e4c
+    subject: boo
+    actor: boo
+    emotion: happiness
+    label: ha
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/boo_pt.zip::boo_walk_ha_2_fin.ptd
+    extra: {}
+  - path: boo/boo_walk_nu_1_fin.ptd
+    sha256: 86e72143ee4e2a19415f9ca1efb3e3e38ac1c52d98f345e9756aef520be91f55
+    subject: boo
+    actor: boo
+    emotion: neutral
+    label: nu
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/boo_pt.zip::boo_walk_nu_1_fin.ptd
+    extra: {}
+  - path: boo/boo_walk_nu_2_fin.ptd
+    sha256: 781ecc2f7aca725cbc20a8f84b3965c3a3c616af7d449da4e7f5666c74f7aa32
+    subject: boo
+    actor: boo
+    emotion: neutral
+    label: nu
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/boo_pt.zip::boo_walk_nu_2_fin.ptd
+    extra: {}
+  - path: boo/boo_walk_sa_1_fin.ptd
+    sha256: b291a48f512c16953f2a292d52c85d644265954e2b0738aa53012498550f54fe
+    subject: boo
+    actor: boo
+    emotion: sadness
+    label: sa
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/boo_pt.zip::boo_walk_sa_1_fin.ptd
+    extra: {}
+  - path: boo/boo_walk_sa_2_fin.ptd
+    sha256: 868dc69bae19f05393a73b21ee994743ba8de51263511ef934080cb3468563d8
+    subject: boo
+    actor: boo
+    emotion: sadness
+    label: sa
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/boo_pt.zip::boo_walk_sa_2_fin.ptd
+    extra: {}
+  - path: chr/chr_walk_an_1_fin.ptd
+    sha256: ec5176c1294494a18ab3fab1ed2ac1708e57de82ef57eef8f1d20fddc5363161
+    subject: chr
+    actor: chr
+    emotion: anger
+    label: an
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/chr_pt.zip::chr_walk_an_1_fin.ptd
+    extra: {}
+  - path: chr/chr_walk_an_2_fin.ptd
+    sha256: d12e4af4dd25a94b1ca2ec11b7118c7df97519398f3f2e28ef7e5659cf33e182
+    subject: chr
+    actor: chr
+    emotion: anger
+    label: an
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/chr_pt.zip::chr_walk_an_2_fin.ptd
+    extra: {}
+  - path: chr/chr_walk_ha_1_fin.ptd
+    sha256: d4b55aabc44dcd68b9d3daa49d3ebb62ee2ed74af971cf06d23eadec60b2ecc0
+    subject: chr
+    actor: chr
+    emotion: happiness
+    label: ha
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/chr_pt.zip::chr_walk_ha_1_fin.ptd
+    extra: {}
+  - path: chr/chr_walk_ha_2_fin.ptd
+    sha256: ebfd5a6710ed8baf40187969c9791eb21190e009b6e7d96f7edcc42ab77c5533
+    subject: chr
+    actor: chr
+    emotion: happiness
+    label: ha
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/chr_pt.zip::chr_walk_ha_2_fin.ptd
+    extra: {}
+  - path: chr/chr_walk_nu_2_fin.ptd
+    sha256: 79b9cbb264f703aeded695c19d361fb164bc8e731ce19aeda5a63326962e256c
+    subject: chr
+    actor: chr
+    emotion: neutral
+    label: nu
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/chr_pt.zip::chr_walk_nu_2_fin.ptd
+    extra: {}
+  - path: chr/chr_walk_sa_1_fin.ptd
+    sha256: 4f81fb704bb57ce7be6a5d8eef8be4900ec540ad60f54e811fce22c0d260d8c6
+    subject: chr
+    actor: chr
+    emotion: sadness
+    label: sa
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/chr_pt.zip::chr_walk_sa_1_fin.ptd
+    extra: {}
+  - path: chr/chr_walk_sa_2_fin.ptd
+    sha256: e4de9653965b948e0c217ff74bac084274d7f62cf40c1172eaf5725cb53308e7
+    subject: chr
+    actor: chr
+    emotion: sadness
+    label: sa
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/chr_pt.zip::chr_walk_sa_2_fin.ptd
+    extra: {}
+  - path: dav/dav_walk_an_1_fin.ptd
+    sha256: ad0247dd4cf48adc367a299c1f7f20e509b3303133fff620e03f89354a3703ec
+    subject: dav
+    actor: dav
+    emotion: anger
+    label: an
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/dav_pt.zip::dav_walk_an_1_fin.ptd
+    extra: {}
+  - path: dav/dav_walk_an_2_fin.ptd
+    sha256: ccb7587c20f1f741ff97dbf0fdf3892cdb0896b28ebfc63b4a068e55deb1fdab
+    subject: dav
+    actor: dav
+    emotion: anger
+    label: an
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/dav_pt.zip::dav_walk_an_2_fin.ptd
+    extra: {}
+  - path: dav/dav_walk_ha_1_fin.ptd
+    sha256: 120258f5eb4287daac08092620b661cf34a6b12db5ef3bdc20a5d61165fb532b
+    subject: dav
+    actor: dav
+    emotion: happiness
+    label: ha
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/dav_pt.zip::dav_walk_ha_1_fin.ptd
+    extra: {}
+  - path: dav/dav_walk_ha_2_fin.ptd
+    sha256: 1f0a274ecd7217fe0a33ac629136f6e5904a06d41e949a174f5ec87d269a46b7
+    subject: dav
+    actor: dav
+    emotion: happiness
+    label: ha
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/dav_pt.zip::dav_walk_ha_2_fin.ptd
+    extra: {}
+  - path: dav/dav_walk_nu_1_fin.ptd
+    sha256: 6cabdc96f1860185ec7233c26b30e6ff935f388170b54f944ebfd2e5f1002c20
+    subject: dav
+    actor: dav
+    emotion: neutral
+    label: nu
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/dav_pt.zip::dav_walk_nu_1_fin.ptd
+    extra: {}
+  - path: dav/dav_walk_nu_2_fin.ptd
+    sha256: e5d26c00d19e078406b12668845dba41cdb40da677c73df5e8200937086895d9
+    subject: dav
+    actor: dav
+    emotion: neutral
+    label: nu
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/dav_pt.zip::dav_walk_nu_2_fin.ptd
+    extra: {}
+  - path: dav/dav_walk_sa_1_fin.ptd
+    sha256: 148f786a43da90aa5cc417dbcd1e579d68428c51963ccfc5e04fbd6b9c566046
+    subject: dav
+    actor: dav
+    emotion: sadness
+    label: sa
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/dav_pt.zip::dav_walk_sa_1_fin.ptd
+    extra: {}
+  - path: dav/dav_walk_sa_2_fin.ptd
+    sha256: b89b8c814ead3c4454aff8427d3610d3ed90b856b6b999c7a8684e1ac9d5487a
+    subject: dav
+    actor: dav
+    emotion: sadness
+    label: sa
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/dav_pt.zip::dav_walk_sa_2_fin.ptd
+    extra: {}
+  - path: din/din_walk_an_1_fin.ptd
+    sha256: b3dc158d02688052f0a11ae98badde9b90c15b3dd1d6cc4106433078abefa7e9
+    subject: din
+    actor: din
+    emotion: anger
+    label: an
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/din_pt.zip::din_walk_an_1_fin.ptd
+    extra: {}
+  - path: din/din_walk_an_2_fin.ptd
+    sha256: 5243992b9735906f60b432fc5fef9ad0bf2a6b5e480b29a3e0da58efcb8f2c7d
+    subject: din
+    actor: din
+    emotion: anger
+    label: an
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/din_pt.zip::din_walk_an_2_fin.ptd
+    extra: {}
+  - path: din/din_walk_ha_1_fin.ptd
+    sha256: c697a4e92052bb7bca3a21355aead304e782a3b546f9b4e56c4302bb7384f3f4
+    subject: din
+    actor: din
+    emotion: happiness
+    label: ha
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/din_pt.zip::din_walk_ha_1_fin.ptd
+    extra: {}
+  - path: din/din_walk_ha_2_fin.ptd
+    sha256: 262aee9d3a79d17a606d288b7216921a91a8189571e1b7b7c8d870add0bc6878
+    subject: din
+    actor: din
+    emotion: happiness
+    label: ha
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/din_pt.zip::din_walk_ha_2_fin.ptd
+    extra: {}
+  - path: din/din_walk_nu_1_fin.ptd
+    sha256: 14aa47ded1d1d557684ac8df8964e9c0ba10474594f9558717024f660be1d918
+    subject: din
+    actor: din
+    emotion: neutral
+    label: nu
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/din_pt.zip::din_walk_nu_1_fin.ptd
+    extra: {}
+  - path: din/din_walk_nu_2_fin.ptd
+    sha256: 965a6af099a345cc7a24ad04ad52e2f49a5302d3f5c9783558775f618d9fa08b
+    subject: din
+    actor: din
+    emotion: neutral
+    label: nu
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/din_pt.zip::din_walk_nu_2_fin.ptd
+    extra: {}
+  - path: din/din_walk_sa_1_fin.ptd
+    sha256: 8dd4266cc6614519497de0eada710cca925d16c0f20a865070fc6877139c0afd
+    subject: din
+    actor: din
+    emotion: sadness
+    label: sa
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/din_pt.zip::din_walk_sa_1_fin.ptd
+    extra: {}
+  - path: din/din_walk_sa_2_fin.ptd
+    sha256: 11ccb095c0a7947cf45a2cd8a7f3d69825933772348f316d3fbb6bfd017f2e8b
+    subject: din
+    actor: din
+    emotion: sadness
+    label: sa
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/din_pt.zip::din_walk_sa_2_fin.ptd
+    extra: {}
+  - path: dun/dun_walk_an_1_fin.ptd
+    sha256: 4e29bbd2aed5ea8ff2ab01786d4ad81769ae05076b6f884e0772130f22641e14
+    subject: dun
+    actor: dun
+    emotion: anger
+    label: an
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/dun_pt.zip::dun_walk_an_1_fin.ptd
+    extra: {}
+  - path: dun/dun_walk_an_2_fin.ptd
+    sha256: 8222970d9f7f6e7375ad0c95fc1664458e47250b1526cfcba21209b4ece75abc
+    subject: dun
+    actor: dun
+    emotion: anger
+    label: an
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/dun_pt.zip::dun_walk_an_2_fin.ptd
+    extra: {}
+  - path: dun/dun_walk_ha_1_fin.ptd
+    sha256: 50ecbf907fe4c41b92af49b954581b25ecf3aa9798f974b22e539e08900c6d26
+    subject: dun
+    actor: dun
+    emotion: happiness
+    label: ha
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/dun_pt.zip::dun_walk_ha_1_fin.ptd
+    extra: {}
+  - path: dun/dun_walk_ha_2_fin.ptd
+    sha256: 73872c0ecb1f6fc3d402d14e832a6b1c0c704bfa12bc059698a56ec6db5e05d5
+    subject: dun
+    actor: dun
+    emotion: happiness
+    label: ha
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/dun_pt.zip::dun_walk_ha_2_fin.ptd
+    extra: {}
+  - path: dun/dun_walk_nu_1_fin.ptd
+    sha256: 414112dc385f0c1639413d861b077683f9845ee64dac9d3ceced61eabfec1af5
+    subject: dun
+    actor: dun
+    emotion: neutral
+    label: nu
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/dun_pt.zip::dun_walk_nu_1_fin.ptd
+    extra: {}
+  - path: dun/dun_walk_nu_2_fin.ptd
+    sha256: 2c1351bc7d58608abc55e5837bb0d2a880ace352770d961047e71ef736809c59
+    subject: dun
+    actor: dun
+    emotion: neutral
+    label: nu
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/dun_pt.zip::dun_walk_nu_2_fin.ptd
+    extra: {}
+  - path: dun/dun_walk_sa_1_fin.ptd
+    sha256: 218ca38f6953f892e77cf059a9d03d93b2ee8aa04da0b641101c29e9a29f72bc
+    subject: dun
+    actor: dun
+    emotion: sadness
+    label: sa
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/dun_pt.zip::dun_walk_sa_1_fin.ptd
+    extra: {}
+  - path: dun/dun_walk_sa_2_fin.ptd
+    sha256: a6f83aebb55f80b44a49366677c181938ebb66ef3763886d025fe6efe3996085
+    subject: dun
+    actor: dun
+    emotion: sadness
+    label: sa
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/dun_pt.zip::dun_walk_sa_2_fin.ptd
+    extra: {}
+  - path: ele/ele_walk_an_1_fin.ptd
+    sha256: 03e5470ac043e4a1a7a50923a0699b377a6003576a527f16fba310d150e0a24b
+    subject: ele
+    actor: ele
+    emotion: anger
+    label: an
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/ele_pt.zip::ele_walk_an_1_fin.ptd
+    extra: {}
+  - path: ele/ele_walk_an_2_fin.ptd
+    sha256: 7d97092e3f7dd4944ca445e98bc25787de89227047c0f36ab854d1644bba04c5
+    subject: ele
+    actor: ele
+    emotion: anger
+    label: an
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/ele_pt.zip::ele_walk_an_2_fin.ptd
+    extra: {}
+  - path: ele/ele_walk_ha_1_fin.ptd
+    sha256: 65fd518ef88a7fc014cc754eff6443d98dbbc2ba24c0e774419cc1e400815dbb
+    subject: ele
+    actor: ele
+    emotion: happiness
+    label: ha
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/ele_pt.zip::ele_walk_ha_1_fin.ptd
+    extra: {}
+  - path: ele/ele_walk_ha_2_fin.ptd
+    sha256: fc717d3d5f0662e7908e33f3e0d3d1a9cd0df4a71051372a686f13d2196d6887
+    subject: ele
+    actor: ele
+    emotion: happiness
+    label: ha
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/ele_pt.zip::ele_walk_ha_2_fin.ptd
+    extra: {}
+  - path: ele/ele_walk_nu_1_fin.ptd
+    sha256: 18161d9cb503c8044a43a71cc224178df29995a48afaf7e8713ba02cf8c1a2e0
+    subject: ele
+    actor: ele
+    emotion: neutral
+    label: nu
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/ele_pt.zip::ele_walk_nu_1_fin.ptd
+    extra: {}
+  - path: ele/ele_walk_nu_2_fin.ptd
+    sha256: 085220947da3705f94863fca64a8ea8ee7b6d96b892b50eba504190558374a8a
+    subject: ele
+    actor: ele
+    emotion: neutral
+    label: nu
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/ele_pt.zip::ele_walk_nu_2_fin.ptd
+    extra: {}
+  - path: ele/ele_walk_sa_1_fin.ptd
+    sha256: 75271631b79168ba480018e45d44ba4ff5bf9ce60471e7574c2900ac8eb20f17
+    subject: ele
+    actor: ele
+    emotion: sadness
+    label: sa
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/ele_pt.zip::ele_walk_sa_1_fin.ptd
+    extra: {}
+  - path: ele/ele_walk_sa_2_fin.ptd
+    sha256: 6ba4c07f9d621409606ee4f0837e9678f1403caccaaf4c84a8afeab62c5fc5c3
+    subject: ele
+    actor: ele
+    emotion: sadness
+    label: sa
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/ele_pt.zip::ele_walk_sa_2_fin.ptd
+    extra: {}
+  - path: emm/emm_walk_an_1_fin.ptd
+    sha256: d2e8cb42abcbcd35d04e126fafca26a7db052804c912e48ccfe6e6328f29a4cf
+    subject: emm
+    actor: emm
+    emotion: anger
+    label: an
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/emm_pt.zip::emm_walk_an_1_fin.ptd
+    extra: {}
+  - path: emm/emm_walk_an_2_fin.ptd
+    sha256: 1a3b16f857095582af6ebca699f95ec6674d40a98f7322b93a0a95983a69e2b0
+    subject: emm
+    actor: emm
+    emotion: anger
+    label: an
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/emm_pt.zip::emm_walk_an_2_fin.ptd
+    extra: {}
+  - path: emm/emm_walk_ha_1_fin.ptd
+    sha256: cbed3c9c981eafb2bcc9bad60071ec8886f1c9d1844c57382b8a554121b17098
+    subject: emm
+    actor: emm
+    emotion: happiness
+    label: ha
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/emm_pt.zip::emm_walk_ha_1_fin.ptd
+    extra: {}
+  - path: emm/emm_walk_ha_2_fin.ptd
+    sha256: 5693e7d8a6a61431ede7c1f3b85899480d30e39bd79bc31ac28f1c159bd90a58
+    subject: emm
+    actor: emm
+    emotion: happiness
+    label: ha
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/emm_pt.zip::emm_walk_ha_2_fin.ptd
+    extra: {}
+  - path: emm/emm_walk_nu_1_fin.ptd
+    sha256: efedb6ed0dc8b6585ad2803cb76ec8aa97159c58f656979db7f0641e77a5dbe9
+    subject: emm
+    actor: emm
+    emotion: neutral
+    label: nu
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/emm_pt.zip::emm_walk_nu_1_fin.ptd
+    extra: {}
+  - path: emm/emm_walk_nu_2_fin.ptd
+    sha256: e2fc9e7ae35f7a2793bb1012e402053c6abcbe46dac97dc9f004f71980d125a7
+    subject: emm
+    actor: emm
+    emotion: neutral
+    label: nu
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/emm_pt.zip::emm_walk_nu_2_fin.ptd
+    extra: {}
+  - path: emm/emm_walk_sa_1_fin.ptd
+    sha256: 0305434a81fe66641f75d8d74cfa39442237021fc33d5c1ad1396efb30c1cfc6
+    subject: emm
+    actor: emm
+    emotion: sadness
+    label: sa
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/emm_pt.zip::emm_walk_sa_1_fin.ptd
+    extra: {}
+  - path: emm/emm_walk_sa_2_fin.ptd
+    sha256: 83db1f976c4e6e9e1ef3d3d00d9b206879609f5e77406d6d9a0754ebd44d9835
+    subject: emm
+    actor: emm
+    emotion: sadness
+    label: sa
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/emm_pt.zip::emm_walk_sa_2_fin.ptd
+    extra: {}
+  - path: gra/gra_walk_an_1_fin.ptd
+    sha256: 4e93754c51340340a0268415d8f8e5cd1b57edf7e906de9735cbd78ab597b092
+    subject: gra
+    actor: gra
+    emotion: anger
+    label: an
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/gra_pt.zip::gra_walk_an_1_fin.ptd
+    extra: {}
+  - path: gra/gra_walk_an_2_fin.ptd
+    sha256: f275a941af50cbba312da1a3fd358be1f20a07135fa16c573e267d71913dd44e
+    subject: gra
+    actor: gra
+    emotion: anger
+    label: an
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/gra_pt.zip::gra_walk_an_2_fin.ptd
+    extra: {}
+  - path: gra/gra_walk_ha_1_fin.ptd
+    sha256: b920e3ce957d42768ddba9068570cb45bc659f438d547400614cdd7416f5ccfd
+    subject: gra
+    actor: gra
+    emotion: happiness
+    label: ha
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/gra_pt.zip::gra_walk_ha_1_fin.ptd
+    extra: {}
+  - path: gra/gra_walk_ha_2_fin.ptd
+    sha256: ca1156fe1243e711f6d672943e956fee05d42c45cada544e622321b32a5789a0
+    subject: gra
+    actor: gra
+    emotion: happiness
+    label: ha
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/gra_pt.zip::gra_walk_ha_2_fin.ptd
+    extra: {}
+  - path: gra/gra_walk_nu_1_fin.ptd
+    sha256: 852a03d8250db5443f2a9c7c53c9834b372dbc94f455d8b35588c7fd703a5faf
+    subject: gra
+    actor: gra
+    emotion: neutral
+    label: nu
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/gra_pt.zip::gra_walk_nu_1_fin.ptd
+    extra: {}
+  - path: gra/gra_walk_nu_2_fin.ptd
+    sha256: a6cddeefffee0f8db03521a3c4a89b2fe571f20d308e7bd514d0794f7d6da86b
+    subject: gra
+    actor: gra
+    emotion: neutral
+    label: nu
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/gra_pt.zip::gra_walk_nu_2_fin.ptd
+    extra: {}
+  - path: gra/gra_walk_sa_1_fin.ptd
+    sha256: b4b5b4322eeb1b5a6bb9df19f598bd56c0866807b23385c5966729640e702ff7
+    subject: gra
+    actor: gra
+    emotion: sadness
+    label: sa
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/gra_pt.zip::gra_walk_sa_1_fin.ptd
+    extra: {}
+  - path: gra/gra_walk_sa_2_fin.ptd
+    sha256: 3642b2be150769e0448aab728ef9b4e40a38304f7d52190b5249de599d1242a5
+    subject: gra
+    actor: gra
+    emotion: sadness
+    label: sa
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/gra_pt.zip::gra_walk_sa_2_fin.ptd
+    extra: {}
+  - path: ian/ian_walk_an_1_fin.ptd
+    sha256: 88fb203a6d17c593fcac33e99e2636c1321139927bf03b444c66ac6ac36626ee
+    subject: ian
+    actor: ian
+    emotion: anger
+    label: an
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/ian_pt.zip::ian_walk_an_1_fin.ptd
+    extra: {}
+  - path: ian/ian_walk_an_2_fin.ptd
+    sha256: a15409ed34d1f5f8e4398aefe81e32e0816ac9d62a8a3ed3f1d31c9d98990019
+    subject: ian
+    actor: ian
+    emotion: anger
+    label: an
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/ian_pt.zip::ian_walk_an_2_fin.ptd
+    extra: {}
+  - path: ian/ian_walk_ha_1_fin.ptd
+    sha256: c5fd28157e13b1bb74fbc7f1a27beb64545bfbfe4539e089448bb93219c37581
+    subject: ian
+    actor: ian
+    emotion: happiness
+    label: ha
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/ian_pt.zip::ian_walk_ha_1_fin.ptd
+    extra: {}
+  - path: ian/ian_walk_ha_2_fin.ptd
+    sha256: 797e6834fd3e0423c04a29d1931e9d678e74b4623cd323aac88fc9166cbb77df
+    subject: ian
+    actor: ian
+    emotion: happiness
+    label: ha
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/ian_pt.zip::ian_walk_ha_2_fin.ptd
+    extra: {}
+  - path: ian/ian_walk_nu_1_fin.ptd
+    sha256: d8e9e31685195025d25653c66550f098484a2dee76f4da1fe023eaa633e59b88
+    subject: ian
+    actor: ian
+    emotion: neutral
+    label: nu
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/ian_pt.zip::ian_walk_nu_1_fin.ptd
+    extra: {}
+  - path: ian/ian_walk_nu_2_fin.ptd
+    sha256: 77d6e07d0bbebfb31e80e7220281f4ecef3c96a847b438266926f573f3dd7751
+    subject: ian
+    actor: ian
+    emotion: neutral
+    label: nu
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/ian_pt.zip::ian_walk_nu_2_fin.ptd
+    extra: {}
+  - path: ian/ian_walk_sa_1_fin.ptd
+    sha256: 6c8c4a2c1a95d68d8545b8d282e957b5c74859061056b48ca0c0124765b86743
+    subject: ian
+    actor: ian
+    emotion: sadness
+    label: sa
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/ian_pt.zip::ian_walk_sa_1_fin.ptd
+    extra: {}
+  - path: ian/ian_walk_sa_2_fin.ptd
+    sha256: 2f5527cc8ffebf40b34d349fa0e2683c0a557fac6e73a1fb84455044a200a2fd
+    subject: ian
+    actor: ian
+    emotion: sadness
+    label: sa
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/ian_pt.zip::ian_walk_sa_2_fin.ptd
+    extra: {}
+  - path: jan/jan_walk_af_1_fin.ptd
+    sha256: 738e15cb6bbf48eaa90979d4311e0b4f07c9867e871845ac56606aaec50f5ab6
+    subject: jan
+    actor: jan
+    emotion: fear
+    label: af
+    label_kind: mapped
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/jan_pt.zip::jan_walk_af_1_fin.ptd
+    extra: {}
+  - path: jan/jan_walk_af_2_fin.ptd
+    sha256: 2f955bc9be87d1ec3c9dbe430e37824cc9f0a3233caef6c1b43103d355039d13
+    subject: jan
+    actor: jan
+    emotion: fear
+    label: af
+    label_kind: mapped
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/jan_pt.zip::jan_walk_af_2_fin.ptd
+    extra: {}
+  - path: jan/jan_walk_an_1_fin.ptd
+    sha256: 0bf3cf0c8fbfba4a296ed43f66e8b3414bbb7bf2238fcbdb3ab491440b3d420a
+    subject: jan
+    actor: jan
+    emotion: anger
+    label: an
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/jan_pt.zip::jan_walk_an_1_fin.ptd
+    extra: {}
+  - path: jan/jan_walk_an_2_fin.ptd
+    sha256: 184121db7b547c88e9cd49b69d6cfa0f22c29646c87afe9353039859fca5eb7e
+    subject: jan
+    actor: jan
+    emotion: anger
+    label: an
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/jan_pt.zip::jan_walk_an_2_fin.ptd
+    extra: {}
+  - path: jan/jan_walk_ha_1_fin.ptd
+    sha256: 42462a7e0b9e44d74d365b2527acc8baf79ad0d9655d2d7dc3a511f36ce8362e
+    subject: jan
+    actor: jan
+    emotion: happiness
+    label: ha
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/jan_pt.zip::jan_walk_ha_1_fin.ptd
+    extra: {}
+  - path: jan/jan_walk_ha_2_fin.ptd
+    sha256: a7cbf25cf4fccd223520f29d11e34b3ecb1b35fe16c0810dfe64ca8cdb2ef59f
+    subject: jan
+    actor: jan
+    emotion: happiness
+    label: ha
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/jan_pt.zip::jan_walk_ha_2_fin.ptd
+    extra: {}
+  - path: jan/jan_walk_nu_1_fin.ptd
+    sha256: 955aba1014d9c138fcd13c5fd2f0a41e42ff850ef3c710e56f89491dd09a6db3
+    subject: jan
+    actor: jan
+    emotion: neutral
+    label: nu
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/jan_pt.zip::jan_walk_nu_1_fin.ptd
+    extra: {}
+  - path: jan/jan_walk_nu_2_fin.ptd
+    sha256: 1b4c6e30fa93ced7fa81392f2ac73981590204e03fd04408243d34136776d13b
+    subject: jan
+    actor: jan
+    emotion: neutral
+    label: nu
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/jan_pt.zip::jan_walk_nu_2_fin.ptd
+    extra: {}
+  - path: jan/jan_walk_sa_1_fin.ptd
+    sha256: 598b6dd237e90351e3517cc42683a0ad5ebe44de3c3c1fee15b9766bab978cbe
+    subject: jan
+    actor: jan
+    emotion: sadness
+    label: sa
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/jan_pt.zip::jan_walk_sa_1_fin.ptd
+    extra: {}
+  - path: jan/jan_walk_sa_2_fin.ptd
+    sha256: cb9fe65d382fb23ee589840384b4c1943e676da96402983fd928577486a0aa54
+    subject: jan
+    actor: jan
+    emotion: sadness
+    label: sa
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/jan_pt.zip::jan_walk_sa_2_fin.ptd
+    extra: {}
+  - path: jen/jen_walk_an_1_fin.ptd
+    sha256: f6b9556cbe26bbfcfc903f945d0eab9227550481bd311cb5e3ed2e1500025e66
+    subject: jen
+    actor: jen
+    emotion: anger
+    label: an
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/jen_pt.zip::jen_walk_an_1_fin.ptd
+    extra: {}
+  - path: jen/jen_walk_an_2_fin.ptd
+    sha256: 297edc78c9947856bec85dede3dc54544c2fb2b427625d2f17927771599619bc
+    subject: jen
+    actor: jen
+    emotion: anger
+    label: an
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/jen_pt.zip::jen_walk_an_2_fin.ptd
+    extra: {}
+  - path: jen/jen_walk_ha_1_fin.ptd
+    sha256: bc20ee81e2f17c2b70a5c28afb94f238f70ad69f2c4737e8323c571cc63d86b1
+    subject: jen
+    actor: jen
+    emotion: happiness
+    label: ha
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/jen_pt.zip::jen_walk_ha_1_fin.ptd
+    extra: {}
+  - path: jen/jen_walk_ha_2_fin.ptd
+    sha256: 3e3da8a964d064651f2a0d169e4537ca77635d59e26930ea75f7726463cb735d
+    subject: jen
+    actor: jen
+    emotion: happiness
+    label: ha
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/jen_pt.zip::jen_walk_ha_2_fin.ptd
+    extra: {}
+  - path: jen/jen_walk_nu_1_fin.ptd
+    sha256: 9455726e586c2a8e405794a2a5bdf4344eb78b59ded01516dffaded996261166
+    subject: jen
+    actor: jen
+    emotion: neutral
+    label: nu
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/jen_pt.zip::jen_walk_nu_1_fin.ptd
+    extra: {}
+  - path: jen/jen_walk_nu_2_fin.ptd
+    sha256: 2399360028a210479973eca4f91c499e773b44fa1cfbc4eff00a4ce8719950be
+    subject: jen
+    actor: jen
+    emotion: neutral
+    label: nu
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/jen_pt.zip::jen_walk_nu_2_fin.ptd
+    extra: {}
+  - path: jen/jen_walk_sa_1_fin.ptd
+    sha256: 98b79592b3276a21c189e861c785c3e8e279b3bcc1f22f77c06d5cd6e7b78180
+    subject: jen
+    actor: jen
+    emotion: sadness
+    label: sa
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/jen_pt.zip::jen_walk_sa_1_fin.ptd
+    extra: {}
+  - path: jen/jen_walk_sa_2_fin.ptd
+    sha256: a4598233bee6b294cc7ca03f268f97ff148deb9a22d48b5ce917b1e68fa90829
+    subject: jen
+    actor: jen
+    emotion: sadness
+    label: sa
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/jen_pt.zip::jen_walk_sa_2_fin.ptd
+    extra: {}
+  - path: jua/jua_walk_af_1_fin.ptd
+    sha256: a9c16dd8a827c31d24971c71bd263f0030e321f7a1afd41672926f96af72bd5e
+    subject: jua
+    actor: jua
+    emotion: fear
+    label: af
+    label_kind: mapped
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/jua_pt.zip::jua_walk_af_1_fin.ptd
+    extra: {}
+  - path: jua/jua_walk_af_2_fin.ptd
+    sha256: 37e1216783bd9688b3c60b9d3fc589fb8dbf2f7648bce2c75e59348dcf86da3e
+    subject: jua
+    actor: jua
+    emotion: fear
+    label: af
+    label_kind: mapped
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/jua_pt.zip::jua_walk_af_2_fin.ptd
+    extra: {}
+  - path: jua/jua_walk_an_1_fin.ptd
+    sha256: 614f8cf2b7123ca496f52ada3067264ae44f44bf4d2e84c48bc87a326a200093
+    subject: jua
+    actor: jua
+    emotion: anger
+    label: an
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/jua_pt.zip::jua_walk_an_1_fin.ptd
+    extra: {}
+  - path: jua/jua_walk_an_2_fin.ptd
+    sha256: 0763023f542ea09df9b67218e03419ea76f5fa922f058265d1eb6d666d3317f7
+    subject: jua
+    actor: jua
+    emotion: anger
+    label: an
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/jua_pt.zip::jua_walk_an_2_fin.ptd
+    extra: {}
+  - path: jua/jua_walk_ha_1_fin.ptd
+    sha256: d17c94ce17a51a3e20ac12735aec332bc4ee09ef4cdd7406712e95ebe0dce0fd
+    subject: jua
+    actor: jua
+    emotion: happiness
+    label: ha
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/jua_pt.zip::jua_walk_ha_1_fin.ptd
+    extra: {}
+  - path: jua/jua_walk_ha_2_fin.ptd
+    sha256: f04f0ec8fd55805ec32ff2a13506df55803fe4ae385d723aebd2048894ebba88
+    subject: jua
+    actor: jua
+    emotion: happiness
+    label: ha
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/jua_pt.zip::jua_walk_ha_2_fin.ptd
+    extra: {}
+  - path: jua/jua_walk_nu_1_fin.ptd
+    sha256: 99d4afd8d0dfadec634d92d84ed5fd1ed514c8e46a7cdc297157736219e9de49
+    subject: jua
+    actor: jua
+    emotion: neutral
+    label: nu
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/jua_pt.zip::jua_walk_nu_1_fin.ptd
+    extra: {}
+  - path: jua/jua_walk_nu_2_fin.ptd
+    sha256: a302a251fd94683185d8a97c228c535de3f8e235d335b73185a36bba729f98e5
+    subject: jua
+    actor: jua
+    emotion: neutral
+    label: nu
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/jua_pt.zip::jua_walk_nu_2_fin.ptd
+    extra: {}
+  - path: jua/jua_walk_sa_1_fin.ptd
+    sha256: 32dabd56a71faf92aba226d8c51f6465d6dd5853dc18b7a3a3e94f5216cc0ef2
+    subject: jua
+    actor: jua
+    emotion: sadness
+    label: sa
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/jua_pt.zip::jua_walk_sa_1_fin.ptd
+    extra: {}
+  - path: jua/jua_walk_sa_2_fin.ptd
+    sha256: 3548dff2baa4a8096e8973a6f09490caa771ca6ffdcc6de59b59b278f40856e8
+    subject: jua
+    actor: jua
+    emotion: sadness
+    label: sa
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/jua_pt.zip::jua_walk_sa_2_fin.ptd
+    extra: {}
+  - path: kat/kat_walk_an_1_fin.ptd
+    sha256: 0ef3a8cd72e4631a9b066100926fdf4372ed4b32c5ad04cba1fb63c9f2b5ee55
+    subject: kat
+    actor: kat
+    emotion: anger
+    label: an
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/kat_pt.zip::kat_walk_an_1_fin.ptd
+    extra: {}
+  - path: kat/kat_walk_an_2_fin.ptd
+    sha256: 75f9ae4ceb59f0f0b351192b345ef1bbdb727aa40c476e70218cc2c12ace2054
+    subject: kat
+    actor: kat
+    emotion: anger
+    label: an
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/kat_pt.zip::kat_walk_an_2_fin.ptd
+    extra: {}
+  - path: kat/kat_walk_ha_1_fin.ptd
+    sha256: 4ace65e653ee485c2df5c72a6e9d148efa0e60e574f39ef2a6abe6ec3d67af3a
+    subject: kat
+    actor: kat
+    emotion: happiness
+    label: ha
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/kat_pt.zip::kat_walk_ha_1_fin.ptd
+    extra: {}
+  - path: kat/kat_walk_ha_2_fin.ptd
+    sha256: 8d62fd65ff39de0b238313ccfa54eea1a287bf88e924309ef07263504318e3b6
+    subject: kat
+    actor: kat
+    emotion: happiness
+    label: ha
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/kat_pt.zip::kat_walk_ha_2_fin.ptd
+    extra: {}
+  - path: kat/kat_walk_nu_1_fin.ptd
+    sha256: 2e3be9e558136ce9748b7440b767a9e71336d19d5ee33529accbe4623c7ae610
+    subject: kat
+    actor: kat
+    emotion: neutral
+    label: nu
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/kat_pt.zip::kat_walk_nu_1_fin.ptd
+    extra: {}
+  - path: kat/kat_walk_nu_2_fin.ptd
+    sha256: cd6fa9cd4d7a89f4bbf94bfefa008b963093761aae252da5435bd9ba540e1c22
+    subject: kat
+    actor: kat
+    emotion: neutral
+    label: nu
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/kat_pt.zip::kat_walk_nu_2_fin.ptd
+    extra: {}
+  - path: kat/kat_walk_sa_2_fin.ptd
+    sha256: f9a395c9197639e68ab61467cf6530910920ac70ed5acebb37aef64c6e461d83
+    subject: kat
+    actor: kat
+    emotion: sadness
+    label: sa
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/kat_pt.zip::kat_walk_sa_2_fin.ptd
+    extra: {}
+  - path: lin/lin_walk_af_1_fin.ptd
+    sha256: c0aeae1d0d2cd5ecfcc7e9ef9afcc842abf0a39fc7399a19dfe99f7bb9c7fe4e
+    subject: lin
+    actor: lin
+    emotion: fear
+    label: af
+    label_kind: mapped
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/lin_pt.zip::lin_walk_af_1_fin.ptd
+    extra: {}
+  - path: lin/lin_walk_af_2_fin.ptd
+    sha256: 45433e75751a3f764039e664e9e2c4bf3c2b0b7a7581e4f2742bb9f070d99677
+    subject: lin
+    actor: lin
+    emotion: fear
+    label: af
+    label_kind: mapped
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/lin_pt.zip::lin_walk_af_2_fin.ptd
+    extra: {}
+  - path: lin/lin_walk_an_1_fin.ptd
+    sha256: e15f43ab21276f0891b044fb9ec9f3dcf0fce1b5c3807694ac75f96e83d0f467
+    subject: lin
+    actor: lin
+    emotion: anger
+    label: an
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/lin_pt.zip::lin_walk_an_1_fin.ptd
+    extra: {}
+  - path: lin/lin_walk_an_2_fin.ptd
+    sha256: 941075f70da493d375d457854883f7032181e91ed8e3c230b2a60e452d73074b
+    subject: lin
+    actor: lin
+    emotion: anger
+    label: an
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/lin_pt.zip::lin_walk_an_2_fin.ptd
+    extra: {}
+  - path: lin/lin_walk_ha_1_fin.ptd
+    sha256: 12f99e128234e802c81197a4f43568c835a89a1db8a459d76a7988622fd1a476
+    subject: lin
+    actor: lin
+    emotion: happiness
+    label: ha
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/lin_pt.zip::lin_walk_ha_1_fin.ptd
+    extra: {}
+  - path: lin/lin_walk_ha_2_fin.ptd
+    sha256: 6a5f8f4dccf3d9a5493c5a6d55c1d36c40454ddb200fd592c62a74a00b1e17fb
+    subject: lin
+    actor: lin
+    emotion: happiness
+    label: ha
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/lin_pt.zip::lin_walk_ha_2_fin.ptd
+    extra: {}
+  - path: lin/lin_walk_nu_1_fin.ptd
+    sha256: 6da5a1388825fa0c2e0723c8bb3559b7d4354a58d3d379d6e35e1b31d2f0f000
+    subject: lin
+    actor: lin
+    emotion: neutral
+    label: nu
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/lin_pt.zip::lin_walk_nu_1_fin.ptd
+    extra: {}
+  - path: lin/lin_walk_nu_2_fin.ptd
+    sha256: 38e59e4f5bfd34db24d86b71bdf654e181d6ec3893200e6cb79b7fdfc302bd07
+    subject: lin
+    actor: lin
+    emotion: neutral
+    label: nu
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/lin_pt.zip::lin_walk_nu_2_fin.ptd
+    extra: {}
+  - path: lin/lin_walk_sa_1_fin.ptd
+    sha256: 44370771266e012db1f23722dd83478179f89b48a25a3542dc991440ae134b73
+    subject: lin
+    actor: lin
+    emotion: sadness
+    label: sa
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/lin_pt.zip::lin_walk_sa_1_fin.ptd
+    extra: {}
+  - path: lin/lin_walk_sa_2_fin.ptd
+    sha256: 037ca74e9f67af2cb21f9b38a9f62ad0d30963377ff5c369ce95a0f9f8d4d76e
+    subject: lin
+    actor: lin
+    emotion: sadness
+    label: sa
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/lin_pt.zip::lin_walk_sa_2_fin.ptd
+    extra: {}
+  - path: mac/mac_walk_af_1_fin.ptd
+    sha256: 4bc7fc7d2fffcfacd3813b267cefffa5832087cc738833bb2ddf1a438357ee06
+    subject: mac
+    actor: mac
+    emotion: fear
+    label: af
+    label_kind: mapped
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/mac_pt.zip::mac_walk_af_1_fin.ptd
+    extra: {}
+  - path: mac/mac_walk_af_2_fin.ptd
+    sha256: 8bcd9e19e847d5870e0704a8c9814db5897cee19e192f06c12f3e14d34b33d8b
+    subject: mac
+    actor: mac
+    emotion: fear
+    label: af
+    label_kind: mapped
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/mac_pt.zip::mac_walk_af_2_fin.ptd
+    extra: {}
+  - path: mac/mac_walk_an_1_fin.ptd
+    sha256: 2197d9f1e90b10ea0321545c841b8bb9b73d509c96a2068aaf047c18198d1399
+    subject: mac
+    actor: mac
+    emotion: anger
+    label: an
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/mac_pt.zip::mac_walk_an_1_fin.ptd
+    extra: {}
+  - path: mac/mac_walk_an_2_fin.ptd
+    sha256: 3562b2890bd65729d56d5ac64b3908e1ddf05977d69e627d5dd68fb7c15a4a50
+    subject: mac
+    actor: mac
+    emotion: anger
+    label: an
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/mac_pt.zip::mac_walk_an_2_fin.ptd
+    extra: {}
+  - path: mac/mac_walk_ha_1_fin.ptd
+    sha256: baf993e5641a0bca9798015cd88b0bd80ff54ebed899976c64fae3ecaa39d2cf
+    subject: mac
+    actor: mac
+    emotion: happiness
+    label: ha
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/mac_pt.zip::mac_walk_ha_1_fin.ptd
+    extra: {}
+  - path: mac/mac_walk_ha_2_fin.ptd
+    sha256: 4f0259c0f3868b86fc069957a9a6b151e331af449935d75b8bbd311d378d4013
+    subject: mac
+    actor: mac
+    emotion: happiness
+    label: ha
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/mac_pt.zip::mac_walk_ha_2_fin.ptd
+    extra: {}
+  - path: mac/mac_walk_nu_1_fin.ptd
+    sha256: f4c62f775b6b38fe015a537da333f2fa2b7317058a508f65d8b70bb37ca95077
+    subject: mac
+    actor: mac
+    emotion: neutral
+    label: nu
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/mac_pt.zip::mac_walk_nu_1_fin.ptd
+    extra: {}
+  - path: mac/mac_walk_nu_2_fin.ptd
+    sha256: f9951c43a40c1db970d603b5aab696de8670756b8900409f389b38c04de63fee
+    subject: mac
+    actor: mac
+    emotion: neutral
+    label: nu
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/mac_pt.zip::mac_walk_nu_2_fin.ptd
+    extra: {}
+  - path: mac/mac_walk_sa_1_fin.ptd
+    sha256: 9091d60a7d8e8b37d0b05961b914f05541d99c090f69a0d3a5c8cb41ff7352c5
+    subject: mac
+    actor: mac
+    emotion: sadness
+    label: sa
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/mac_pt.zip::mac_walk_sa_1_fin.ptd
+    extra: {}
+  - path: mac/mac_walk_sa_2_fin.ptd
+    sha256: 0ce745e758aedca6d0d7c2b7ecff4ae55a81181296328e37e0706e415a7d4b88
+    subject: mac
+    actor: mac
+    emotion: sadness
+    label: sa
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/mac_pt.zip::mac_walk_sa_2_fin.ptd
+    extra: {}
+  - path: mar/mar_walk_an_1_fin.ptd
+    sha256: ebd906c9e63eb6a43d09c9c9c576c9b39ce3214e08cf0bfae705ab7484350027
+    subject: mar
+    actor: mar
+    emotion: anger
+    label: an
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/mar_pt.zip::mar_walk_an_1_fin.ptd
+    extra: {}
+  - path: mar/mar_walk_an_2_fin.ptd
+    sha256: c8fb927fd3d6b784762092856600cff5a6728640711ce265d9f7b6df0e11a050
+    subject: mar
+    actor: mar
+    emotion: anger
+    label: an
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/mar_pt.zip::mar_walk_an_2_fin.ptd
+    extra: {}
+  - path: mar/mar_walk_ha_1_fin.ptd
+    sha256: 4124a4e31d32d82b570c167feb23d5be102098a3ec716e5a879a48e3ea8c54ae
+    subject: mar
+    actor: mar
+    emotion: happiness
+    label: ha
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/mar_pt.zip::mar_walk_ha_1_fin.ptd
+    extra: {}
+  - path: mar/mar_walk_ha_2_fin.ptd
+    sha256: c5b6aae1c6ff26cab45ff751a7f4af3ea70e8551f1dab9bca3f04480b77651a3
+    subject: mar
+    actor: mar
+    emotion: happiness
+    label: ha
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/mar_pt.zip::mar_walk_ha_2_fin.ptd
+    extra: {}
+  - path: mar/mar_walk_nu_1_fin.ptd
+    sha256: 0ac4cd8a1efe2363c70d032f2d71c4e27ef878434f9028dc097de76c2a1b571d
+    subject: mar
+    actor: mar
+    emotion: neutral
+    label: nu
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/mar_pt.zip::mar_walk_nu_1_fin.ptd
+    extra: {}
+  - path: mar/mar_walk_nu_2_fin.ptd
+    sha256: 1f803d78a7797ae4946033508fc504b753bd6cadc7dc9cffc91f521fdb3bd720
+    subject: mar
+    actor: mar
+    emotion: neutral
+    label: nu
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/mar_pt.zip::mar_walk_nu_2_fin.ptd
+    extra: {}
+  - path: mar/mar_walk_sa_1_fin.ptd
+    sha256: fd44c3ebeb07799d65c956a14a54bb4d11b46ebfc3e09711f40acd37c7743f4f
+    subject: mar
+    actor: mar
+    emotion: sadness
+    label: sa
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/mar_pt.zip::mar_walk_sa_1_fin.ptd
+    extra: {}
+  - path: mar/mar_walk_sa_2_fin.ptd
+    sha256: 533e2949f0706d095dc90e82dc065a7ffacd34c24bc2f4d3068b043d4dbcf42d
+    subject: mar
+    actor: mar
+    emotion: sadness
+    label: sa
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/mar_pt.zip::mar_walk_sa_2_fin.ptd
+    extra: {}
+  - path: mil/mil_walk_an_1_fin.ptd
+    sha256: 2d929958e2757beaa5e834beca99c9fbe048765408d7ad23a2f7590eb5e0af59
+    subject: mil
+    actor: mil
+    emotion: anger
+    label: an
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/mil_pt.zip::mil_walk_an_1_fin.ptd
+    extra: {}
+  - path: mil/mil_walk_an_2_fin.ptd
+    sha256: 69d714e818fa4aa669f004420c10e3f166a3993dc865931db15b2e2264a1e5df
+    subject: mil
+    actor: mil
+    emotion: anger
+    label: an
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/mil_pt.zip::mil_walk_an_2_fin.ptd
+    extra: {}
+  - path: mil/mil_walk_ha_1_fin.ptd
+    sha256: f06ff2c5311679b71f652cf1502efa89a1d9490a477b8bb5d05c76cf702debac
+    subject: mil
+    actor: mil
+    emotion: happiness
+    label: ha
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/mil_pt.zip::mil_walk_ha_1_fin.ptd
+    extra: {}
+  - path: mil/mil_walk_ha_2_fin.ptd
+    sha256: e51cd7cdb2e5fcbec0effa5e42d4167c73c9ee8e12a574ac2aae6c0cdd3dbeb4
+    subject: mil
+    actor: mil
+    emotion: happiness
+    label: ha
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/mil_pt.zip::mil_walk_ha_2_fin.ptd
+    extra: {}
+  - path: mil/mil_walk_nu_1_fin.ptd
+    sha256: eb9718329d65c4fa182989624a26628d7e20569f2f2021c9f20e681efa0d264a
+    subject: mil
+    actor: mil
+    emotion: neutral
+    label: nu
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/mil_pt.zip::mil_walk_nu_1_fin.ptd
+    extra: {}
+  - path: mil/mil_walk_nu_2_fin.ptd
+    sha256: bb01b908fbedc86ab2a416b827cf92a504d08de6d533a52cd18bfa1ab7e7e7a1
+    subject: mil
+    actor: mil
+    emotion: neutral
+    label: nu
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/mil_pt.zip::mil_walk_nu_2_fin.ptd
+    extra: {}
+  - path: mil/mil_walk_sa_1_fin.ptd
+    sha256: bdad6f75df29630f0c6d817a94f30c08c7626b1038f9425a4fe9d1b36283b3b6
+    subject: mil
+    actor: mil
+    emotion: sadness
+    label: sa
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/mil_pt.zip::mil_walk_sa_1_fin.ptd
+    extra: {}
+  - path: mil/mil_walk_sa_2_fin.ptd
+    sha256: 5444c6394e1cd87d24469844da2c9aa44eea9eace51cbd6e076ecbe4e4825750
+    subject: mil
+    actor: mil
+    emotion: sadness
+    label: sa
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/mil_pt.zip::mil_walk_sa_2_fin.ptd
+    extra: {}
+  - path: ndy/ndy_walk_an_1_fin.ptd
+    sha256: 41699723a3f52f00665037e7d16a4fabb4a1ee90bac0027536834b2327999739
+    subject: ndy
+    actor: ndy
+    emotion: anger
+    label: an
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/ndy_pt.zip::ndy_walk_an_1_fin.ptd
+    extra: {}
+  - path: ndy/ndy_walk_an_2_fin.ptd
+    sha256: 22181be21ce520420d8cb38177859bcf3598b74d70cff8934948c98c03f288db
+    subject: ndy
+    actor: ndy
+    emotion: anger
+    label: an
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/ndy_pt.zip::ndy_walk_an_2_fin.ptd
+    extra: {}
+  - path: ndy/ndy_walk_ha_1_fin.ptd
+    sha256: 4c6759b1437bdbcb8465469da181ead375d4ccd5ff58f3d3875c7378b7b442fb
+    subject: ndy
+    actor: ndy
+    emotion: happiness
+    label: ha
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/ndy_pt.zip::ndy_walk_ha_1_fin.ptd
+    extra: {}
+  - path: ndy/ndy_walk_ha_2_fin.ptd
+    sha256: 12cec94daf7187bbedab440177be7b26e028e18280286602c45dde444ef65c82
+    subject: ndy
+    actor: ndy
+    emotion: happiness
+    label: ha
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/ndy_pt.zip::ndy_walk_ha_2_fin.ptd
+    extra: {}
+  - path: ndy/ndy_walk_nu_1_fin.ptd
+    sha256: 63830c844407b9a93981b406f9e6b71965022106e3f508bfb047c4b07585ba03
+    subject: ndy
+    actor: ndy
+    emotion: neutral
+    label: nu
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/ndy_pt.zip::ndy_walk_nu_1_fin.ptd
+    extra: {}
+  - path: ndy/ndy_walk_nu_2_fin.ptd
+    sha256: a231bc7e8156ed9613552773a5d5ef02ebc3a44d4b461b5f067908b9164a4b71
+    subject: ndy
+    actor: ndy
+    emotion: neutral
+    label: nu
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/ndy_pt.zip::ndy_walk_nu_2_fin.ptd
+    extra: {}
+  - path: ndy/ndy_walk_sa_1_fin.ptd
+    sha256: e2b0c95fa3bed8822af1ce70f5817418abbf3e3fb170d59a4d1cd651c1975d53
+    subject: ndy
+    actor: ndy
+    emotion: sadness
+    label: sa
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/ndy_pt.zip::ndy_walk_sa_1_fin.ptd
+    extra: {}
+  - path: ndy/ndy_walk_sa_2_fin.ptd
+    sha256: fcd5bff0e24a6c195f579ebdbcde833673af4e2d007a90226ad53b8f7c6bb69d
+    subject: ndy
+    actor: ndy
+    emotion: sadness
+    label: sa
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/ndy_pt.zip::ndy_walk_sa_2_fin.ptd
+    extra: {}
+  - path: pet/pet_walk_af_1_fin.ptd
+    sha256: 9862eeb0dd4e5ce7149c9a90a5f84022e26dfa020d6ec1b27254d2e2f93da113
+    subject: pet
+    actor: pet
+    emotion: fear
+    label: af
+    label_kind: mapped
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/pet_pt.zip::pet_walk_af_1_fin.ptd
+    extra: {}
+  - path: pet/pet_walk_af_2_fin.ptd
+    sha256: 91106e5f21b048d9f6981f996ef35a58620602369d2a8f19925a873ff017282d
+    subject: pet
+    actor: pet
+    emotion: fear
+    label: af
+    label_kind: mapped
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/pet_pt.zip::pet_walk_af_2_fin.ptd
+    extra: {}
+  - path: pet/pet_walk_an_1_fin.ptd
+    sha256: da93f505a7a96c1bec836717ab286a613f39cc1e1602528a6bf6814b40a4da91
+    subject: pet
+    actor: pet
+    emotion: anger
+    label: an
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/pet_pt.zip::pet_walk_an_1_fin.ptd
+    extra: {}
+  - path: pet/pet_walk_an_2_fin.ptd
+    sha256: 27a2ab62999c36f2bcf2f7c0f150c3f8bc1c05a541cd5684a2f258b413632219
+    subject: pet
+    actor: pet
+    emotion: anger
+    label: an
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/pet_pt.zip::pet_walk_an_2_fin.ptd
+    extra: {}
+  - path: pet/pet_walk_ha_1_fin.ptd
+    sha256: 3a60793e35ddf4dcc28affa991643eab10c5d8877364ce573d9ad017a9ef37b2
+    subject: pet
+    actor: pet
+    emotion: happiness
+    label: ha
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/pet_pt.zip::pet_walk_ha_1_fin.ptd
+    extra: {}
+  - path: pet/pet_walk_ha_2_fin.ptd
+    sha256: 185791c7043adc011cfbb1a6a04f77e082727220c5f10680817c9df9a52b33e3
+    subject: pet
+    actor: pet
+    emotion: happiness
+    label: ha
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/pet_pt.zip::pet_walk_ha_2_fin.ptd
+    extra: {}
+  - path: pet/pet_walk_nu_1_fin.ptd
+    sha256: ffc4dbc27a43c4613930bd002b87489db798a842421e570ea151adaa1e707134
+    subject: pet
+    actor: pet
+    emotion: neutral
+    label: nu
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/pet_pt.zip::pet_walk_nu_1_fin.ptd
+    extra: {}
+  - path: pet/pet_walk_nu_2_fin.ptd
+    sha256: 345ebe03459a8de93aef886e47c864062e7901edffb928210d2d4355c084882d
+    subject: pet
+    actor: pet
+    emotion: neutral
+    label: nu
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/pet_pt.zip::pet_walk_nu_2_fin.ptd
+    extra: {}
+  - path: pet/pet_walk_sa_1_fin.ptd
+    sha256: 1e6482a7995f0731f9b6fd96918d42db52235abc54ee7806c1f8aed9a7ed79b4
+    subject: pet
+    actor: pet
+    emotion: sadness
+    label: sa
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/pet_pt.zip::pet_walk_sa_1_fin.ptd
+    extra: {}
+  - path: pet/pet_walk_sa_2_fin.ptd
+    sha256: 819c9afb1be07667b4b2197c1aa3ee50e32c0e8b24e0125fa3784e2c95a0659b
+    subject: pet
+    actor: pet
+    emotion: sadness
+    label: sa
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/pet_pt.zip::pet_walk_sa_2_fin.ptd
+    extra: {}
+  - path: rac/rac_walk_an_1_fin.ptd
+    sha256: 546d37692adfbd34eaab046352a36566b8ae9cdd66b3644f53ebdc22285bbe3f
+    subject: rac
+    actor: rac
+    emotion: anger
+    label: an
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/rac_pt.zip::rac_walk_an_1_fin.ptd
+    extra: {}
+  - path: rac/rac_walk_an_2_fin.ptd
+    sha256: a2840713be3eaab71a7f4aaf01c9f55f850a632ff7f1e39ffc3e209540975518
+    subject: rac
+    actor: rac
+    emotion: anger
+    label: an
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/rac_pt.zip::rac_walk_an_2_fin.ptd
+    extra: {}
+  - path: rac/rac_walk_ha_1_fin.ptd
+    sha256: ecfa75710c48d48524b0056f2caf5cb52c5531c9fd7e02672124bb636189848e
+    subject: rac
+    actor: rac
+    emotion: happiness
+    label: ha
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/rac_pt.zip::rac_walk_ha_1_fin.ptd
+    extra: {}
+  - path: rac/rac_walk_ha_2_fin.ptd
+    sha256: face330ec6a2701efe2c48265c5761ddbce605556ebb8fccd71f3fcdc112e401
+    subject: rac
+    actor: rac
+    emotion: happiness
+    label: ha
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/rac_pt.zip::rac_walk_ha_2_fin.ptd
+    extra: {}
+  - path: rac/rac_walk_nu_1_fin.ptd
+    sha256: dd52b711f892133aa1468aa186016e1c6ed2b16e9997d000823ec719dc5f22fa
+    subject: rac
+    actor: rac
+    emotion: neutral
+    label: nu
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/rac_pt.zip::rac_walk_nu_1_fin.ptd
+    extra: {}
+  - path: rac/rac_walk_nu_2_fin.ptd
+    sha256: 6a74e8240a1a53050c39c8c9d4b6c95f66a15d18d1875a10876650d54dff0cb6
+    subject: rac
+    actor: rac
+    emotion: neutral
+    label: nu
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/rac_pt.zip::rac_walk_nu_2_fin.ptd
+    extra: {}
+  - path: rac/rac_walk_sa_1_fin.ptd
+    sha256: 280ae64d0a2792b57b9da18afa97791ac083b65b890d2c4332c41f9326953028
+    subject: rac
+    actor: rac
+    emotion: sadness
+    label: sa
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/rac_pt.zip::rac_walk_sa_1_fin.ptd
+    extra: {}
+  - path: rac/rac_walk_sa_2_fin.ptd
+    sha256: 6c61c6f970803b60993760d79e831eb1ad803dc0f4eb5a950495a0cd95ba8e40
+    subject: rac
+    actor: rac
+    emotion: sadness
+    label: sa
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/rac_pt.zip::rac_walk_sa_2_fin.ptd
+    extra: {}
+  - path: ros/ros_walk_an_1_fin.ptd
+    sha256: cea7bec2997edb94b543e32e1dcd45e25b8b0a3e17048f7f0848e8ff14c8bfda
+    subject: ros
+    actor: ros
+    emotion: anger
+    label: an
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/ros_pt.zip::ros_walk_an_1_fin.ptd
+    extra: {}
+  - path: ros/ros_walk_an_2_fin.ptd
+    sha256: 7014f5d39d04e8c75fde4eb3af052f5ea4c3b17c6e87385348277fad4492a00e
+    subject: ros
+    actor: ros
+    emotion: anger
+    label: an
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/ros_pt.zip::ros_walk_an_2_fin.ptd
+    extra: {}
+  - path: ros/ros_walk_ha_1_fin.ptd
+    sha256: fece7fdaaf3a58d4e3aff56e83603ff4f67be709ccf41480439a2ce697558e6a
+    subject: ros
+    actor: ros
+    emotion: happiness
+    label: ha
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/ros_pt.zip::ros_walk_ha_1_fin.ptd
+    extra: {}
+  - path: ros/ros_walk_ha_2_fin.ptd
+    sha256: 63c6bffc90a719fdb63ed5ef8394905e63b0981cac8faf6c6086419dc2cb047c
+    subject: ros
+    actor: ros
+    emotion: happiness
+    label: ha
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/ros_pt.zip::ros_walk_ha_2_fin.ptd
+    extra: {}
+  - path: ros/ros_walk_nu_1_fin.ptd
+    sha256: 2a5270e9b1ad3bbc0dfb39e916b4c12e8f46e41e6f174e3482e7e72d6f22177b
+    subject: ros
+    actor: ros
+    emotion: neutral
+    label: nu
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/ros_pt.zip::ros_walk_nu_1_fin.ptd
+    extra: {}
+  - path: ros/ros_walk_nu_2_fin.ptd
+    sha256: 08ea423a95652f1ee068b55a19e3613d0afa137725ee619005cd607a55a9a5bf
+    subject: ros
+    actor: ros
+    emotion: neutral
+    label: nu
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/ros_pt.zip::ros_walk_nu_2_fin.ptd
+    extra: {}
+  - path: ros/ros_walk_sa_1_fin.ptd
+    sha256: f27a41cc0f4c1c1b3fed4a101264103407d57130d93106b54e2a2eabb9d0751d
+    subject: ros
+    actor: ros
+    emotion: sadness
+    label: sa
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/ros_pt.zip::ros_walk_sa_1_fin.ptd
+    extra: {}
+  - path: ros/ros_walk_sa_2_fin.ptd
+    sha256: 7112a7b209cdd0594dee419b4977041ac6f792fa4bb4f8f914f4adc0ea2d62ad
+    subject: ros
+    actor: ros
+    emotion: sadness
+    label: sa
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/ros_pt.zip::ros_walk_sa_2_fin.ptd
+    extra: {}
+  - path: she/she_walk_af_1_fin.ptd
+    sha256: 82e814d170d3f4cec7cc6e469d699e12b2aa0b7a0643d6027d61e79200021210
+    subject: she
+    actor: she
+    emotion: fear
+    label: af
+    label_kind: mapped
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/she_pt.zip::she_walk_af_1_fin.ptd
+    extra: {}
+  - path: she/she_walk_af_2_fin.ptd
+    sha256: a997646a4874e1bf58fa27726000c99a6459fe181b7ed608ba53c2d6f9ba3e41
+    subject: she
+    actor: she
+    emotion: fear
+    label: af
+    label_kind: mapped
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/she_pt.zip::she_walk_af_2_fin.ptd
+    extra: {}
+  - path: she/she_walk_an_1_fin.ptd
+    sha256: 057a32ad1b57d2e99e595a4afcd6dc8af4f606f8505b5ee557aa8cd75607ed68
+    subject: she
+    actor: she
+    emotion: anger
+    label: an
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/she_pt.zip::she_walk_an_1_fin.ptd
+    extra: {}
+  - path: she/she_walk_an_2_fin.ptd
+    sha256: dfbd6ead85968ee06d4321c0c815f1c733f8f8c0ff078cbc4f4ab6bd608379c4
+    subject: she
+    actor: she
+    emotion: anger
+    label: an
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/she_pt.zip::she_walk_an_2_fin.ptd
+    extra: {}
+  - path: she/she_walk_ha_1_fin.ptd
+    sha256: 2c755b389e77f8e9e4b6d726e58bc69966d2b52ba6127e976492fb2f1752bd5d
+    subject: she
+    actor: she
+    emotion: happiness
+    label: ha
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/she_pt.zip::she_walk_ha_1_fin.ptd
+    extra: {}
+  - path: she/she_walk_ha_2_fin.ptd
+    sha256: 19672b4720d688cbe7674aa27048d71c2d2d5b307003684d3cba335d6e5443fb
+    subject: she
+    actor: she
+    emotion: happiness
+    label: ha
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/she_pt.zip::she_walk_ha_2_fin.ptd
+    extra: {}
+  - path: she/she_walk_nu_1_fin.ptd
+    sha256: b660904a30d21a3418ca781b0409957b012fbac9cec48054e9de22d6b46a0a8e
+    subject: she
+    actor: she
+    emotion: neutral
+    label: nu
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/she_pt.zip::she_walk_nu_1_fin.ptd
+    extra: {}
+  - path: she/she_walk_nu_2_fin.ptd
+    sha256: 3263c4af1e69580fa9018d6101ddefc113580f774b2ad6069270726c13214085
+    subject: she
+    actor: she
+    emotion: neutral
+    label: nu
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/she_pt.zip::she_walk_nu_2_fin.ptd
+    extra: {}
+  - path: she/she_walk_sa_1_fin.ptd
+    sha256: 26b7adccddc7fa06c43ad787c634da976f720be1ea6c9e23eb606b0dbe625167
+    subject: she
+    actor: she
+    emotion: sadness
+    label: sa
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/she_pt.zip::she_walk_sa_1_fin.ptd
+    extra: {}
+  - path: she/she_walk_sa_2_fin.ptd
+    sha256: ded079f893357d37fd992fc555d72092d49907368fb6f07346c559d8f5f3dff6
+    subject: she
+    actor: she
+    emotion: sadness
+    label: sa
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/she_pt.zip::she_walk_sa_2_fin.ptd
+    extra: {}
+  - path: shi/shi_walk_an_1_fin.ptd
+    sha256: d8238580126125967ee73d4cf43ba64aa02613ac8e3d12fc9d1eba818617170a
+    subject: shi
+    actor: shi
+    emotion: anger
+    label: an
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/shi_pt.zip::shi_walk_an_1_fin.ptd
+    extra: {}
+  - path: shi/shi_walk_an_2_fin.ptd
+    sha256: 341c9014606f746f94e27a385c5a961e044fc8261f43a65cfa6b65e9a4f65646
+    subject: shi
+    actor: shi
+    emotion: anger
+    label: an
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/shi_pt.zip::shi_walk_an_2_fin.ptd
+    extra: {}
+  - path: shi/shi_walk_ha_1_fin.ptd
+    sha256: a175d060c990b27d18759e799e64242b2d1e81c4d49635ea2bd9b81014eadaed
+    subject: shi
+    actor: shi
+    emotion: happiness
+    label: ha
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/shi_pt.zip::shi_walk_ha_1_fin.ptd
+    extra: {}
+  - path: shi/shi_walk_ha_2_fin.ptd
+    sha256: 77865713c58eca01fb03af984a036fc7d1bd72c78281fb08d136701394a429bf
+    subject: shi
+    actor: shi
+    emotion: happiness
+    label: ha
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/shi_pt.zip::shi_walk_ha_2_fin.ptd
+    extra: {}
+  - path: shi/shi_walk_nu_1_fin.ptd
+    sha256: 22b0676c5da91d4c0719f067c33404e5aac47ac5b789ee303375f795afd19418
+    subject: shi
+    actor: shi
+    emotion: neutral
+    label: nu
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/shi_pt.zip::shi_walk_nu_1_fin.ptd
+    extra: {}
+  - path: shi/shi_walk_nu_2_fin.ptd
+    sha256: 10ace117b8b8741c78641ec332073ac7b4b2359da7cc23863bb53eee75e24d5b
+    subject: shi
+    actor: shi
+    emotion: neutral
+    label: nu
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/shi_pt.zip::shi_walk_nu_2_fin.ptd
+    extra: {}
+  - path: shi/shi_walk_sa_1_fin.ptd
+    sha256: a5b5f6c35024cf0dc2bafaf8ce4212ee70343b16a1a7435f039dacf669954392
+    subject: shi
+    actor: shi
+    emotion: sadness
+    label: sa
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/shi_pt.zip::shi_walk_sa_1_fin.ptd
+    extra: {}
+  - path: shi/shi_walk_sa_2_fin.ptd
+    sha256: 72314006bdfc95c483eefeef7f42e4064bd490c9b408e598a10b84f9063440e4
+    subject: shi
+    actor: shi
+    emotion: sadness
+    label: sa
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/shi_pt.zip::shi_walk_sa_2_fin.ptd
+    extra: {}
+  - path: ste/ste_walk_an_1_fin.ptd
+    sha256: 7098ee58fbd4d51282a84c0750ccd179fe2032140fccce5ffe3747396fba7f4b
+    subject: ste
+    actor: ste
+    emotion: anger
+    label: an
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/ste_pt.zip::ste_walk_an_1_fin.ptd
+    extra: {}
+  - path: ste/ste_walk_an_2_fin.ptd
+    sha256: dd890ed3aa9100d46a4d70e2868cc4b74dd80771bfc1806fdb437069ab665056
+    subject: ste
+    actor: ste
+    emotion: anger
+    label: an
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/ste_pt.zip::ste_walk_an_2_fin.ptd
+    extra: {}
+  - path: ste/ste_walk_ha_1_fin.ptd
+    sha256: f72d8afb9dd4156718eb11329cf9db6e6404ac687f5ddeb06d67cfe77c6658d9
+    subject: ste
+    actor: ste
+    emotion: happiness
+    label: ha
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/ste_pt.zip::ste_walk_ha_1_fin.ptd
+    extra: {}
+  - path: ste/ste_walk_ha_2_fin.ptd
+    sha256: 897b9436e917bc448e863d86080b932a51c30e46a3bb092e450ce2615a14b05f
+    subject: ste
+    actor: ste
+    emotion: happiness
+    label: ha
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/ste_pt.zip::ste_walk_ha_2_fin.ptd
+    extra: {}
+  - path: ste/ste_walk_nu_1_fin.ptd
+    sha256: abc45cfb75e3bac962618f142eaab819b72d73c5309e23cbe65fd8858107376d
+    subject: ste
+    actor: ste
+    emotion: neutral
+    label: nu
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/ste_pt.zip::ste_walk_nu_1_fin.ptd
+    extra: {}
+  - path: ste/ste_walk_nu_2_fin.ptd
+    sha256: 14b2b01dc54df937e51c79625d5f0801c3267d45cad6065d272fc322b07c6000
+    subject: ste
+    actor: ste
+    emotion: neutral
+    label: nu
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/ste_pt.zip::ste_walk_nu_2_fin.ptd
+    extra: {}
+  - path: ste/ste_walk_sa_1_fin.ptd
+    sha256: fd9c153697a5fdc06986d30b24704da70d72bd8745149a6c7e1daebddf1e7155
+    subject: ste
+    actor: ste
+    emotion: sadness
+    label: sa
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/ste_pt.zip::ste_walk_sa_1_fin.ptd
+    extra: {}
+  - path: ste/ste_walk_sa_2_fin.ptd
+    sha256: 062ca88b46096b09464a08d47fc456501205e68abd8e988e5777ab451f48a316
+    subject: ste
+    actor: ste
+    emotion: sadness
+    label: sa
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/ste_pt.zip::ste_walk_sa_2_fin.ptd
+    extra: {}
+  - path: vas/vas_walk_an_1_fin.ptd
+    sha256: f3d76f9e791f2cafb2b68169c0c626b552e521d0f4a6b5f34620ce3c83d4a584
+    subject: vas
+    actor: vas
+    emotion: anger
+    label: an
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/vas_pt.zip::vas_walk_an_1_fin.ptd
+    extra: {}
+  - path: vas/vas_walk_an_2_fin.ptd
+    sha256: 575103c8e226ed18518ed22fc1bd470b3c3e9ef4eb418a2e7dbcfa4fa60c5336
+    subject: vas
+    actor: vas
+    emotion: anger
+    label: an
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/vas_pt.zip::vas_walk_an_2_fin.ptd
+    extra: {}
+  - path: vas/vas_walk_ha_1_fin.ptd
+    sha256: 6810985c3fee0260a9d1e0d95e1c40a69e1fbd037157ba3755d16496a32650ec
+    subject: vas
+    actor: vas
+    emotion: happiness
+    label: ha
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/vas_pt.zip::vas_walk_ha_1_fin.ptd
+    extra: {}
+  - path: vas/vas_walk_ha_2_fin.ptd
+    sha256: 06aa2b96ddeaee556aeeb8d271096586b700766fed409e2f6dbe1ff5944100d5
+    subject: vas
+    actor: vas
+    emotion: happiness
+    label: ha
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/vas_pt.zip::vas_walk_ha_2_fin.ptd
+    extra: {}
+  - path: vas/vas_walk_nu_1_fin.ptd
+    sha256: 702e3c1ca14424d3ebc46544ac651de353e8097bdf96f65d5c129677a89750ab
+    subject: vas
+    actor: vas
+    emotion: neutral
+    label: nu
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/vas_pt.zip::vas_walk_nu_1_fin.ptd
+    extra: {}
+  - path: vas/vas_walk_nu_2_fin.ptd
+    sha256: e2e345a96ffe706aa0c633cd692731b839ec51252317ab5a5a407b44e0e29515
+    subject: vas
+    actor: vas
+    emotion: neutral
+    label: nu
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/vas_pt.zip::vas_walk_nu_2_fin.ptd
+    extra: {}
+  - path: vas/vas_walk_sa_1_fin.ptd
+    sha256: 0b19c44c8b105b603a30c255ab4c120c6649a4d8a00fd0a536fb7e5f0cc616ef
+    subject: vas
+    actor: vas
+    emotion: sadness
+    label: sa
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/vas_pt.zip::vas_walk_sa_1_fin.ptd
+    extra: {}
+  - path: vas/vas_walk_sa_2_fin.ptd
+    sha256: 9b36c070871a49b8ade5abc798d6c34c08e7310e7b57ae6f4c8df18fbd74977d
+    subject: vas
+    actor: vas
+    emotion: sadness
+    label: sa
+    label_kind: exact
+    start_frame: null
+    end_frame: null
+    archive_member: ptd/ptd data/vas_pt.zip::vas_walk_sa_2_fin.ptd
+    extra: {}
+  excluded:
+  - path: kat/kat_walk_sa_1_fin.ptd
+    reason: 'archive''s ''Problems with the data.pdf'': head point buried in the chest; the extractor
+      reads neck_pitch 2.0 rad'
+  - path: chr/chr_walk_nu_1_fin.ptd
+    reason: 'static placeholder: every frame identical (the archive''s missing anticlockwise neutral walk
+      for chr)'
+  - path: <non-walk actions>
+    reason: throw, seq, lift, knock are not walking
