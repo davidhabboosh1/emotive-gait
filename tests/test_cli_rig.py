@@ -99,7 +99,9 @@ def test_serve_without_mcp_exits_one_with_the_install_hint(monkeypatch, capsys):
 
 def test_rig_validate_prints_five_rows(tmp_path, capsys):
     assert main(["rig", "validate", str(walk_file(RigSpec(), tmp_path))]) == 0
-    assert capsys.readouterr().out.count("\n") >= 5
+    out = capsys.readouterr().out
+    assert all(name in out for name in ("neutral", "sad", "angry", "happy", "fear"))
+    assert out.count("\n") >= 5
 
 
 def _inspect_mapping(path, capsys, *extra):
@@ -157,3 +159,25 @@ def test_scale_must_be_positive_and_finite(tmp_path, capsys, bad):
     path = walk_file(RigSpec(), tmp_path)
     assert main(["rig", "inspect", str(path), f"--scale={bad}"]) == 2
     assert "--scale" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize(
+    ("line", "word"), [("scale: -3", "scale"), ("scale: abc", "scale"), ("up_axis: q", "up_axis")]
+)
+def test_bad_mapping_file_scale_or_up_axis_exits_two_without_a_traceback(
+    tmp_path, capsys, line, word
+):
+    (tmp_path / "m.yaml").write_text(f"{line}\n")
+    path = walk_file(RigSpec(), tmp_path)
+    assert main(["rig", "inspect", str(path), "--mapping", str(tmp_path / "m.yaml")]) == 2
+    err = capsys.readouterr().err
+    assert word in err and "Traceback" not in err
+
+
+def test_mapping_file_with_only_scale_and_up_axis_is_used_without_inference(tmp_path, capsys):
+    (tmp_path / "m.yaml").write_text("scale: 0.01\nup_axis: y\n")
+    path = walk_file(RigSpec(), tmp_path)
+    assert main(["rig", "inspect", str(path), "--json", "--mapping", str(tmp_path / "m.yaml")]) == 0
+    mapping = json.loads(capsys.readouterr().out)["mapping"]
+    assert mapping["scale"] == 0.01 and mapping["up_axis"] == "y"
+    assert not {"scale", "up_axis"} & {d["what"] for d in mapping["decisions"]}

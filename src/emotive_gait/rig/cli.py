@@ -43,7 +43,7 @@ from emotive_gait.rig.synthesis import (
 # the keys ``inspect --json`` adds under "mapping" for the reader; a mapping file may keep them
 _INFORMATIONAL = ("family", "scale", "up_axis", "leg_length", "decisions", "warnings", "skewed")
 _VALIDATE_RUNS = (
-    ("zero", {}),
+    ("neutral", {}),
     ("sad", {Emotion.SADNESS: 1.0}),
     ("angry", {Emotion.ANGER: 1.0}),
     ("happy", {Emotion.HAPPINESS: 1.0}),
@@ -55,14 +55,24 @@ _OK = {True: "ok", False: "NO", None: "-"}
 # --- parsers -------------------------------------------------------------------------------
 
 
+def _check_positive_finite(value: object, name: str) -> float:
+    """``value`` as a positive finite float, else ``ValueError`` naming ``name`` and the value."""
+    try:
+        if isinstance(value, bool):
+            raise TypeError
+        number = float(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        raise ValueError(f"{name} must be a positive finite number, got {value!r}") from None
+    if not (math.isfinite(number) and number > 0):
+        raise ValueError(f"{name} must be a positive finite number, got {value!r}")
+    return number
+
+
 def _positive_finite(text: str) -> float:
     try:
-        value = float(text)
-    except ValueError:
-        raise argparse.ArgumentTypeError(f"{text!r} is not a number") from None
-    if not (math.isfinite(value) and value > 0):
-        raise argparse.ArgumentTypeError(f"{text!r} must be positive and finite")
-    return value
+        return _check_positive_finite(text, "value")
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(str(exc)) from None
 
 
 def _rig_arguments(p: argparse.ArgumentParser) -> None:
@@ -166,10 +176,18 @@ def _load(args: argparse.Namespace) -> LoadedRig:
         raise RigError(f"{source}: no such file")
     overrides, info = _read_mapping(args.mapping)
     scale, up_axis = args.scale, args.up
-    if scale is None and info.get("scale") is not None:
-        scale = _positive_finite(str(info["scale"]))  # the file's, as if given on the command line
-    if up_axis is None:
-        up_axis = info.get("up_axis")
+    try:
+        file_scale = (
+            _check_positive_finite(info["scale"], "mapping file scale") if "scale" in info else None
+        )
+    except ValueError as exc:
+        raise RigError(str(exc)) from None
+    file_up = info.get("up_axis")
+    if file_up is not None and file_up not in ("y", "z"):
+        raise RigError(f"mapping file up_axis must be 'y' or 'z', got {file_up!r}")
+    # the file's values act as if given on the command line; explicit flags win
+    scale = scale if scale is not None else file_scale
+    up_axis = up_axis if up_axis is not None else file_up
     ignored = [k for k in info if k not in ("scale", "up_axis")]
     if ignored:
         _err(f"ignoring informational mapping keys: {', '.join(ignored)}")
