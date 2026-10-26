@@ -8,8 +8,8 @@ Design spec 4.3. One model per parameter, fitted by REML with ``statsmodels`` ``
 uncertainty of every actor's neutral mean. Actors are the groups (keyed by dataset and actor, so
 two datasets reusing an actor name stay apart). The maximal random structure (an intercept and
 one slope per emotion) falls back to the random intercept alone when it does not converge or its
-covariance is singular; the fallback is recorded as ``converged_maximal=False`` and nothing is
-tuned to make it converge.
+covariance is singular; the fallback is recorded as ``converged_maximal=False`` with a
+``fallback_reason``, and nothing is tuned to make it converge.
 
 Grounding per ``(emotion, parameter)`` cell: ``fitted`` with three or more actors (95 % Wald
 interval), ``thin`` with one or two (estimate, no interval), ``missing`` with none (estimate 0.0,
@@ -23,7 +23,7 @@ from __future__ import annotations
 
 import math
 import warnings
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, fields
 from types import MappingProxyType
 from typing import Literal
@@ -44,12 +44,17 @@ _EXPANSIVE = ("arm_swing_amp", "arm_abduction", "step_height")
 _RATIO_SCALED = (*LENGTH_FIELDS, "cadence", "com_height_scale")
 _TERM = "C(emotion, Treatment('neutral'))"
 _GROUP = "_group"
-_SINGULAR_VARIANCE = 1e-10
-# ConvergenceWarnings that do not signal a failed fit: statsmodels warns "on the boundary"
-# whenever any random-effect variance is below 0.01 in absolute units, which every normalised
-# parameter is (a variance of 1e-3 is a 0.03 SD); the boundary is judged by ``_singular``
-# instead. "Retrying" announces a fall-through to the next optimiser, whose outcome is judged.
-_NOT_A_FAILURE = ("The MLE may be on the boundary", "Retrying MixedLM optimization")
+_RELATIVE_SINGULAR = 1e-6
+# The ConvergenceWarnings that end an optimisation for good. statsmodels also warns
+# "Maximum Likelihood optimization failed to converge" when its first optimiser stops, then
+# "Retrying MixedLM optimization with <next>", and "The MLE may be on the boundary" whenever any
+# variance is below 0.01 in absolute units (every normalised parameter); none of those is a
+# failed fit: the final ``converged`` flag and the relative singularity test judge it instead.
+_TERMINAL_WARNINGS = ("MixedLM optimization failed", "Gradient optimization failed")
+
+FallbackReason = Literal[
+    "not_converged", "terminal_warning", "nonfinite_se", "singular_cov_re", "fit_error"
+]
 
 
 @dataclass(frozen=True)
@@ -67,6 +72,7 @@ class Cell:
     n_mapped_actors: int
     grounding: Literal["fitted", "thin", "missing"]
     converged_maximal: bool
+    fallback_reason: FallbackReason | None
     per_dataset: Mapping[str, float]
 
 
@@ -99,25 +105,38 @@ def _level(emotion: str) -> str:
     return f"{_TERM}[T.{emotion}]"
 
 
-def _singular(cov_re: pd.DataFrame) -> bool:
-    matrix = np.asarray(cov_re, dtype=float)
-    if not np.all(np.isfinite(matrix)) or np.any(np.diag(matrix) < _SINGULAR_VARIANCE):
-        return True
-    try:
-        np.linalg.cholesky(matrix)
-    except np.linalg.LinAlgError:
-        return True
-    return False
+def _rejection(result, messages: Sequence[str]) -> FallbackReason | None:
+    """Why a maximal fit cannot be kept, or ``None`` when it can.
+
+    ``result`` needs ``converged``, ``bse_fe`` and ``cov_re``; ``messages`` are the texts of the
+    ``ConvergenceWarning``s raised while fitting. Checked in order: no result (``fit_error``);
+    ``converged`` false; a terminal warning (``_TERMINAL_WARNINGS``); a non-finite fixed-effect
+    standard error (the Hessian is not positive definite there); ``cov_re`` non-finite or with
+    smallest / largest eigenvalue below 1e-6 (``singular_cov_re``).
+    """
+    if result is None:
+        return "fit_error"
+    if not result.converged:
+        return "not_converged"
+    if any(str(m).startswith(_TERMINAL_WARNINGS) for m in messages):
+        return "terminal_warning"
+    if not np.all(np.isfinite(np.asarray(result.bse_fe, dtype=float))):
+        return "nonfinite_se"
+    matrix = np.asarray(result.cov_re, dtype=float)
+    if not np.all(np.isfinite(matrix)):
+        return "singular_cov_re"
+    eig = np.linalg.eigvalsh(matrix)
+    if eig[-1] <= 0.0 or eig[0] / eig[-1] < _RELATIVE_SINGULAR:
+        return "singular_cov_re"
+    return None
 
 
 def _mixed_fit(rows: pd.DataFrame, formula: str):
     """Fit ``formula`` with the maximal random structure, else with the random intercept.
 
-    Returns ``(result, converged_maximal)``. The maximal fit is rejected on a
-    ``ConvergenceWarning`` (except the two in ``_NOT_A_FAILURE``), ``converged is False``, a
-    fitting error, or a singular or non-finite ``cov_re`` (a variance below 1e-10 or a matrix
-    that is not positive definite). The fallback is kept whatever its own convergence; its
-    warnings are swallowed.
+    Returns ``(result, fallback_reason)``: ``fallback_reason`` is ``None`` when the maximal fit
+    is kept (see ``_rejection``), and ``result`` is ``None`` when the random-intercept fallback
+    raised too. The fallback is kept whatever its own convergence; every warning is swallowed.
     """
     from statsmodels.formula.api import mixedlm
     from statsmodels.tools.sm_exceptions import ConvergenceWarning
@@ -129,24 +148,17 @@ def _mixed_fit(rows: pd.DataFrame, formula: str):
             result = mixedlm(formula, rows, groups=groups, re_formula=f"~ {_TERM}").fit(reml=True)
         except (np.linalg.LinAlgError, ValueError):
             result = None
-    failed = [
-        w
-        for w in caught
-        if issubclass(w.category, ConvergenceWarning)
-        and not str(w.message).startswith(_NOT_A_FAILURE)
-    ]
-    ok = (
-        result is not None
-        and result.converged is not False
-        and not failed
-        and not _singular(result.cov_re)
-    )
-    if ok:
-        return result, True
+        messages = [str(w.message) for w in caught if issubclass(w.category, ConvergenceWarning)]
+        reason = _rejection(result, messages)
+    if reason is None:
+        return result, None
     with warnings.catch_warnings(record=True):
         warnings.simplefilter("always")
-        result = mixedlm(formula, rows, groups=groups, re_formula="1").fit(reml=True)
-    return result, False
+        try:
+            result = mixedlm(formula, rows, groups=groups, re_formula="1").fit(reml=True)
+        except (np.linalg.LinAlgError, ValueError):
+            return None, "fit_error"
+    return result, reason
 
 
 def _missing(emotion: str, parameter: str) -> Cell:
@@ -164,6 +176,7 @@ def _missing(emotion: str, parameter: str) -> Cell:
         n_mapped_actors=0,
         grounding="missing",
         converged_maximal=True,
+        fallback_reason=None,
         per_dataset=MappingProxyType({}),
     )
 
@@ -175,19 +188,23 @@ def fit_parameter(df: pd.DataFrame, parameter: str) -> list[Cell]:
     neutral row for it. An emotion left with no actor is a ``missing`` cell; emotions absent from
     ``df`` get no cell (the caller treats them as missing). ``n_cycles`` counts the emotion's
     cycles; ``between_actor_sd`` is the emotion's random-slope SD from ``cov_re``, or the pooled
-    ``between_actor_sd`` of the observed deltas when the fit fell back.
+    ``between_actor_sd`` of the observed deltas when the fit fell back (``fallback_reason``).
+    When even the fallback raised, every cell is ``missing`` (estimate 0.0) with its counts and
+    ``fallback_reason="fit_error"``.
     """
     present = [e for e in FITTED_EMOTIONS if (df["emotion"] == e).any()]
     rows = _usable(df, parameter)
     levels = [e for e in present if (rows["emotion"] == e).any()]
     if not levels:
         return [_missing(e, parameter) for e in present]
-    result, maximal = _mixed_fit(rows, f"{parameter} ~ {_TERM}")
+    result, reason = _mixed_fit(rows, f"{parameter} ~ {_TERM}")
+    maximal = reason is None
     deltas = actor_deltas(rows[[*rows.columns.drop(_GROUP)]])
     deltas = deltas[deltas["parameter"] == parameter]
     pooled_sd = between_actor_sd(deltas).get(parameter, math.nan)
-    interval = result.conf_int()
-    residual_sd = math.sqrt(float(result.scale))
+    if result is not None:
+        interval = result.conf_int()
+        residual_sd = math.sqrt(float(result.scale))
     cells = []
     for emotion in present:
         if emotion not in levels:
@@ -196,29 +213,37 @@ def fit_parameter(df: pd.DataFrame, parameter: str) -> list[Cell]:
         mine = rows[rows["emotion"] == emotion]
         mapped = mine.groupby(_GROUP)["label_kind"].agg(lambda k: bool((k == "mapped").any()))
         n_actors = len(mapped)
-        grounding = "fitted" if n_actors >= MIN_ACTORS_FITTED else "thin"
         name = _level(emotion)
-        low, high = (float(v) for v in interval.loc[name])
-        if maximal:
-            spread = math.sqrt(float(result.cov_re.loc[name, name]))
+        if result is None:
+            grounding, estimate, low, high, spread, resid = "missing", 0.0, None, None, 0.0, 0.0
         else:
-            spread = pooled_sd
+            grounding = "fitted" if n_actors >= MIN_ACTORS_FITTED else "thin"
+            estimate = float(result.fe_params[name])
+            low, high = (float(v) for v in interval.loc[name])
+            if grounding != "fitted":
+                low = high = None
+            if maximal:
+                spread = math.sqrt(float(result.cov_re.loc[name, name]))
+            else:
+                spread = pooled_sd
+            resid = residual_sd
         per_dataset = deltas[deltas["emotion"] == emotion].groupby("dataset")["delta"].mean()
         cells.append(
             Cell(
                 emotion=emotion,
                 parameter=parameter,
-                estimate=float(result.fe_params[name]),
-                ci_low=low if grounding == "fitted" else None,
-                ci_high=high if grounding == "fitted" else None,
+                estimate=estimate,
+                ci_low=low,
+                ci_high=high,
                 between_actor_sd=spread,
-                residual_sd=residual_sd,
+                residual_sd=resid,
                 n_actors=n_actors,
                 n_cycles=len(mine),
                 n_datasets=int(mine["dataset"].nunique()),
                 n_mapped_actors=int(mapped.sum()),
                 grounding=grounding,
                 converged_maximal=maximal,
+                fallback_reason=reason,
                 per_dataset=MappingProxyType({str(k): float(v) for k, v in per_dataset.items()}),
             )
         )
@@ -381,6 +406,8 @@ def speed_adjusted(df: pd.DataFrame) -> dict[tuple[str, str], float]:
         if not levels:
             continue
         result, _ = _mixed_fit(rows, f"{parameter} ~ {_TERM} + _speed_delta")
+        if result is None:
+            continue
         for emotion in levels:
             out[(emotion, parameter)] = float(result.fe_params[_level(emotion)])
     return out

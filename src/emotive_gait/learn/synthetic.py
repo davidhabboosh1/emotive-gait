@@ -7,7 +7,7 @@
 
 ``base`` is the ``GaitParameters()`` default of the parameter, ``effect[e]`` comes from
 ``effects`` (0.0 where absent, always 0.0 for neutral), ``u[a]`` is a per-actor random intercept
-(SD 0.05), ``v[a, e]`` a per-actor random slope for each non-neutral emotion (SD ``actor_sd``)
+(SD 0.05), ``v[a, e]`` a per-actor random slope for each non-neutral emotion (SD ``actor_sd``, per emotion if a mapping)
 and ``eps`` the cycle noise (SD ``cycle_sd``). Every actor walks one neutral clip and one clip
 per emotion of ``cycles_per_clip`` cycles each.
 """
@@ -32,17 +32,24 @@ def synthetic_table(
     n_actors: int,
     emotions: Sequence[str],
     effects: Mapping[tuple[str, str], float],
-    actor_sd: float,
+    actor_sd: float | Mapping[str, float],
     cycle_sd: float,
     cycles_per_clip: int,
     seed: int,
 ) -> pd.DataFrame:
-    """One row per synthetic cycle; ``effects`` is keyed ``(emotion, parameter)``."""
+    """One row per synthetic cycle; ``effects`` is keyed ``(emotion, parameter)``.
+
+    ``actor_sd`` is one slope SD for every emotion, or a mapping ``emotion -> SD``.
+    """
     unknown = sorted(
         f"{e}/{p}" for e, p in effects if e not in emotions or p not in MEASURED_FIELDS
     )
     if unknown:
         raise ValueError(f"effect for an emotion or parameter not in the table: {unknown}")
+    if isinstance(actor_sd, Mapping):
+        slope_sd = {e: float(actor_sd[e]) for e in emotions}
+    else:
+        slope_sd = dict.fromkeys(emotions, float(actor_sd))
     rng = np.random.default_rng(seed)
     base = GaitParameters()
     rows: list[dict] = []
@@ -53,7 +60,7 @@ def synthetic_table(
             if emotion == "neutral":
                 slope = np.zeros(len(MEASURED_FIELDS))
             else:
-                slope = rng.normal(0.0, actor_sd, len(MEASURED_FIELDS))
+                slope = rng.normal(0.0, slope_sd[emotion], len(MEASURED_FIELDS))
             mean = np.array(
                 [
                     getattr(base, p) + effects.get((emotion, p), 0.0) + intercept[i] + slope[i]
