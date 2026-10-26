@@ -22,6 +22,11 @@ Names first, geometry as referee:
 5. ``overrides`` (landmark value -> bone name) are applied last, ``source="user"``.
 
 Every choice is a :class:`Decision`, so ``inspect`` can print an audit.
+
+Roles (``bind_roles``, after ``calibration.reference_pose``): each bone that owns a landmark
+has its hinges probed on the ``full`` chain at the reference pose and classified as pitch, roll
+or yaw by the probe's rotation axis in the path frame, with a sign that makes the role's
+``ROLE_CONVENTIONS`` row hold; the probe machinery lives in ``rig.calibration``.
 """
 
 from __future__ import annotations
@@ -30,20 +35,31 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from functools import cache
 from importlib import resources
+from types import MappingProxyType
 from typing import Literal
 
 import numpy as np
 import yaml
 
+from emotive_gait.gait.ik import LEG_ROLES
 from emotive_gait.mocap.events import path_frame
+from emotive_gait.mocap.extract import leg_length
 from emotive_gait.mocap.readers.bvh import BvhFile
 from emotive_gait.mocap.skeleton import Landmark, LandmarkMap, SkeletonClip
+from emotive_gait.rig.calibration import HingeProbe, ReferencePose, probe_hinges
+from emotive_gait.rig.compile import CompiledRig
 from emotive_gait.rig.errors import RigError
+from emotive_gait.rig.ranges import RANGES
+from emotive_gait.robot.conventions import ROLE_CONVENTIONS, convention_holds
+from emotive_gait.robot.roles import POSTURE_ROLES, JointRole
 
 __all__ = [
     "Decision",
     "LandmarkMapping",
     "RigError",  # re-exported from rig.errors
+    "RigMapping",
+    "RoleBinding",
+    "bind_roles",
     "infer_scale_and_up",
     "map_landmarks",
     "required_landmarks_present",
@@ -445,3 +461,220 @@ def infer_scale_and_up(
         )
     )
     return scale, up, tuple(decisions)
+
+
+# --- Role bindings by probe (spec 4.4) -----------------------------------------------------
+
+AXIS_PURITY_MIN = 0.8
+_CLASS_AXIS = {"pitch": 1, "roll": 0, "yaw": 2}  # rotation about left, forward, up
+_PATH = {"forward": np.eye(3)[0], "left": np.eye(3)[1], "up": np.eye(3)[2]}
+
+
+@dataclass(frozen=True)
+class RoleBinding:
+    """The hinge (``"Bone/Channel"``) a role drives, its sign and the probe's axis purity."""
+
+    hinge: str
+    sign: float
+    axis_purity: float
+
+
+@dataclass(frozen=True)
+class RigMapping:
+    """Landmarks and role bindings of a rig, with its units and the whole audit trail."""
+
+    landmarks: LandmarkMap
+    roles: Mapping[JointRole, RoleBinding]
+    leg_length: float
+    scale: float
+    up_axis: str
+    family: str | None
+    decisions: tuple[Decision, ...]
+    warnings: tuple[str, ...]
+    skewed: tuple[JointRole, ...]
+
+
+def _role_groups(
+    trunk_root: str | None, landmarks: LandmarkMap
+) -> list[tuple[str | None, dict[str, JointRole]]]:
+    """``(bone, {axis class: role})`` for each bone that owns a landmark."""
+    R = JointRole
+    groups: list[tuple[str | None, dict[str, JointRole]]] = []
+    for s in _SIDES:
+        S = s.upper()
+        groups += [
+            (
+                landmarks.get(_landmark("hip", s)),
+                {
+                    "pitch": R[f"HIP_PITCH_{S}"],
+                    "roll": R[f"HIP_ROLL_{S}"],
+                    "yaw": R[f"HIP_YAW_{S}"],
+                },
+            ),
+            (landmarks.get(_landmark("knee", s)), {"pitch": R[f"KNEE_{S}"]}),
+            (
+                landmarks.get(_landmark("ankle", s)),
+                {"pitch": R[f"ANKLE_PITCH_{S}"], "roll": R[f"ANKLE_ROLL_{S}"]},
+            ),
+            (
+                landmarks.get(_landmark("shoulder", s)),
+                {
+                    "pitch": R[f"SHOULDER_PITCH_{S}"],
+                    "roll": R[f"SHOULDER_ROLL_{S}"],
+                    "yaw": R[f"SHOULDER_YAW_{S}"],
+                },
+            ),
+            (landmarks.get(_landmark("elbow", s)), {"pitch": R[f"ELBOW_{S}"]}),
+        ]
+    groups += [
+        (trunk_root, {"pitch": R.WAIST_PITCH, "roll": R.WAIST_ROLL, "yaw": R.WAIST_YAW}),
+        (landmarks.get(L.NECK), {"pitch": R.NECK_PITCH}),
+    ]
+    return groups
+
+
+def _axis_class(role: JointRole) -> str:
+    name = role.name
+    if "ROLL" in name:
+        return "roll"
+    if "YAW" in name:
+        return "yaw"
+    return "pitch"  # *_PITCH, KNEE_*, ELBOW_*
+
+
+def _sign(role: JointRole, probe: HingeProbe) -> tuple[float, str]:
+    """+1 when a positive probe follows the role's convention, else -1; and a note."""
+    if role not in ROLE_CONVENTIONS:
+        return 1.0, "no convention row, sign +1"
+    landmark, direction = ROLE_CONVENTIONS[role]
+    needed = [landmark]
+    if direction == "toward_shoulder":
+        needed.append(f"shoulder_{landmark[-1]}")
+    if any(n not in probe.before for n in needed):
+        return 1.0, f"no {' or '.join(needed)} landmark to probe, sign +1"
+    plus = convention_holds(role, probe.before, probe.after, **_PATH)
+    if direction == "toward_shoulder":
+        minus = convention_holds(role, probe.before, probe.minus, **_PATH)
+        if plus == minus:
+            # A straight elbow at the reference: both directions shorten the shoulder-wrist
+            # distance (to second order). Flexion is taken as the wrist moving forward.
+            moved = probe.after[landmark] - probe.before[landmark]
+            sign = 1.0 if float(moved @ _PATH["forward"]) > 0.0 else -1.0
+            return sign, "elbow straight at the reference, flexion taken as the wrist forward"
+    return (1.0, "probe follows the convention") if plus else (-1.0, "probe opposes it, flipped")
+
+
+def bind_roles(
+    full: CompiledRig,
+    reference: ReferencePose,
+    landmarks: LandmarkMapping,
+    *,
+    overrides: Mapping[str, str] | None = None,
+) -> RigMapping:
+    """Bind each ``JointRole`` to a hinge of ``full`` by probing at the reference pose.
+
+    Per bone that owns a landmark (hip, knee and ankle bones, the trunk root, the neck bone,
+    the upper-arm and forearm bones), each rotation hinge is turned by ``PROBE_RAD`` on the
+    ``full`` chain posed at the reference, whose world frame is the reference path frame
+    (forward +x, left +y, up +z). The probe's rotation axis is projected on (forward, left,
+    up): the hinge turning most about ``left`` (its child landmark moves in the sagittal plane)
+    is pitch, of the rest the one turning most about ``forward`` (lateral motion) is roll, the
+    last is yaw; ``axis_purity`` is the winning share. The sign is +1 when the probe moves the
+    child landmark as ``ROLE_CONVENTIONS`` says, else -1 (+1 for roles without a row). Roles
+    without a ``RANGES`` row (waist roll and yaw, shoulder yaw) stay undriven. A role whose
+    purity is below ``AXIS_PURITY_MIN`` is ``skewed``: leg roles are bound anyway, a skewed
+    posture role or shoulder pitch is left unbound with a warning. ``overrides`` (role value ->
+    ``"Bone/Xrotation"``) win, ``source="user"``. Missing ``LEG_ROLES`` raise ``RigError``.
+    """
+    lm = landmarks.landmarks
+    decisions = list(landmarks.decisions)
+    warnings = list(landmarks.warnings)
+    by_bone: dict[str, list[str]] = {}
+    for hinge in full.hinges:
+        by_bone.setdefault(hinge.rsplit("/", 1)[0], []).append(hinge)
+
+    parsed: dict[JointRole, str] = {}
+    for key, hinge in (overrides or {}).items():
+        try:
+            role = JointRole(key)
+        except ValueError:
+            raise RigError(f"role override names an unknown role {key!r}") from None
+        if hinge not in full.hinges:
+            source = full.file.source or "the file"
+            raise RigError(f"role override {key}={hinge}: no rotation channel {hinge} in {source}")
+        parsed[role] = hinge
+
+    groups = [(b, c) for b, c in _role_groups(landmarks.trunk_root, lm) if b in by_bone]
+    probed = sorted({h for b, _ in groups for h in by_bone[b]} | set(parsed.values()))
+    probes = probe_hinges(full, reference, lm, probed)
+
+    def share(hinge: str, cls: str) -> float:
+        return float(abs(probes[hinge].axis[_CLASS_AXIS[cls]]))
+
+    roles: dict[JointRole, RoleBinding] = {}
+    skewed: list[JointRole] = []
+    for bone, classes in groups:
+        free = list(by_bone[bone])
+        chosen: dict[str, str] = {}
+        for cls in ("pitch", "roll", "yaw"):
+            if free:
+                best = max(free, key=lambda h, c=cls: share(h, c))
+                free.remove(best)
+                chosen[cls] = best
+        for cls, role in classes.items():
+            if cls not in chosen or role in parsed:
+                continue
+            hinge, purity = chosen[cls], share(chosen[cls], cls)
+            if role not in RANGES:
+                decisions.append(Decision(role.value, "undriven", "geometry", f"{hinge}: no range"))
+                continue
+            if purity < AXIS_PURITY_MIN:
+                skewed.append(role)
+                if role in POSTURE_ROLES or role.name.startswith("SHOULDER_PITCH"):
+                    warnings.append(
+                        f"{role.value}: {hinge} axis purity {purity:.2f} is below "
+                        f"{AXIS_PURITY_MIN} (skewed); left unbound"
+                    )
+                    continue
+                warnings.append(f"{role.value}: {hinge} axis purity {purity:.2f} (skewed)")
+            sign, note = _sign(role, probes[hinge])
+            roles[role] = RoleBinding(hinge=hinge, sign=sign, axis_purity=purity)
+            decisions.append(
+                Decision(role.value, hinge, "geometry", f"purity {purity:.3f}, {note}")
+            )
+
+    for role, hinge in parsed.items():
+        purity = share(hinge, _axis_class(role))
+        sign, note = _sign(role, probes[hinge])
+        roles[role] = RoleBinding(hinge=hinge, sign=sign, axis_purity=purity)
+        decisions.append(Decision(role.value, hinge, "user", f"purity {purity:.3f}, {note}"))
+        if purity < AXIS_PURITY_MIN:
+            skewed.append(role)
+            warnings.append(f"{role.value}: override {hinge} axis purity {purity:.2f} (skewed)")
+
+    owners: dict[str, JointRole] = {}
+    for role, binding in roles.items():
+        if binding.hinge in owners:
+            raise RigError(
+                f"hinge {binding.hinge} is bound to both {owners[binding.hinge].value} and "
+                f"{role.value}; fix the role overrides"
+            )
+        owners[binding.hinge] = role
+    missing = [r.value for r in LEG_ROLES if r not in roles]
+    if missing:
+        raise RigError(
+            "the legs need hip pitch, roll and yaw, knee pitch and ankle pitch and roll "
+            f"channels; no hinge found for {', '.join(missing)}"
+        )
+    order = list(JointRole)
+    return RigMapping(
+        landmarks=lm,
+        roles=MappingProxyType(dict(sorted(roles.items(), key=lambda kv: order.index(kv[0])))),
+        leg_length=leg_length(full.file.to_clip(end_sites=True), lm),
+        scale=full.file.scale,
+        up_axis=full.file.up_axis,
+        family=landmarks.family,
+        decisions=tuple(decisions),
+        warnings=tuple(warnings),
+        skewed=tuple(dict.fromkeys(skewed)),
+    )

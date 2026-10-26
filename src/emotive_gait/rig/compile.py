@@ -2,6 +2,9 @@
 
 ``full`` mode makes every rotation channel a hinge, so posing the chain with the file's own
 channel values reproduces the reader's forward kinematics (the FK-equivalence gate).
+``driven`` mode (``compile_driven``) bakes the reference pose into the body quaternions and has
+a hinge only for the channels bound to a role, so qpos zero is the reference pose; posed at
+zero it agrees with ``full`` posed at the reference channel values.
 
 Conventions:
 
@@ -22,8 +25,9 @@ Conventions:
   identically zero.
 - Hinges and their position actuators are named ``f"{bone}/{channel}"``; bodies are named after
   their bones; a site sits at every bone origin (named like the bone) and every End Site
-  (``f"{bone}_End"``). Bodies carry a tiny explicit inertia so MuJoCo compiles them; the model
-  is only ever ``mj_forward``-ed.
+  (``f"{bone}_End"``); ``driven`` adds ``foot_l`` / ``foot_r`` on the ankle bodies. Ranges are
+  radians (``compiler.degree`` off). Bodies carry a tiny explicit inertia so MuJoCo compiles
+  them; the model is only ever ``mj_forward``-ed.
 """
 
 from __future__ import annotations
@@ -31,13 +35,19 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from types import MappingProxyType
+from typing import TYPE_CHECKING
 
 import mujoco
 import numpy as np
 
-from emotive_gait.mocap.readers.bvh import BvhFile
-from emotive_gait.mocap.skeleton import to_z_up
+from emotive_gait.mocap.readers.bvh import BvhFile, euler_from_matrix, rotation_about
+from emotive_gait.mocap.skeleton import Landmark, to_z_up
 from emotive_gait.rig.errors import RigError
+from emotive_gait.rig.ranges import RANGES
+
+if TYPE_CHECKING:
+    from emotive_gait.rig.calibration import ReferencePose
+    from emotive_gait.rig.mapping import RigMapping
 
 PELVIS_BODY = "pelvis"
 PELVIS_CARRIER = "pelvis_hinges"
@@ -114,12 +124,14 @@ def _build(
     hinges_for: Callable[[int], Sequence[_Hinge]],
     quat_for: Callable[[int], np.ndarray | None],
     hinge_range: Callable[[str], tuple[float, float] | None],
+    extra_sites: Mapping[str, Sequence[tuple[str, np.ndarray]]] | None = None,
 ) -> CompiledRig:
     """Shared spec builder: bodies, sites, hinges and actuators from the pelvis down.
 
     ``hinges_for(bone index)`` lists that bone's hinges in definition order, ``quat_for`` gives
     the body quaternion (``None`` for identity) and ``hinge_range(hinge name)`` the range
-    (``None`` for unlimited).
+    (``None`` for unlimited). ``extra_sites`` maps a bone name to ``(site name, position)``
+    pairs added on the body carrying its rotated frame (not landmark sites).
     """
     names = [j.name for j in file.joints]
     if pelvis not in names:
@@ -133,6 +145,7 @@ def _build(
     _refuse_translation(file, bones, root)
 
     spec = mujoco.MjSpec()
+    spec.compiler.degree = False  # hinge ranges are radians
     hangs_from: dict[int, mujoco.MjsBody] = {}  # bone index -> body its children hang from
     body_of: dict[str, str] = {}
     frame_of: dict[str, str] = {}
@@ -188,6 +201,8 @@ def _build(
             end_pos = p @ (np.asarray(joint.end_site, dtype=float) * file.scale)
             body.add_site(name=end, pos=list(end_pos))
             sites[end] = end
+        for site, site_pos in (extra_sites or {}).get(joint.name, ()):
+            body.add_site(name=site, pos=list(site_pos))
 
     return CompiledRig(
         model=spec.compile(),
@@ -229,3 +244,119 @@ def heading_matrix(forward: np.ndarray) -> np.ndarray:
         raise ValueError(f"forward has no horizontal component: {forward!r}")
     c, s = f / norm
     return np.array([[c, -s, 0.0], [s, c, 0.0], [0.0, 0.0, 1.0]])
+
+
+def _rotation(axis: int, angle: float) -> np.ndarray:
+    """Rotation by ``angle`` (rad) about coordinate axis ``axis`` (as ``rotation_about``)."""
+    return rotation_about(axis, np.array([np.degrees(angle)]))[0]
+
+
+def channel_angles(rotation: np.ndarray, channels: Sequence[str]) -> np.ndarray:
+    """Radians per rotation channel (in order) whose composition ``R_c1 @ R_c2 ...`` is
+    ``rotation``: exact for three distinct axes and for one axis when ``rotation`` is about it;
+    with two axes the third (missing) angle of the three-axis decomposition is dropped."""
+    rot = [c for c in channels if c.endswith("rotation")]
+    axes = [_AXIS[c[0]] for c in rot]
+    if len(set(axes)) != len(axes):
+        raise RigError(f"repeated rotation axes {rot} are not supported")
+    r = np.asarray(rotation, dtype=float)
+    if not rot:
+        return np.zeros(0)
+    if len(rot) == 1:
+        i, j = [(1, 2), (2, 0), (0, 1)][axes[0]]
+        return np.array([np.arctan2(r[j, i] - r[i, j], r[i, i] + r[j, j])])
+    full = rot + [f"{'XYZ'[a]}rotation" for a in range(3) if a not in axes]
+    return np.radians(euler_from_matrix(r, tuple(full)))[: len(rot)]
+
+
+def _quat(matrix: np.ndarray) -> np.ndarray:
+    quat = np.empty(4)
+    mujoco.mju_mat2Quat(quat, np.ascontiguousarray(matrix, dtype=float).ravel())
+    return quat
+
+
+def _point_in_frame(
+    file: BvhFile, ancestor: str, target: str, rotations_z: Mapping[str, np.ndarray]
+) -> np.ndarray:
+    """``target`` (a bone or ``"<bone>_End"``) in ``ancestor``'s rotated frame, z-up, metres,
+    with the bones between at ``rotations_z`` (z-up local rotations)."""
+    p = _z_up_matrix(file.up_axis)
+    names = [j.name for j in file.joints]
+    end = target not in names and target.endswith("_End")
+    bone = target[: -len("_End")] if end else target
+    chain, i = [], names.index(bone)
+    while names[i] != ancestor:
+        chain.append(i)
+        i = file.joints[i].parent
+        if i < 0:
+            raise RigError(f"{target!r} is not below {ancestor!r}")
+    pos, rot = np.zeros(3), np.eye(3)
+    for i in reversed(chain):
+        pos = pos + rot @ (p @ (np.asarray(file.joints[i].offset, dtype=float) * file.scale))
+        rot = rot @ rotations_z[names[i]]
+    if end:
+        pos = pos + rot @ (p @ (np.asarray(file.joints[names.index(bone)].end_site) * file.scale))
+    return pos
+
+
+def compile_driven(file: BvhFile, mapping: RigMapping, reference: ReferencePose) -> CompiledRig:
+    """The IK and synthesis chain: the reference pose baked into the bodies, a hinge per role.
+
+    Every body's ``quat`` is its bone's reference rotation (the ankles' stance rotation; the
+    pelvis's is heading-removed, so world +x is the walking direction), hence qpos zero is the
+    reference pose. A bound channel ``k`` of a bone with reference channel angles
+    ``theta`` gets the axis ``R_post.T @ e_k`` (times the binding's sign), ``R_post`` the
+    product of the rotations of the channels after ``k`` at ``theta``: then
+    ``R_ref @ Rot(axis, d) == R_pre @ Rot(e_k, theta_k + d) @ R_post``, the BVH's own Euler
+    semantics for that channel. Ranges come from ``RANGES``. ``foot_l`` / ``foot_r`` sit on the
+    ankle bodies at the toe landmark (toe bone or End Site; the ankle origin without one); the
+    root ``pelvis`` is at ``(0, 0, reference.pelvis_height)``.
+    """
+    p = _z_up_matrix(file.up_axis)
+    names = [j.name for j in file.joints]
+    rotations = reference.baked_rotations(names)
+    rotations_z = {name: p @ rotations[i] @ p.T for i, name in enumerate(names)}
+    bound = {b.hinge: (role, b) for role, b in mapping.roles.items()}
+    known = {f"{j.name}/{c}" for j in file.joints for c in j.channels if c.endswith("rotation")}
+    unknown = sorted(set(bound) - known)
+    if unknown:
+        raise RigError(f"bound hinges {unknown} are not rotation channels of the file")
+
+    def hinges_for(bone: int) -> list[_Hinge]:
+        joint = file.joints[bone]
+        rot = [c for c in joint.channels if c.endswith("rotation")]
+        theta = channel_angles(rotations[bone], rot)
+        out = []
+        for k, channel in enumerate(rot):
+            hit = bound.get(f"{joint.name}/{channel}")
+            if hit is None:
+                continue
+            post = np.eye(3)
+            for c, angle in zip(rot[k + 1 :], theta[k + 1 :], strict=True):
+                post = post @ _rotation(_AXIS[c[0]], float(angle))
+            axis = post.T @ np.eye(3)[_AXIS[channel[0]]] * hit[1].sign
+            out.append(_Hinge(channel=channel, axis=p @ axis))
+        return out
+
+    def hinge_range(name: str) -> tuple[float, float] | None:
+        return RANGES.get(bound[name][0])
+
+    sites: dict[str, list[tuple[str, np.ndarray]]] = {}
+    for site, ankle_lm, toe_lm in (
+        ("foot_l", Landmark.ANKLE_L, Landmark.TOE_L),
+        ("foot_r", Landmark.ANKLE_R, Landmark.TOE_R),
+    ):
+        ankle = mapping.landmarks[ankle_lm]
+        toe = mapping.landmarks.get(toe_lm)
+        pos = np.zeros(3) if toe is None else _point_in_frame(file, ankle, toe, rotations_z)
+        sites.setdefault(ankle, []).append((site, pos))
+
+    return _build(
+        file,
+        pelvis=mapping.landmarks[Landmark.PELVIS],
+        pelvis_height=reference.pelvis_height,
+        hinges_for=hinges_for,
+        quat_for=lambda bone: _quat(rotations_z[names[bone]]),
+        hinge_range=hinge_range,
+        extra_sites=sites,
+    )
