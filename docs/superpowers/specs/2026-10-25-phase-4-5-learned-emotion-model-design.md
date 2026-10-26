@@ -456,7 +456,10 @@ to the existing thresholds). If a fitted magnitude is unreachable on the G1 (a s
 the ankle limit is the likely case), the artefact is not edited: the test fails, the report says
 which parameter and by how much, and the user decides between the existing flag-and-render
 behaviour and a documented, labelled clip in the learned model's re-dimensioning. Fear's crouch
-has already shown this is a G1 ankle-range limitation, not an evidence question.
+has already shown this is a G1 ankle-range limitation, not an evidence question. Decision
+2026-10-26: flag and render; the learned presets leave the feasibility gate (which keeps the
+analytic presets), the CLI warns and renders them, and the fit report's "G1 feasibility of the
+learned presets" section documents each one's residual and driving cells, pinned by a test.
 
 **CLI.** `emotive-gait demo --model {analytic,learned} [--scaling {froude,ratio}]`, printing
 which model produced the parameters. `emotive-gait evidence --model learned` prints the claim

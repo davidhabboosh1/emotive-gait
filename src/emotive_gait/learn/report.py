@@ -45,11 +45,7 @@ LIMITATIONS = (
         '"as acted"; the secondary fit shows what survives a speed covariate, and that is all that '
         "can be said."
     ),
-    (
-        "**Fear is thin** (two or three actors, single trials), **anger is thin without BML**, and "
-        "**disgust and surprise are absent**. Thin cells carry an actor count instead of an interval "
-        "and enter no headline number; the CLI warns."
-    ),
+    "{coverage}",
     (
         "**Transfer is approximate.** Froude similarity is a first-order rule (Donelan & Kram 1997); "
         "the G1 walks crouched with a bent knee and its joint limits clip some effects. The robot "
@@ -70,6 +66,31 @@ LIMITATIONS = (
         "paper's measure, so fitted values are not directly comparable with published numbers."
     ),
 )
+
+
+def _coverage(provenance: Mapping[str, object]) -> str:
+    """The coverage limitation, with the actor counts of this fit (thin below three actors)."""
+    actors = provenance.get("actors_per_emotion") or {}
+    parts = []
+    for name in ("Fear", "anger"):
+        n = int(actors.get(name.lower(), 0))  # type: ignore[call-overload]
+        noun = "actor" if n == 1 else "actors"
+        if n == 0:
+            parts.append(f"**{name} has no data** in this fit")
+        elif n < 3:
+            parts.append(f"**{name} is thin** ({n} {noun} in this fit)")
+        else:
+            parts.append(f"**{name} rests on {n} actors**")
+    return (
+        f"{parts[0]}, {parts[1]}, and **disgust and surprise are absent**. Thin cells carry an actor count "
+        "instead of an interval and enter no headline number; the CLI warns."
+    )
+
+
+def limitations(provenance: Mapping[str, object]) -> tuple[str, ...]:
+    """``LIMITATIONS`` with the coverage item filled from ``provenance['actors_per_emotion']``."""
+    coverage = _coverage(provenance)
+    return tuple(coverage if text == "{coverage}" else text for text in LIMITATIONS)
 
 
 def _f(value: float | None, digits: int = 3) -> str:
@@ -160,9 +181,11 @@ def _provenance_section(provenance: Mapping[str, object]) -> list[str]:
     bml = [d for d in [*datasets, *excluded] if "bml" in str(d["id"]).lower()]
     if bml:
         entry = bml[0]
-        state = "included in this fit" if entry in datasets else f"excluded ({entry['reason']})"
-        committable = "committable" if entry.get("committable") else "not committable"
-        lines += [f"Body Movement Library: {state}; {committable}.", ""]
+        if entry in datasets:
+            committable = "committable" if entry.get("committable") else "not committable"
+            lines += [f"Body Movement Library: included in this fit; {committable}.", ""]
+        else:
+            lines += [f"Body Movement Library: excluded from this fit ({entry['reason']}).", ""]
     actors = provenance.get("actors_per_emotion") or {}
     cycles = provenance.get("cycles_per_emotion") or {}
     lines += ["### Actors and cycles per emotion", ""]
@@ -375,10 +398,84 @@ def write_report(
     lines += _contradiction_section(artefact)
     lines += ["## Self-check", "", _self_check(), ""]
     lines += ["## Limitations", ""]
-    lines += [f"{i}. {text}" for i, text in enumerate(LIMITATIONS, start=1)]
+    lines += [f"{i}. {text}" for i, text in enumerate(limitations(provenance), start=1)]
     lines += [""]
     fields_note = ", ".join(MEASURED_FIELDS)
     lines += [f"Measured parameters: {fields_note}.", ""]
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("\n".join(lines), encoding="utf-8")
+
+
+FEASIBILITY_HEADING = "## G1 feasibility of the learned presets"
+
+
+def append_feasibility(path: Path, rows: Sequence[Mapping[str, object]]) -> None:
+    """Append the learned presets' G1 feasibility section to the report at ``path``.
+
+    Pure text: the caller runs the IK. Each row is a plain dict with ``preset``, ``scaling``,
+    ``feasible`` (bool), ``position_error_mm``, ``orientation_error_rad``, ``roles_at_limit``
+    (names), ``stride`` (``{step_length, cadence, double_support_frac}``) and ``driving``: the
+    cells whose return to neutral alone makes the preset feasible, each a dict with
+    ``parameter``, ``value`` (played), ``estimate`` (the cell's effect) and ``per_dataset``.
+    """
+    table = []
+    for r in rows:
+        stride = r.get("stride") or {}
+        driving = r.get("driving") or []
+        if r["feasible"]:
+            drivers = "-"
+        elif not driving:
+            drivers = "no single cell"
+        else:
+            drivers = "; ".join(
+                f"`{d['parameter']}` {_f(d['value'], 4)} (effect {_f(d['estimate'], 4)}; "
+                + ", ".join(f"{k} {_f(v, 4)}" for k, v in (d.get("per_dataset") or {}).items())
+                + ")"
+                for d in driving
+            )
+        table.append(
+            (
+                r["preset"],
+                r["scaling"],
+                "yes" if r["feasible"] else "no",
+                _f(r["position_error_mm"], 3),  # type: ignore[arg-type]
+                _f(r["orientation_error_rad"], 4),  # type: ignore[arg-type]
+                ", ".join(r.get("roles_at_limit") or []) or "none",  # type: ignore[arg-type]
+                (
+                    f"{_f(stride.get('step_length'), 3)} m, {_f(stride.get('cadence'), 2)} steps/s, "
+                    f"DS {_f(stride.get('double_support_frac'), 3)}"
+                ),
+                drivers,
+            )
+        )
+    lines = [
+        "",
+        FEASIBILITY_HEADING,
+        "",
+        (
+            "Each learned preset (the analytic presets' emotions at intensity 1.0, played through "
+            "the learned model) solved by the G1 leg IK at the existing thresholds (2 mm foot "
+            "position, 0.01 rad stance orientation). A driving cell is one whose return to the "
+            "neutral value alone makes the preset feasible. Decision 2026-10-26 (spec 4.5): learned "
+            "presets are flagged and rendered, not gated; the CLI warns once on infeasible "
+            "parameters and still renders them, and the residuals are documented here."
+        ),
+        "",
+        *_table(
+            [
+                "preset",
+                "scaling",
+                "feasible",
+                "max foot position error (mm)",
+                "stance orientation error (rad)",
+                "roles at limit",
+                "stride",
+                "driving cells",
+            ],
+            table,
+        ),
+    ]
+    path = Path(path)
+    text = path.read_text(encoding="utf-8").rstrip("\n")
+    path.write_text(text + "\n" + "\n".join(lines) + "\n", encoding="utf-8")

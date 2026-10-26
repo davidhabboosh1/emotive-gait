@@ -261,3 +261,57 @@ def test_write_artefact_refuses_an_infinite_estimate(tmp_path):
     cells["ratio"]["cadence"][0] = Cell(**{**fields, "estimate": math.inf})
     with pytest.raises(ValueError, match="ratio.*cadence"):
         write_artefact(tmp_path / "a.yaml", cells, provenance={})
+
+
+def test_the_coverage_limitation_states_the_fits_actor_counts():
+    from emotive_gait.learn.report import limitations
+
+    thin = " ".join(limitations({"actors_per_emotion": {"fear": 1, "anger": 2}}))
+    assert "**Fear is thin** (1 actor in this fit)" in thin
+    assert "**anger is thin** (2 actors in this fit)" in thin
+    fitted = " ".join(limitations({"actors_per_emotion": {"fear": 7, "anger": 27}}))
+    assert "**Fear rests on 7 actors**" in fitted and "**anger rests on 27 actors**" in fitted
+
+
+def test_append_feasibility_adds_one_row_per_preset_and_names_the_driving_cell(tmp_path):
+    from emotive_gait.learn.report import FEASIBILITY_HEADING, append_feasibility
+
+    report = tmp_path / "r.md"
+    report.write_text("# Report\n", encoding="utf-8")
+    stride = {"step_length": 0.5, "cadence": 2.7, "double_support_frac": 0.1}
+    rows = [
+        {
+            "preset": "neutral",
+            "scaling": "froude",
+            "feasible": True,
+            "position_error_mm": 0.034,
+            "orientation_error_rad": 0.0,
+            "roles_at_limit": ["ankle_pitch_l"],
+            "stride": stride,
+            "driving": [],
+        },
+        {
+            "preset": "angry",
+            "scaling": "froude",
+            "feasible": False,
+            "position_error_mm": 6.369,
+            "orientation_error_rad": 0.0074,
+            "roles_at_limit": ["ankle_pitch_l", "ankle_pitch_r"],
+            "stride": stride,
+            "driving": [
+                {
+                    "parameter": "com_height_scale",
+                    "value": 0.9795,
+                    "estimate": -0.0202,
+                    "per_dataset": {"100style": -0.0155},
+                }
+            ],
+        },
+    ]
+    append_feasibility(report, rows)
+    text = report.read_text(encoding="utf-8")
+    assert text.startswith("# Report\n") and FEASIBILITY_HEADING in text
+    assert "| neutral | froude | yes | 0.034 |" in text
+    assert "| angry | froude | no | 6.369 |" in text
+    assert "`com_height_scale` 0.9795 (effect -0.0202; 100style -0.0155)" in text
+    assert "flagged and rendered" in text

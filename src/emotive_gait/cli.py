@@ -496,6 +496,7 @@ def _fit(args: argparse.Namespace) -> int:
         from emotive_gait.learn.console import print_summary
 
         print_summary(summary)
+        _report_feasibility(target, report)
     except pipeline.FitInputError as exc:
         _err(str(exc))
         return 2
@@ -506,6 +507,83 @@ def _fit(args: argparse.Namespace) -> int:
         _err(f"environment failure: {exc}")
         return 1
     return 0
+
+
+def _feasibility_row(preset: str, scaling: str, params, artefact, robot) -> dict:
+    """One row for ``learn.report.append_feasibility``: the IK verdict and the driving cells."""
+    from emotive_gait.emotion.evidence import Emotion
+    from emotive_gait.gait.generator import generate
+    from emotive_gait.gait.params import GaitParameters
+    from emotive_gait.gait.scaling import MEASURED_FIELDS
+
+    rep = generate(params, robot).feasibility
+    emotion = {"sad": Emotion.SADNESS, "angry": Emotion.ANGER, "happy": Emotion.HAPPINESS}.get(
+        preset
+    )
+    driving = []
+    if not rep.feasible and emotion is not None:
+        neutral = GaitParameters()
+        for name in MEASURED_FIELDS:
+            if getattr(params, name) == getattr(neutral, name):
+                continue
+            trial = dataclasses.replace(params, **{name: getattr(neutral, name)})
+            if generate(trial, robot).feasibility.feasible:
+                cell = artefact.cells.get((scaling, emotion.value, name))
+                driving.append(
+                    {
+                        "parameter": name,
+                        "value": getattr(params, name),
+                        "estimate": None if cell is None else cell.estimate,
+                        "per_dataset": {} if cell is None else dict(cell.per_dataset),
+                    }
+                )
+    return {
+        "preset": preset,
+        "scaling": scaling,
+        "feasible": rep.feasible,
+        "position_error_mm": rep.max_foot_position_error_m * 1000.0,
+        "orientation_error_rad": rep.max_foot_orientation_error_rad,
+        "roles_at_limit": [r.value for r in rep.roles_at_limit],
+        "stride": {
+            "step_length": params.step_length,
+            "cadence": params.cadence,
+            "double_support_frac": params.double_support_frac,
+        },
+        "driving": driving,
+    }
+
+
+def _report_feasibility(artefact_path: Path, report: Path) -> None:
+    """Run the G1 IK on the learned presets and append the result to the report (spec 4.5).
+
+    Learned presets are flagged and rendered, not gated (decision 2026-10-26). Skipped with a
+    note when the robot model cannot be loaded; the fit's exit code does not change.
+    """
+    from emotive_gait.emotion.learned import SCALINGS, LearnedEmotionModel, load_artefact
+    from emotive_gait.emotion.model import learned_presets
+    from emotive_gait.learn.report import append_feasibility
+
+    try:
+        from emotive_gait.robot.loader import ModelUnavailableError, load_robot
+
+        robot = load_robot()
+    except (ImportError, OSError, ModelUnavailableError) as exc:
+        print(f"feasibility of the learned presets skipped (robot model unavailable: {exc})")
+        return
+    artefact = load_artefact(artefact_path)
+    scalings = [s for s in SCALINGS if any(k[0] == s for k in artefact.cells)]
+    rows = []
+    for scaling in scalings:
+        presets = learned_presets(LearnedEmotionModel(artefact, scaling=scaling))
+        for preset, params in presets.items():
+            rows.append(_feasibility_row(preset, scaling, params, artefact, robot))
+    append_feasibility(report, rows)
+    bad = [f"{r['preset']} ({r['scaling']})" for r in rows if not r["feasible"]]
+    if bad:
+        print(
+            "learned presets the G1 cannot reach at the IK thresholds (flagged, still rendered): "
+            + ", ".join(bad)
+        )
 
 
 def _fit_check(pipeline, args: argparse.Namespace, target: Path, common: dict) -> int:
