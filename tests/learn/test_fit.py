@@ -116,7 +116,10 @@ def test_healthy_fit_keeps_the_maximal_structure_and_per_emotion_slope_sds():
 
 def test_degenerate_fit_falls_back_to_the_random_intercept():
     # Every actor's anger mean is the same constant, so the anger slope is exactly minus the
-    # intercept: the maximal covariance is degenerate and the optimiser does not converge.
+    # intercept: the maximal covariance is degenerate. Which exit the optimiser takes depends on
+    # the platform's BLAS and statsmodels build (Windows and Ubuntu/3.11 report not_converged,
+    # Ubuntu/3.12 reaches a singular covariance first), so either degeneracy reason is accepted;
+    # the invariant is that the maximal structure is abandoned and the fallback cell is sound.
     df = synthetic_table(
         n_actors=20,
         emotions=("anger",),
@@ -129,7 +132,8 @@ def test_degenerate_fit_falls_back_to_the_random_intercept():
     angry = df["emotion"] == "anger"
     df.loc[angry, "cadence"] = 2.0 + np.where(df.loc[angry, "cycle"] % 2 == 0, 0.02, -0.02)
     cell = fit_parameter(df, "cadence")[0]
-    assert cell.converged_maximal is False and cell.fallback_reason == "not_converged"
+    assert cell.converged_maximal is False
+    assert cell.fallback_reason in {"not_converged", "singular_cov_re"}
     assert cell.grounding == "fitted" and cell.ci_low < cell.estimate < cell.ci_high
 
 
