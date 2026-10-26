@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import argparse
 import dataclasses
-import math
 import shutil
 import subprocess
 import sys
@@ -17,42 +16,27 @@ import tempfile
 from collections.abc import Sequence
 from pathlib import Path
 
-from emotive_gait.emotion.evidence import EVIDENCE, UNSOURCED_EMOTIONS, Emotion
+from emotive_gait.cli_common import (
+    _add_model_arguments,
+    _err,
+    _load_learned,
+    _parse_emotions,
+    _print_params,
+    _warn_learned_cells,
+    evidence_lines,
+    warn_infeasible,
+    warn_unsourced,
+)
 from emotive_gait.emotion.model import IntensityError, modulate
 from emotive_gait.gait.params import GaitParameters, SpeedConstraintError
-from emotive_gait.gait.scaling import MEASURED_FIELDS
 
 _REPORT = "docs/reports/phase-4-5-fit-report.md"
 _DERIVED = "data/derived"
 _ROOTS = {"free": "FREE", "z-rail": "Z_RAIL", "xz-rail": "XZ_RAIL", "weld": "WELD"}
-_DIRECTION = {1: "+", 0: "0", -1: "-"}
 
 
 class _ModelRevisionError(Exception):
     """The installed robot model does not match the constants this package was derived for."""
-
-
-def _err(msg: str) -> None:
-    print(f"emotive-gait: {msg}", file=sys.stderr)
-
-
-def _parse_emotions(specs: Sequence[str]) -> dict[Emotion, float]:
-    names = ", ".join(e.value for e in Emotion)
-    out: dict[Emotion, float] = {}
-    for spec in specs:
-        name, sep, raw = spec.partition("=")
-        name = name.strip().lower()
-        if not sep:
-            raise ValueError(f"emotion {spec!r} must look like NAME=VALUE (e.g. {name}=0.8)")
-        try:
-            emotion = Emotion(name)
-        except ValueError:
-            raise ValueError(f"unknown emotion {name!r}; choose from {names}") from None
-        try:
-            out[emotion] = float(raw)
-        except ValueError:
-            raise ValueError(f"intensity for {name} is not a number: {raw!r}") from None
-    return out
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -151,22 +135,11 @@ def _build_parser() -> argparse.ArgumentParser:
         metavar="ID=PATH",
         help="use a local copy instead of downloading (an archive, or a directory); repeatable",
     )
+    from emotive_gait.rig.cli import add_rig_parser, add_serve_parser
+
+    add_rig_parser(sub)
+    add_serve_parser(sub)
     return p
-
-
-def _add_model_arguments(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument(
-        "--model",
-        choices=["analytic", "learned"],
-        default="analytic",
-        help="emotion model (default analytic; learned needs the fitted artefact)",
-    )
-    parser.add_argument(
-        "--scaling",
-        choices=["froude", "ratio"],
-        default="froude",
-        help="re-dimensioning of the learned model's effects (default froude)",
-    )
 
 
 def _add_data_arguments(parser: argparse.ArgumentParser) -> None:
@@ -176,12 +149,6 @@ def _add_data_arguments(parser: argparse.ArgumentParser) -> None:
         default="data/manifest.yaml",
         help="data manifest (default data/manifest.yaml)",
     )
-
-
-def _print_params(params: GaitParameters) -> None:
-    for f in dataclasses.fields(params):
-        print(f"{f.name:<22}{getattr(params, f.name): .4f}")
-    print(f"{'speed (m/s)':<22}{params.speed: .4f}")
 
 
 def _to_gif(video: Path) -> Path:
@@ -234,12 +201,7 @@ def _demo(args: argparse.Namespace) -> int:
     except ValueError as exc:
         _err(str(exc))
         return 2
-    for emotion, value in intensities.items():
-        if emotion in UNSOURCED_EMOTIONS and math.isfinite(value) and value > 0:
-            _err(
-                f"warning: {emotion.value} is unsourced: no source reports its gait kinematics, "
-                "so it is a flagged arousal/valence placement, not a measured effect"
-            )
+    warn_unsourced(intensities)
 
     from emotive_gait.robot.profiles.g1 import G1_PROFILE_WITH_NECK
 
@@ -300,13 +262,7 @@ def _demo(args: argparse.Namespace) -> int:
         traj = generate(params, rob)
         if not warned:
             warned = True
-            report = traj.feasibility
-            if not report.feasible:
-                roles = ", ".join(r.name.lower() for r in report.roles_at_limit) or "none"
-                _err(
-                    "warning: parameters exceed the robot's reach: max foot error "
-                    f"{report.max_foot_position_error_m * 1000:.1f} mm; roles at limit: {roles}"
-                )
+            warn_infeasible(traj.feasibility)
         return traj
 
     try:
@@ -367,58 +323,6 @@ def _demo(args: argparse.Namespace) -> int:
     return 0
 
 
-def _load_learned(scaling: str):
-    """The learned model on the packaged artefact, or ``None`` after printing why not."""
-    from emotive_gait.emotion.learned import (
-        ArtefactMissingError,
-        ArtefactSchemaError,
-        LearnedEmotionModel,
-    )
-
-    try:
-        return LearnedEmotionModel.default(scaling=scaling)
-    except (ArtefactMissingError, ArtefactSchemaError, ValueError) as exc:
-        _err(str(exc))
-        return None
-
-
-def _warn_learned_cells(model, intensities: dict[Emotion, float]) -> None:
-    """One warning for the thin cells and one for the delegated cells of the requested emotions."""
-    from emotive_gait.emotion.learned import describe_thin
-
-    asked = {e.value for e, v in intensities.items() if v > 0}
-    thin = describe_thin(
-        (e, p, model.cell(e, p).n_actors) for e, p in model.thin_cells if e in asked
-    )
-    if thin:
-        _err(
-            "warning: thin cells (one or two actors, no interval) in the learned model: "
-            + ", ".join(thin)
-        )
-    delegated: dict[str, list[str]] = {}
-    for e, p in model.analytic_cells:
-        if e in asked:
-            delegated.setdefault(e, []).append(p)
-    if delegated:
-        parts = [
-            f"{e} (all)" if len(ps) == len(MEASURED_FIELDS) else f"{e}.{', '.join(ps)}"
-            for e, ps in sorted(delegated.items())
-        ]
-        _err("warning: cells taken from the analytic model, not measured: " + "; ".join(parts))
-
-
-def _learned_columns(cell) -> list[str]:
-    if cell is None:
-        return ["-", "-", "-"]
-    if cell.grounding == "missing":
-        return ["-", "-", cell.direction_check]
-    if cell.grounding == "fitted":
-        interval = f"[{cell.ci_low:.4f}, {cell.ci_high:.4f}]"
-    else:
-        interval = f"{cell.n_actors} actors"
-    return [f"{cell.estimate:+.4f}", interval, cell.direction_check]
-
-
 def _evidence(args: argparse.Namespace) -> int:
     artefact = None
     if args.model == "learned":
@@ -429,23 +333,8 @@ def _evidence(args: argparse.Namespace) -> int:
         except (learned.ArtefactMissingError, learned.ArtefactSchemaError) as exc:
             _err(str(exc))
             return 1
-    head = ["EMOTION", "PARAMETER", "DIR", "GROUNDING"]
-    if artefact is not None:
-        head += ["ESTIMATE", "CI", "CHECK"]
-    rows = [(*head, "CITATION")]
-    last = None
-    for c in EVIDENCE:
-        label = c.emotion.value if c.emotion is not last else ""
-        last = c.emotion
-        row = [label, c.parameter, _DIRECTION[c.direction], c.grounding.value.upper()]
-        if artefact is not None:
-            row += _learned_columns(
-                artefact.cells.get((args.scaling, c.emotion.value, c.parameter))
-            )
-        rows.append((*row, c.citation))
-    widths = [max(len(r[i]) for r in rows) for i in range(len(rows[0]) - 1)]
-    for r in rows:
-        print("  ".join(r[i].ljust(widths[i]) for i in range(len(widths))) + "  " + r[-1])
+    for line in evidence_lines(artefact, args.scaling):
+        print(line)
     return 0
 
 
@@ -676,6 +565,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _fit(args)
     if args.command == "fetch":
         return _fetch(args)
+    if args.command in ("rig", "serve"):
+        from emotive_gait.rig.cli import run_rig, run_serve
+
+        return run_rig(args) if args.command == "rig" else run_serve(args)
     return _demo(args)
 
 

@@ -216,3 +216,7 @@ def test_analytic_model_object_matches_modulate_defaults():
     assert PRESET_PARAMS["angry"] == modulate(
         GaitParameters(), {Emotion.ANGER: 1.0}, G1_PROFILE_WITH_NECK
     )
+
+
+def test_models_declare_profile_awareness():
+    assert ANALYTIC.profile_aware is False and LearnedEmotionModel.profile_aware is True

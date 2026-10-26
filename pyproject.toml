@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "emotive-gait"
-version = "0.3.0"
+version = "0.4.0"
 description = "Emotion-modulated bipedal gait for a humanoid robot in MuJoCo"
 license = { file = "LICENSE" }
 readme = "README.md"
@@ -25,7 +25,8 @@ dependencies = [
 
 [project.optional-dependencies]
 fit = ["statsmodels>=0.14", "pandas>=2"]  # the learn/ pipeline; the runtime needs neither
-dev = ["pytest", "ruff==0.17.2", "statsmodels>=0.14", "pandas>=2"]  # ruff pinned to match .pre-commit-config.yaml
+mcp = ["mcp>=2,<3"]  # the MCP server (rig/server.py)
+dev = ["pytest", "ruff==0.17.2", "statsmodels>=0.14", "pandas>=2", "mcp>=2,<3"]  # ruff pinned to match .pre-commit-config.yaml
 
 [project.scripts]
 emotive-gait = "emotive_gait.cli:main"
@@ -35,6 +36,7 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 "emotive_gait.emotion" = ["data/*.yaml"]
+"emotive_gait.rig" = ["data/*.yaml"]
 
 [tool.ruff]
 line-length = 100

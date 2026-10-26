@@ -353,6 +353,8 @@ _RATIO_BASE = GaitParameters()
 class LearnedEmotionModel(EmotionModel):
     """Deltas from the fitted artefact, delegating missing and unsourced cells to ``fallback``."""
 
+    profile_aware = True  # ``_effect`` re-dimensions through the profile's leg length
+
     def __init__(
         self,
         artefact: Artefact,

@@ -1,4 +1,5 @@
 import math
+from dataclasses import replace
 
 import numpy as np
 import pytest
@@ -6,7 +7,7 @@ from conftest import PHASE0_PRESETS
 
 from emotive_gait.gait.footsteps import swing_fraction
 from emotive_gait.gait.generator import generate
-from emotive_gait.gait.ik import N_SAMPLES
+from emotive_gait.gait.ik import N_SAMPLES, weld_robot_for
 from emotive_gait.gait.params import GaitParameters
 from emotive_gait.gait.spline import PeriodicCurve
 from emotive_gait.robot.loader import load_robot
@@ -294,3 +295,56 @@ def test_every_preset_keeps_full_arm_swing_under_every_projection():
             print(f"{name} {mode.value}: shoulder peak {peak:.4f}")
             want = p.arm_swing_amp * p.expansiveness
             assert peak == pytest.approx(want, abs=1e-3), f"{name} {mode.value}"
+
+
+@pytest.fixture(scope="module")
+def robot():
+    return load_robot()
+
+
+def test_posture_map_writes_an_affine_combination_of_the_posture_parameters(robot):
+    zero = {"trunk_pitch": 0.0, "neck_pitch": 0.0, "elbow_flexion": 0.0, "arm_abduction": 0.0}
+    posture_map = {
+        JointRole.WAIST_PITCH: {**zero, "trunk_pitch": 0.5, "offset": 0.1},
+        # Replaces the sign default (-1 * abduction on the right roll).
+        JointRole.SHOULDER_ROLL_R: {**zero, "arm_abduction": 2.0, "offset": 0.0},
+        # Replaces the elbow posture only: the swing term is still added after.
+        JointRole.ELBOW_L: {**zero, "elbow_flexion": 1.0, "offset": 0.3},
+    }
+    params = GaitParameters(trunk_pitch=0.3, arm_abduction=0.1, expansiveness=1.5)
+    profile = replace(robot.profile, posture_map=posture_map)
+    traj = generate(params, replace(robot, profile=profile), welded=weld_robot_for(robot.profile))
+    plain = generate(params, robot)
+    for phase in (0.3, 0.7):
+        mapped, identity = traj.angles_at(phase), plain.angles_at(phase)
+        assert mapped[JointRole.WAIST_PITCH] == pytest.approx(0.25)  # 0.5 * 0.3 + 0.1
+        assert identity[JointRole.WAIST_PITCH] == pytest.approx(0.3)  # identity path
+        assert mapped[JointRole.SHOULDER_ROLL_R] == pytest.approx(0.30)  # 2.0 * 1.5 * 0.1
+        assert identity[JointRole.SHOULDER_ROLL_R] == pytest.approx(-0.15)  # sign * abduction
+        assert mapped[JointRole.ELBOW_L] == pytest.approx(identity[JointRole.ELBOW_L] + 0.3)
+        assert mapped[JointRole.ELBOW_R] == pytest.approx(identity[JointRole.ELBOW_R])
+
+
+def test_elbow_swing_sign_negates_the_elbow_swing_term_only(robot):
+    params = GaitParameters(elbow_swing_ratio=0.8, arm_swing_amp=0.4, elbow_flexion=0.8)
+    welded = weld_robot_for(robot.profile)
+    flipped = generate(
+        params,
+        replace(robot, profile=replace(robot.profile, elbow_swing_sign=-1.0)),
+        welded=welded,
+    )
+    plain = generate(params, robot)
+    assert plain == generate(params, robot, welded=welded)
+    stand = robot.stand_qpos
+    for phase in (0.1, 0.3, 0.6, 0.85):
+        a, b = plain.angles_at(phase), flipped.angles_at(phase)
+        for elbow, arm in (
+            (JointRole.ELBOW_L, JointRole.SHOULDER_PITCH_L),
+            (JointRole.ELBOW_R, JointRole.SHOULDER_PITCH_R),
+        ):
+            swing = params.elbow_swing_ratio * (a[arm] - stand[robot.qpos_adr(arm)])
+            assert abs(swing) > 0.01
+            assert b[elbow] == pytest.approx(a[elbow] - 2.0 * swing, abs=1e-12)
+        for role in a:
+            if role not in (JointRole.ELBOW_L, JointRole.ELBOW_R):
+                assert b[role] == a[role], role

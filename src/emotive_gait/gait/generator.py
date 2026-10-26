@@ -67,6 +67,10 @@ class GaitTrajectory:
     _signs: tuple[tuple[JointRole, float], ...] = ()
     _offsets: tuple[tuple[JointRole, PeriodicCurve], ...] = ()
     _overrides: tuple[tuple[JointRole, PeriodicCurve], ...] = ()
+    # The profile's affine posture map, role -> sorted (parameter or "offset", coefficient).
+    _posture_map: tuple[tuple[JointRole, tuple[tuple[str, float], ...]], ...] = ()
+    # The profile's sign on the elbow swing term (``RobotProfile.elbow_swing_sign``).
+    _elbow_swing_sign: float = 1.0
 
     @property
     def offsets(self) -> Mapping[JointRole, PeriodicCurve]:
@@ -77,6 +81,11 @@ class GaitTrajectory:
     def overrides(self) -> Mapping[JointRole, PeriodicCurve]:
         """Hand-authored replacement curves, so a projected trajectory can be regenerated."""
         return dict(self._overrides)
+
+    @property
+    def elbow_swing_sign(self) -> float:
+        """The profile's sign on the elbow swing term (``RobotProfile.elbow_swing_sign``)."""
+        return self._elbow_swing_sign
 
     def root_offset_at(self, phase: float) -> np.ndarray:
         """Pelvis ``(x, y, z)`` relative to the walking line: sway, crouch and bounce.
@@ -98,6 +107,21 @@ class GaitTrajectory:
         signs = dict(self._signs)
         legs = dict(self._legs)
         hip_norm = dict(self._hip_norm)
+        posture = {
+            "trunk_pitch": p.trunk_pitch,
+            "neck_pitch": p.neck_pitch,
+            "elbow_flexion": p.elbow_flexion,
+            "arm_abduction": abduction,
+        }
+        posture_map = {role: dict(row) for role, row in self._posture_map}
+
+        def mapped(role: JointRole, default: float) -> float:
+            """The profile's affine posture row for ``role``, or ``default`` (the identity)."""
+            row = posture_map.get(role)
+            if row is None:
+                return default
+            return row["offset"] + sum(row[k] * v for k, v in posture.items())
+
         out = dict(stand)
         for role, curve in legs.items():
             out[role] = float(curve(phase))
@@ -106,14 +130,16 @@ class GaitTrajectory:
             # arm_swing_amp is the arm amplitude whatever the stride.
             out[arm] = stand[arm] + arm_swing * _arm_drive(legs.get(hip), hip_norm.get(hip), phase)
         for roll in _ROLL:
-            out[roll] = signs[roll] * abduction
+            out[roll] = mapped(roll, signs[roll] * abduction)
         for elbow, arm in _ELBOW_FOR_ARM.items():
             # In phase with the shoulder deviation (elbow flexes more as the arm swings
             # forward) is a tuning choice; the amplitude semantics (elbow swing / shoulder
             # swing = elbow_swing_ratio) are what the emotion model relies on.
-            out[elbow] = p.elbow_flexion + p.elbow_swing_ratio * (out[arm] - stand[arm])
-        out[JointRole.WAIST_PITCH] = p.trunk_pitch
-        out[JointRole.NECK_PITCH] = p.neck_pitch
+            out[elbow] = mapped(elbow, p.elbow_flexion) + self._elbow_swing_sign * (
+                p.elbow_swing_ratio * (out[arm] - stand[arm])
+            )
+        out[JointRole.WAIST_PITCH] = mapped(JointRole.WAIST_PITCH, p.trunk_pitch)
+        out[JointRole.NECK_PITCH] = mapped(JointRole.NECK_PITCH, p.neck_pitch)
         return out
 
     def angles_at(self, phase: float) -> dict[JointRole, float]:
@@ -176,19 +202,22 @@ def generate(
     params: GaitParameters,
     robot: RobotModel,
     *,
+    welded: RobotModel | None = None,
     offsets: Mapping[JointRole, PeriodicCurve] | None = None,
     overrides: Mapping[JointRole, PeriodicCurve] | None = None,
 ) -> GaitTrajectory:
     """Solve the legs on the profile's welded robot and compose the upper body.
 
-    Works for a robot of any root mode: the leg solve always runs on
-    ``weld_robot_for(robot.profile)`` and never alters ``params``. An infeasible stride is
-    flagged in ``feasibility``, not rescaled.
+    Works for a robot of any root mode: the leg solve runs on ``welded`` when given (a caller
+    with a pre-welded model, e.g. a rig not in the menagerie), else on
+    ``weld_robot_for(robot.profile)``, and never alters ``params``. An infeasible stride is
+    flagged in ``feasibility``, not rescaled. The profile's ``posture_map`` is captured for the
+    posture roles.
     """
     profile = robot.profile
     roles = tuple(r for r in JointRole if profile.has(r))
     solved = replace(params, step_height=params.expansiveness * params.step_height)
-    cycle = solve_leg_cycle(solved, weld_robot_for(profile))
+    cycle = solve_leg_cycle(solved, welded if welded is not None else weld_robot_for(profile))
     legs = {
         role: PeriodicCurve.from_knots(cycle.phases, cycle.angles[role]) for role in cycle.angles
     }
@@ -207,4 +236,8 @@ def generate(
         _signs=_pairs({r: float(profile.sign(r)) for r in JointRole}),
         _offsets=_pairs(offsets or {}),
         _overrides=_pairs(overrides or {}),
+        _posture_map=_pairs(
+            {role: tuple(sorted(row.items())) for role, row in profile.posture_map.items()}
+        ),
+        _elbow_swing_sign=float(profile.elbow_swing_sign),
     )

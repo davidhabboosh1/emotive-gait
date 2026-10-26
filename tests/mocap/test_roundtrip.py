@@ -12,17 +12,17 @@ import numpy as np
 import pytest
 
 from emotive_gait.emotion.model import PRESET_PARAMS
-from emotive_gait.gait.footsteps import Side, foot_point
+from emotive_gait.gait.footsteps import rule_double_support
 from emotive_gait.gait.generator import GaitTrajectory, generate
 from emotive_gait.gait.params import GaitParameters
 from emotive_gait.mocap.extract import ClipSummary, summarise
 from emotive_gait.robot.loader import RobotModel, load_robot
-from emotive_gait.robot.roles import JointRole
+from emotive_gait.robot.roles import POSTURE_PARAMETERS, JointRole
 from mocap.g1_landmarks import G1_LANDMARKS, record_clip
 
 PRESETS = ("neutral", "sad", "angry", "happy")
 # Absolute on the robot, so compared as deltas against neutral.
-POSTURE = ("trunk_pitch", "neck_pitch", "elbow_flexion", "arm_abduction")
+POSTURE = POSTURE_PARAMETERS
 
 
 @dataclass(frozen=True)
@@ -46,20 +46,6 @@ def recorded() -> Recordings:
         clip = record_clip(out.robot, traj, duration=8.0, fps=120.0)
         out[name] = Recorded(params, traj, summarise(clip, G1_LANDMARKS))
     return out
-
-
-def rule_double_support(params: GaitParameters, samples: int = 4000) -> float:
-    """Double support that the position-extremum rule reads on the commanded foot path.
-
-    ``gait.footsteps.foot_point`` gives the foot's x in the pelvis frame (the coordinate the
-    rule uses). Its swing starts from the stance slope and overshoots +D/2 by about 11 %, so
-    the maximum (strike) comes before the swing ends and the minimum (toe-off) after it starts:
-    the rule's stance is longer than ``1 - swing_fraction``. Double support per half-cycle
-    step is then ``2 * stance - 1``.
-    """
-    x = np.array([foot_point(params, k / samples, Side.LEFT).x for k in range(samples)])
-    stance = ((int(np.argmin(x)) - int(np.argmax(x))) % samples) / samples
-    return 2.0 * stance - 1.0
 
 
 def half_ptp_shoulder_pitch(traj: GaitTrajectory) -> float:
