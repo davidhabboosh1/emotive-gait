@@ -195,9 +195,9 @@ beside it. Emotion deltas then apply to the parameter, as on the G1.
 - joints in file order with name, parent index, offset (file units), channel names in file
   order, and end-site offsets (needed to write the file back and to place a toe when the only
   toe is an End Site);
-- the motion as an array (frames, channels) in file units and degrees, the frame time, and the
-  header's exact `Frames:` / `Frame Time:` lines' formatting (so a byte-level round trip of an
-  unmodified file is possible and tested);
+- the motion as an array (frames, channels) in file units and degrees and the frame time (a
+  write-then-read round trip reproduces the hierarchy, channels and motion to parsing
+  precision; bytes are not preserved);
 - `scale` and `up_axis` as given or as inferred (section 4.4), recorded on the object.
 
 `read_bvh` becomes `read_bvh_file(...).to_clip()` (same output, bit-identical, the 100STYLE
@@ -266,11 +266,12 @@ absolutes would be nonsense. The compiled chain therefore gets a *calibrated zer
    floor, not its cycle average (a toe 19 cm from the ankle would otherwise sit centimetres
    off the floor for the whole stance). The reference is baked into the bodies' frames so
    that every hinge reads 0 there and undriven channels stay there;
-2. for each posture role the rig carries, the hinge zero is shifted by the extractor's own
-   measurement of that posture on the source (trunk pitch, neck pitch, elbow flexion, arm
-   abduction from `P0`), so that hinge 0 is the semantic zero (trunk vertical, head on the
-   trunk line, elbow straight, arm along the trunk) and `P0`'s posture value reproduces the
-   reference pose;
+2. for each posture role the rig carries, the extractor's own static reading of that posture
+   at the reference pose (trunk pitch, neck pitch, elbow flexion, arm abduction) becomes the
+   offset of the posture map below, so that commanding the reference posture gives hinge 0
+   (the reference pose) and commanding a different posture moves the hinge by the measured
+   gain; the semantic zero is therefore an affine offset in the map, not a geometric re-baking
+   of the chain (the plan's refinement of this point);
 3. the stand pose (`RobotModel.stand_qpos`) is all zeros, which is the reference pose.
 
 **Posture gain (my call, after the builder check).** The zero shift fixes the offset but not
@@ -282,18 +283,19 @@ finding, and it would reappear on every rig. The remedy is a measured linear pos
 the `full` chain at the reference pose, each posture hinge (waist pitch, neck pitch, each
 elbow, each shoulder roll) is probed by a small angle and the extractor's four static posture
 measures are read, giving the Jacobian `J` of measures with respect to hinges; the rig profile
-stores `K = J^-1` as `posture_map` and the generator writes `hinges = K @ (trunk_pitch,
-neck_pitch, elbow_flexion, arm_abduction)` for the posture roles instead of copying them.
-`RobotProfile` gains an optional `posture_map` (identity by default) and `generate` applies it
-in `_procedural`; with the identity map the G1 is bit-identical, keeps its 0.88 xfail, and the
-same hook is available to the Phase 4 rendering fix later (not done here).
+stores `K = J^-1` as `posture_map` and the generator writes `hinges = K @ (posture - p_ref)`
+for the posture roles instead of copying them, where `p_ref` is the static reading at the
+reference pose (item 2 above). `RobotProfile` gains an optional `posture_map` (identity by
+default) and `generate` applies it in `_procedural`; with the identity map the G1 is
+bit-identical, keeps its 0.88 xfail, and the same hook is available to the Phase 4 rendering
+fix later (not done here).
 
 The extractor is thereby the arbiter of posture semantics at both ends, and the posture round
 trip closes by construction up to the extractor's own repeatability and the linearity of the
-map over the deltas in play (the test tolerances absorb the rest). A test poses the chain at
-zero, builds a path frame from the reference heading, and checks that the extractor's static
-posture angles read 0 within 1e-3 rad for every calibrated role, and that a commanded trunk
-pitch of 0.3 rad through `posture_map` reads back within 0.02 rad. The G1 keeps its two xfails
+map over the deltas in play (the test tolerances absorb the rest). A test poses the chain
+through `posture_map` at the reference posture and checks that the extractor's static posture
+angles read `p_ref` back, and that a commanded change of 0.3 rad in trunk pitch, neck pitch or
+abduction and 0.5 rad in elbow flexion reads back within 0.02 rad. The G1 keeps its two xfails
 (elbow sign, trunk 0.88 gain) untouched: it is not calibrated, rigs are.
 
 **Joint ranges (my call).** BVH joints have no limits. Driven hinges get rig-independent,
