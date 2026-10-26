@@ -11,7 +11,7 @@ import pytest
 
 from emotive_gait.mocap.readers.bvh import BvhFile, BvhJoint, euler_from_matrix, read_bvh_file
 from emotive_gait.mocap.skeleton import Landmark
-from emotive_gait.rig.compile import PELVIS_CARRIER, _z_up_matrix, compile_full, heading_matrix
+from emotive_gait.rig.compile import PELVIS_CARRIER, compile_full, heading_matrix, z_up_matrix
 from emotive_gait.rig.errors import RigError
 from rig.driven import driven_rig
 from rig.rigs import RigSpec, build_rig, pelvis_name, write_walk
@@ -173,7 +173,7 @@ def test_driven_chain_at_zero_equals_full_chain_at_the_reference(tmp_path, spec)
     robot, mapping, ref, driven, full = driven_rig(spec, tmp_path)
     names = [j.name for j in full.file.joints]
     pelvis = names.index(full.pelvis)
-    p = _z_up_matrix(full.file.up_axis)
+    p = z_up_matrix(full.file.up_axis)
     heading = heading_matrix(ref.heading)
     # The full chain at the reference channel values, the pelvis with the heading put back.
     rotations = ref.baked_rotations(names)

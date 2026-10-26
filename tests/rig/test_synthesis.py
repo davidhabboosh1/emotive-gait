@@ -1,7 +1,8 @@
 """End-to-end synthesis on a rig: load, modulate, generate, write back, read back, measure.
 
-Module-scoped: one walk file per spec (``loaded``), written once; each ``emotional_walk`` loads
-the rig, generates once, writes the output and reads it back for the two claims.
+Module-scoped: one walk file per spec (``loaded``) and one ``LoadedRig`` per spec (``rigs``),
+each built once; every ``walk`` generates once, writes the output and reads it back for the two
+claims.
 """
 
 from __future__ import annotations
@@ -10,6 +11,7 @@ import math
 from dataclasses import dataclass, fields, replace
 from pathlib import Path
 
+import numpy as np
 import pytest
 
 from emotive_gait.emotion.evidence import Emotion
@@ -19,9 +21,14 @@ from emotive_gait.gait.footsteps import rule_double_support
 from emotive_gait.gait.generator import generate
 from emotive_gait.gait.params import GaitParameters
 from emotive_gait.gait.scaling import LENGTH_FIELDS, G, to_gait_parameters
+from emotive_gait.mocap.extract import gait_timing
+from emotive_gait.mocap.readers.bvh import BvhFile, read_bvh_file
+from emotive_gait.mocap.writers.bvh import write_bvh
 from emotive_gait.rig.errors import RigError
+from emotive_gait.rig.mapping import RigMapping
 from emotive_gait.rig.scaled import RigScaledModel
 from emotive_gait.rig.synthesis import (
+    LoadedRig,
     emotional_walk,
     invert_double_support,
     load_rig,
@@ -29,12 +36,14 @@ from emotive_gait.rig.synthesis import (
     rendered,
     resynthesise,
     round_trip,
+    walk,
     within_tolerance,
 )
 from emotive_gait.robot.profiles.g1 import G1_PROFILE_WITH_NECK
 from emotive_gait.robot.roles import JointRole
 from rig.driven import spec_id
 from rig.rigs import FAMILIES, FAMILY_VARIANTS, RigSpec, standing_file, walk_file
+from rig.test_mapping import drop_bones
 
 FIX = Path(__file__).resolve().parents[1] / "mocap" / "fixtures"
 ZERO: dict = {}
@@ -70,9 +79,33 @@ class Walks(dict):
         return walk
 
 
+class Rigs(dict):
+    """``spec -> LoadedRig`` on ``Walks``' files, loaded on first use."""
+
+    def __init__(self, walks: Walks) -> None:
+        super().__init__()
+        self.walks = walks
+
+    def __missing__(self, spec: RigSpec) -> LoadedRig:
+        rig = load_rig(self.walks[spec].path, scale=None, up_axis=None, mapping_overrides=None)
+        self[spec] = rig
+        return rig
+
+
 @pytest.fixture(scope="module")
 def loaded(tmp_path_factory) -> Walks:
     return Walks(tmp_path_factory.mktemp("synthesis"))
+
+
+@pytest.fixture(scope="module")
+def rigs(loaded) -> Rigs:
+    return Rigs(loaded)
+
+
+@pytest.fixture(scope="module")
+def style100() -> LoadedRig:
+    path = FIX / "style100_neutral_4s.bvh"
+    return load_rig(path, scale=0.01, up_axis="y", mapping_overrides=None)
 
 
 @pytest.fixture(scope="module")
@@ -93,26 +126,42 @@ def fixture_artefact_path(tmp_path_factory) -> Path:
     return path
 
 
+def _walk(rig: LoadedRig, intensities, *, model=ANALYTIC, model_name="analytic", **kw):
+    return walk(
+        rig,
+        intensities=intensities,
+        intensities_source="flags",
+        model=model,
+        model_name=model_name,
+        **kw,
+    )
+
+
 # Documented limitation (spec 4.7 rulings, Task 8): a driven hinge reproduces its BVH Euler
 # channel, so when the shoulder PITCH channel is the innermost (last) rotation channel it turns
 # about the abducted arm's own lateral axis, not the trunk's; at a large abduction the
 # extractor's sagittal arm angle then over-reads the swing and the abduction reading drops
-# during it (angry on the z-up ZXY rig: +0.087 rad swing, -0.031 rad abduction). The static
+# during it (angry on the z-up ZXY rig: +0.089 rad swing, -0.032 rad abduction). The static
 # posture map cannot linearise that coupling.
 PITCH_INNERMOST_ABDUCTION = 0.5  # rad, commanded abduction above which the coupling shows
 PITCH_INNERMOST_EXCLUDED = ("arm_swing_amp", "arm_abduction")
 
 
-def _pitch_innermost_exclusion(r) -> tuple[str, ...]:
-    """The fields excluded from the gate for the pitch-innermost limitation, else ``()``."""
-    binding = r.rig.mapping.roles.get(JointRole.SHOULDER_PITCH_L)
-    if binding is None:
-        return ()
-    bone, channel = binding.hinge.rsplit("/", 1)
-    joint = next(j for j in r.rig.file.joints if j.name == bone)
-    innermost = [c for c in joint.channels if c.endswith("rotation")][-1] == channel
-    abduction = r.p1.expansiveness * r.p1.arm_abduction
-    if innermost and abduction > PITCH_INNERMOST_ABDUCTION:
+def _pitch_innermost_exclusion(
+    mapping: RigMapping, file: BvhFile, p1: GaitParameters
+) -> tuple[str, ...]:
+    """The fields excluded from the gate for the pitch-innermost limitation, else ``()``: either
+    side's shoulder pitch channel is its bone's innermost rotation channel and the commanded
+    abduction exceeds ``PITCH_INNERMOST_ABDUCTION``."""
+    innermost = False
+    for role in (JointRole.SHOULDER_PITCH_L, JointRole.SHOULDER_PITCH_R):
+        binding = mapping.roles.get(role)
+        if binding is None:
+            continue
+        bone, channel = binding.hinge.rsplit("/", 1)
+        joint = next(j for j in file.joints if j.name == bone)
+        innermost |= [c for c in joint.channels if c.endswith("rotation")][-1] == channel
+    if innermost and p1.expansiveness * p1.arm_abduction > PITCH_INNERMOST_ABDUCTION:
         return PITCH_INNERMOST_EXCLUDED
     return ()
 
@@ -123,14 +172,8 @@ def _failing(r) -> dict[str, float]:
 
 
 @pytest.mark.parametrize("spec", FAMILY_VARIANTS, ids=spec_id)
-def test_zero_emotion_round_trip_recovers_p0_on_every_rig(loaded, spec):
-    r = emotional_walk(
-        loaded[spec].path,
-        intensities=ZERO,
-        intensities_source="flags",
-        model=ANALYTIC,
-        model_name="analytic",
-    )
+def test_zero_emotion_round_trip_recovers_p0_on_every_rig(rigs, spec):
+    r = _walk(rigs[spec], ZERO)
     assert all(within_tolerance(r.round_trip).values()), _failing(r)
     assert r.p1 == r.rig.p0
     assert r.feasibility.feasible
@@ -139,17 +182,11 @@ def test_zero_emotion_round_trip_recovers_p0_on_every_rig(loaded, spec):
 
 @pytest.mark.parametrize("spec", PRESET_RIGS, ids=spec_id)
 @pytest.mark.parametrize("preset", list(PRESETS))
-def test_emotion_round_trip_recovers_p1(loaded, spec, preset):
-    r = emotional_walk(
-        loaded[spec].path,
-        intensities=PRESETS[preset],
-        intensities_source="flags",
-        model=ANALYTIC,
-        model_name="analytic",
-    )
+def test_emotion_round_trip_recovers_p1(rigs, spec, preset):
+    r = _walk(rigs[spec], PRESETS[preset])
     assert r.p1 != r.rig.p0
     ok = within_tolerance(r.round_trip)
-    excluded = _pitch_innermost_exclusion(r)
+    excluded = _pitch_innermost_exclusion(r.rig.mapping, r.rig.file, r.p1)
     gated = {k: v for k, v in ok.items() if k not in excluded}
     assert all(gated.values()), {k: r.round_trip.residuals[k] for k, v in gated.items() if not v}
     if r.feasibility.feasible:
@@ -157,29 +194,35 @@ def test_emotion_round_trip_recovers_p1(loaded, spec, preset):
         assert r.slip.max_height_error_m <= 0.002, r.slip
 
 
-def test_style100_fixture_round_trips_at_zero_and_sad():
+def test_style100_fixture_round_trips_at_zero_and_sad(style100):
+    heading = gait_timing(style100.clip, style100.mapping.landmarks).frame.forward[0, :2]
+    heading = heading / np.linalg.norm(heading)
+    pelvis = style100.clip.joint_names.index(style100.compiled.pelvis)
     for intensities in (ZERO, PRESETS["sad"]):
-        r = emotional_walk(
-            FIX / "style100_neutral_4s.bvh",
-            intensities=intensities,
-            intensities_source="flags",
-            model=ANALYTIC,
-            model_name="analytic",
-            scale=0.01,
-            up_axis="y",
-        )
+        r = _walk(style100, intensities)
         assert all(within_tolerance(r.round_trip).values()), _failing(r)
         assert r.slip.max_travel_m <= 0.002, r.slip
+        # The output walks straight along the source's first-frame heading.
+        track = r.output.to_clip().positions[:, pelvis, :2]
+        travel = track[-1] - track[0]
+        assert np.linalg.norm(travel / np.linalg.norm(travel) - heading) < 0.05
 
 
-def test_output_keeps_the_source_hierarchy_channels_and_fps(loaded):
+def test_emotional_walk_is_load_rig_then_walk(loaded, rigs):
     r = emotional_walk(
         loaded[RigSpec()].path,
         intensities=ZERO,
         intensities_source="flags",
         model=ANALYTIC,
         model_name="analytic",
+        duration_s=2.0,
     )
+    same = _walk(rigs[RigSpec()], ZERO, duration_s=2.0)
+    assert np.array_equal(r.output.motion, same.output.motion) and r.p1 == same.p1
+
+
+def test_output_keeps_the_source_hierarchy_channels_and_fps(rigs):
+    r = _walk(rigs[RigSpec()], ZERO)
     assert [j.name for j in r.output.joints] == [j.name for j in r.rig.file.joints]
     assert r.output.frame_time == r.rig.file.frame_time
     assert all(a.channels == b.channels for a, b in zip(r.output.joints, r.rig.file.joints))
@@ -188,29 +231,16 @@ def test_output_keeps_the_source_hierarchy_channels_and_fps(loaded):
     assert r.output.motion.shape[0] == r.rig.file.motion.shape[0]
 
 
-def test_output_starts_at_the_source_pelvis_position(loaded):
-    r = emotional_walk(
-        loaded[replace(RigSpec(), up_axis="z")].path,
-        intensities=ZERO,
-        intensities_source="flags",
-        model=ANALYTIC,
-        model_name="analytic",
-    )
+def test_output_starts_at_the_source_pelvis_position(rigs):
+    r = _walk(rigs[replace(RigSpec(), up_axis="z")], ZERO, duration_s=1.0)
     pelvis = r.rig.clip.joint_names.index(FAMILIES["mixamo"]["pelvis"])
     source = r.rig.clip.positions[0, pelvis]
     out = r.output.to_clip().positions[0, pelvis]
     assert math.dist(source[:2], out[:2]) < 1e-6
 
 
-def test_root_above_pelvis_output_puts_the_pelvis_where_commanded(loaded):
-    spec = replace(RigSpec(), root_above_pelvis=True)
-    r = emotional_walk(
-        loaded[spec].path,
-        intensities=ZERO,
-        intensities_source="flags",
-        model=ANALYTIC,
-        model_name="analytic",
-    )
+def test_root_above_pelvis_output_puts_the_pelvis_where_commanded(rigs):
+    r = _walk(rigs[replace(RigSpec(), root_above_pelvis=True)], ZERO, duration_s=1.0)
     clip = r.output.to_clip()
     pelvis = clip.joint_names.index(FAMILIES["mixamo"]["pelvis"])
     # Phase 0: no sway, full bounce; the nominal is the lowered one (load_rig).
@@ -219,21 +249,15 @@ def test_root_above_pelvis_output_puts_the_pelvis_where_commanded(loaded):
     assert abs(r.rig.nominal_pelvis_height - r.rig.source_pelvis_height) < 0.25
 
 
-def test_learned_model_goes_through_the_rig_profile(loaded, fixture_artefact_path):
+def test_learned_model_goes_through_the_rig_profile(rigs, fixture_artefact_path):
     m = LearnedEmotionModel(load_artefact(fixture_artefact_path), scaling="froude")
-    r = emotional_walk(
-        loaded[RigSpec()].path,
-        intensities=PRESETS["sad"],
-        intensities_source="flags",
-        model=m,
-        model_name="learned",
-    )
+    r = _walk(rigs[RigSpec()], PRESETS["sad"], model=m, model_name="learned", duration_s=2.0)
     assert r.p1.cadence < r.rig.p0.cadence
     assert r.model_name == "learned" and r.scaling == "froude"
 
 
-def test_ratio_scaling_is_relative_to_the_rigs_own_neutral(loaded, fixture_artefact_path):
-    rig = load_rig(loaded[RigSpec()].path, scale=None, up_axis=None, mapping_overrides=None)
+def test_ratio_scaling_is_relative_to_the_rigs_own_neutral(rigs, fixture_artefact_path):
+    rig = rigs[RigSpec()]
     inner = LearnedEmotionModel(load_artefact(fixture_artefact_path), scaling="ratio")
     cell_estimate = inner.cell(Emotion.SADNESS, "step_length").estimate
     assert cell_estimate != 0.0
@@ -248,14 +272,21 @@ def test_the_wrapper_is_bit_identical_on_the_g1_for_the_analytic_model():
             wrapped = RigScaledModel(ANALYTIC, scaling=scaling, p0=GaitParameters())
             inner = ANALYTIC.deltas(intensities, G1_PROFILE_WITH_NECK)
             assert dict(wrapped.deltas(intensities, G1_PROFILE_WITH_NECK)) == dict(inner)
-    for name, emotion in (("sad", Emotion.SADNESS), ("angry", Emotion.ANGER)):
+    presets = {
+        "neutral": {},
+        "sad": {Emotion.SADNESS: 1.0},
+        "angry": {Emotion.ANGER: 1.0},
+        "happy": {Emotion.HAPPINESS: 1.0},
+    }
+    assert set(presets) == set(PRESET_PARAMS)
+    for name, intensities in presets.items():
         wrapped = RigScaledModel(ANALYTIC, scaling="froude", p0=GaitParameters())
-        p = modulate(GaitParameters(), {emotion: 1.0}, G1_PROFILE_WITH_NECK, model=wrapped)
+        p = modulate(GaitParameters(), intensities, G1_PROFILE_WITH_NECK, model=wrapped)
         assert p == PRESET_PARAMS[name]
 
 
-def test_the_froude_wrapper_re_dimensions_g1_deltas_through_the_rig_leg(loaded):
-    rig = load_rig(loaded[RigSpec()].path, scale=None, up_axis=None, mapping_overrides=None)
+def test_the_froude_wrapper_re_dimensions_g1_deltas_through_the_rig_leg(rigs):
+    rig = rigs[RigSpec()]
     intensities = {Emotion.ANGER: 1.0}
     inner = ANALYTIC.deltas(intensities, rig.profile)
     wrapped = RigScaledModel(ANALYTIC, scaling="froude", p0=rig.p0).deltas(intensities, rig.profile)
@@ -278,12 +309,11 @@ def test_the_froude_wrapper_re_dimensions_g1_deltas_through_the_rig_leg(loaded):
         expected = getattr(moved, name) - getattr(base, name)
         assert wrapped[name] == pytest.approx(expected, rel=1e-9, abs=1e-12), name
     assert wrapped["expansiveness"] == inner["expansiveness"]
-    # The profile-aware learned model passes through untouched.
     assert RigScaledModel(ANALYTIC, scaling="froude", p0=rig.p0).profile_aware is True
 
 
-def test_unreachable_stride_is_flagged_and_still_written(loaded):
-    rig = load_rig(loaded[RigSpec()].path, scale=None, up_axis=None, mapping_overrides=None)
+def test_unreachable_stride_is_flagged_and_still_written(rigs):
+    rig = rigs[RigSpec()]
     long = replace(rig.p0, step_length=1.2)  # 1.2 m steps on 0.9 m legs
     out, traj = resynthesise(rig, long, duration_s=2.0)
     assert not traj.feasibility.feasible and out.motion.shape[0] == 120
@@ -296,10 +326,11 @@ def test_invert_double_support_is_the_inverse_of_the_rule():
     assert invert_double_support(rule_double_support(p), p) == pytest.approx(0.20, abs=1e-3)
 
 
-def test_p0_regenerates_the_sources_raw_double_support_reading(loaded):
-    rig = load_rig(loaded[RigSpec()].path, scale=None, up_axis=None, mapping_overrides=None)
+def test_p0_regenerates_the_sources_raw_double_support_reading(rigs):
+    rig = rigs[RigSpec()]
     assert rig.p0.com_height_scale == 1.0 and rig.p0.expansiveness == 1.0
     assert rig.p0.cadence == pytest.approx(rig.summary.mean.cadence)
+    assert rig.unobservable == ()
     if 0.0 < rig.p0.double_support_frac < 0.5:
         assert rule_double_support(rig.p0) == pytest.approx(rig.raw_double_support, abs=2e-3)
 
@@ -311,23 +342,22 @@ def test_a_standing_clip_stops_with_the_discard_reasons(tmp_path):
         )
 
 
-def test_mapping_overrides_split_into_landmarks_and_roles(loaded):
+def test_mapping_overrides_split_into_landmarks_and_roles(loaded, rigs):
     path = loaded[RigSpec()].path
     with pytest.raises(RigError, match="NoSuchBone"):
         load_rig(path, scale=None, up_axis=None, mapping_overrides={"head": "NoSuchBone"})
     with pytest.raises(RigError, match="no_such_key"):
         load_rig(path, scale=None, up_axis=None, mapping_overrides={"no_such_key": "x"})
     # "knee_l" is both a landmark and a role: a "Bone/Channel" value makes it a role override.
-    rig = load_rig(path, scale=None, up_axis=None, mapping_overrides=None)
-    hinge = rig.mapping.roles[next(r for r in rig.mapping.roles if r.value == "knee_l")].hinge
+    hinge = rigs[RigSpec()].mapping.roles[JointRole.KNEE_L].hinge
     again = load_rig(path, scale=None, up_axis=None, mapping_overrides={"knee_l": hinge})
     assert any(d.what == "role:knee_l" and d.source == "user" for d in again.mapping.decisions)
 
 
-def test_an_unknown_intensities_source_is_refused(loaded):
+def test_an_unknown_intensities_source_is_refused(rigs):
     with pytest.raises(ValueError, match="intensities_source"):
-        emotional_walk(
-            loaded[RigSpec()].path,
+        walk(
+            rigs[RigSpec()],
             intensities=ZERO,
             intensities_source="telepathy",
             model=ANALYTIC,
@@ -335,8 +365,8 @@ def test_an_unknown_intensities_source_is_refused(loaded):
         )
 
 
-def test_the_nominal_pelvis_height_is_lowered_until_p0_is_reachable(loaded):
-    rig = load_rig(loaded[RigSpec()].path, scale=None, up_axis=None, mapping_overrides=None)
+def test_the_nominal_pelvis_height_is_lowered_until_p0_is_reachable(rigs):
+    rig = rigs[RigSpec()]
     assert rig.source_pelvis_height == rig.reference.pelvis_height
     assert rig.nominal_pelvis_height == rig.profile.nominal_pelvis_height
     factor = rig.nominal_pelvis_height / rig.source_pelvis_height
@@ -349,28 +379,59 @@ def test_the_nominal_pelvis_height_is_lowered_until_p0_is_reachable(loaded):
     assert decision.source == "geometry" and decision.chosen.startswith(f"{factor:.2f} x")
 
 
-def test_the_pitch_innermost_exclusion_names_only_that_rig_and_large_abduction(loaded):
-    kw = {"intensities_source": "flags", "model": ANALYTIC, "model_name": "analytic"}
-    z_up = emotional_walk(
-        loaded[replace(RigSpec(), up_axis="z")].path, intensities=PRESETS["angry"], **kw
+def test_the_pitch_innermost_exclusion_names_only_that_rig_and_large_abduction(rigs):
+    z_up, y_up = rigs[replace(RigSpec(), up_axis="z")], rigs[RigSpec()]
+    wide = replace(z_up.p0, arm_abduction=0.45, expansiveness=1.35)  # angry: 0.61 rad
+    narrow = replace(z_up.p0, arm_abduction=0.45, expansiveness=1.0)
+    assert _pitch_innermost_exclusion(z_up.mapping, z_up.file, wide) == PITCH_INNERMOST_EXCLUDED
+    assert _pitch_innermost_exclusion(z_up.mapping, z_up.file, narrow) == ()
+    assert _pitch_innermost_exclusion(y_up.mapping, y_up.file, wide) == ()
+    # Either side alone triggers it.
+    sides = {JointRole.SHOULDER_PITCH_L, JointRole.SHOULDER_PITCH_R}
+    for kept in sides:
+        roles = {r: b for r, b in z_up.mapping.roles.items() if r not in sides - {kept}}
+        one_sided = replace(z_up.mapping, roles=roles)
+        assert _pitch_innermost_exclusion(one_sided, z_up.file, wide) == PITCH_INNERMOST_EXCLUDED
+
+
+def test_a_p0_field_the_extractor_cannot_read_is_an_unobservable_decision(tmp_path):
+    spec = replace(RigSpec(), clavicles=False)
+    source = read_bvh_file(walk_file(spec, tmp_path), scale=0.01, up_axis="y")
+    names = FAMILIES["mixamo"]
+    arms = tuple(
+        names[part].replace("Left", side)
+        for side in ("Left", "Right")
+        for part in ("upper_arm", "elbow", "wrist", "finger")
     )
-    y_up = emotional_walk(loaded[RigSpec()].path, intensities=PRESETS["angry"], **kw)
-    calm = emotional_walk(loaded[replace(RigSpec(), up_axis="z")].path, intensities=ZERO, **kw)
-    assert _pitch_innermost_exclusion(z_up) == PITCH_INNERMOST_EXCLUDED
-    assert _pitch_innermost_exclusion(y_up) == ()
-    assert _pitch_innermost_exclusion(calm) == ()
+    path = tmp_path / "armless.bvh"
+    write_bvh(drop_bones(source, arms), path)
+    rig = load_rig(path, scale=None, up_axis=None, mapping_overrides=None)
+    arm_fields = ("arm_swing_amp", "arm_abduction", "elbow_flexion", "elbow_swing_ratio")
+    assert rig.unobservable == arm_fields
+    defaults = GaitParameters()
+    for name in arm_fields:
+        assert getattr(rig.p0, name) == getattr(defaults, name)
+        decision = next(d for d in rig.mapping.decisions if d.what == f"p0:{name}")
+        assert decision.source == "geometry" and "default" in decision.chosen
+    r = _walk(rig, ZERO, duration_s=4.0)
+    assert set(arm_fields) <= set(r.round_trip.unobservable)
+    ok = within_tolerance(r.round_trip)
+    assert not set(arm_fields) & set(ok)
+    assert not set(arm_fields) & set(r.round_trip.residuals)
+    assert all(ok.values()), _failing(r)
 
 
 def test_a_still_arm_leaves_the_elbow_ratio_unobservable_and_a_straight_elbow_renders_none(
-    loaded,
+    rigs,
 ):
-    rig = load_rig(loaded[RigSpec()].path, scale=None, up_axis=None, mapping_overrides=None)
+    rig = rigs[RigSpec()]
     still = replace(rig.p0, arm_swing_amp=0.0, elbow_swing_ratio=0.5)
     out, traj = resynthesise(rig, still, duration_s=4.0)
     assert math.isnan(rendered(traj)["elbow_swing_ratio"])
     rt = round_trip(out, rig.mapping.landmarks, still, trajectory=traj)
     assert rt.unobservable == ("elbow_swing_ratio",)
     assert "elbow_swing_ratio" not in within_tolerance(rt)
+    assert "elbow_swing_ratio" not in rt.residuals
     # Commanding less than straight holds the elbow at its straight limit: no swing renders,
     # and the flexion is compared floored at 0.
     bent_back = replace(rig.p0, elbow_flexion=-0.3, elbow_swing_ratio=0.4)

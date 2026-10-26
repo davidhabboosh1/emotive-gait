@@ -86,7 +86,7 @@ class CompiledRig:
         return np.radians(self.file.motion[frame, columns])
 
 
-def _z_up_matrix(up_axis: str) -> np.ndarray:
+def z_up_matrix(up_axis: str) -> np.ndarray:
     """``P`` with ``to_z_up(v) == P @ v`` (rows of ``to_z_up(I)`` are the columns of ``P``)."""
     return to_z_up(np.eye(3), up_axis).T
 
@@ -139,7 +139,7 @@ def _build(
     clash = {PELVIS_BODY, PELVIS_CARRIER} & (set(names) - {pelvis})
     if clash:
         raise ValueError(f"bone names {sorted(clash)} collide with the compiled root bodies")
-    p = _z_up_matrix(file.up_axis)
+    p = z_up_matrix(file.up_axis)
     root = names.index(pelvis)
     bones = _subtree(file, root)
     _refuse_translation(file, bones, root)
@@ -217,7 +217,7 @@ def _build(
 
 def compile_full(file: BvhFile, *, pelvis: str, pelvis_height: float = 1.0) -> CompiledRig:
     """Every rotation channel from ``pelvis`` down as an unlimited hinge (the FK-gate chain)."""
-    p = _z_up_matrix(file.up_axis)
+    p = z_up_matrix(file.up_axis)
 
     def hinges_for(bone: int) -> list[_Hinge]:
         return [
@@ -280,7 +280,7 @@ def _point_in_frame(
 ) -> np.ndarray:
     """``target`` (a bone or ``"<bone>_End"``) in ``ancestor``'s rotated frame, z-up, metres,
     with the bones between at ``rotations_z`` (z-up local rotations)."""
-    p = _z_up_matrix(file.up_axis)
+    p = z_up_matrix(file.up_axis)
     names = [j.name for j in file.joints]
     end = target not in names and target.endswith("_End")
     bone = target[: -len("_End")] if end else target
@@ -314,7 +314,7 @@ def compile_driven(file: BvhFile, mapping: RigMapping, reference: ReferencePose)
     the ankle origin without one); the root ``pelvis`` is at ``(0, 0,
     reference.pelvis_height)``.
     """
-    p = _z_up_matrix(file.up_axis)
+    p = z_up_matrix(file.up_axis)
     names = [j.name for j in file.joints]
     rotations = reference.baked_rotations(names)
     rotations_z = {name: p @ rotations[i] @ p.T for i, name in enumerate(names)}

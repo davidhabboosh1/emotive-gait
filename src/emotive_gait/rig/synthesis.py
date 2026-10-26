@@ -4,10 +4,12 @@
 ``driven`` chain, measures the posture map and reads the source's neutral ``P0`` with the frozen
 extractor; the profile's nominal pelvis height is then lowered from the source's mean until
 ``P0`` is reachable (``reachable_pelvis_factor``, recorded as a ``pelvis_height`` decision), and
-``P0.com_height_scale`` stays 1.0 relative to it. ``emotional_walk`` modulates ``P0`` through ``RigScaledModel``, generates on the
-welded rig (``resynthesise``) and writes the trajectory back into the file's own channels, then
-measures the two claims on the written file read back: round-trip fidelity (``round_trip``,
+``P0.com_height_scale`` stays 1.0 relative to it (a field the extractor cannot read keeps the
+default and is recorded as unobservable). ``walk`` modulates ``P0`` through ``RigScaledModel``,
+generates on the welded rig (``resynthesise``) and writes the trajectory back into the file's
+own channels, then measures the two claims on the written file read back: round-trip fidelity (``round_trip``,
 ``within_tolerance``) and zero foot slip over every commanded stance (``measure_slip``).
+``emotional_walk`` is ``load_rig`` then ``walk``.
 
 The trajectory-to-BVH step is ``rig.writer.write_trajectory``.
 
@@ -19,7 +21,7 @@ from __future__ import annotations
 
 import math
 import tempfile
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, fields, replace
 from pathlib import Path
 from types import MappingProxyType
@@ -104,7 +106,10 @@ class LoadedRig:
     robot: RobotModel  # the driven chain with the measured posture map
     profile: RobotProfile
     p_ref: dict[str, float]  # the posture reading at the reference pose
-    compiled: CompiledRig | None = None  # the driven chain's names (bones -> bodies)
+    compiled: CompiledRig  # the driven chain's names (bones -> bodies)
+    # P0 fields the extractor cannot read on this rig (a landmark is absent): P0 carries the
+    # GaitParameters default for each, recorded as a decision, and the round trip skips them
+    unobservable: tuple[str, ...] = ()
 
     @property
     def source_pelvis_height(self) -> float:
@@ -133,14 +138,15 @@ class RoundTrip:
 
     commanded: GaitParameters
     measured: ClipSummary
-    # measured minus commanded per MEASURED_FIELDS (double support against
+    # measured minus commanded per observable MEASURED_FIELDS (double support against
     # rule_double_support(commanded); step height and abduction against the
     # expansiveness-scaled values, elbow flexion floored at straight, arm swing and elbow ratio
     # against the rendered trajectory (``rendered``); com_height_scale as the pelvis height
     # above the floor over the nominal, NaN without them)
     residuals: Mapping[str, float]
-    # fields the commanded motion leaves undefined (the elbow ratio of an arm that does not
-    # swing): NaN residuals, left out of ``within_tolerance``
+    # fields without a residual, left out of ``within_tolerance``: P0 fields the extractor
+    # cannot read on the rig, and fields the commanded motion leaves undefined (the elbow ratio
+    # of an arm that does not swing)
     unobservable: tuple[str, ...] = ()
 
 
@@ -205,22 +211,28 @@ def _split_overrides(
     return lm_over, role_over
 
 
-def _p0(summary: ClipSummary) -> tuple[GaitParameters, float]:
-    """``(P0, raw double support)``: the cycle mean as parameters (a field the extractor could
-    not read keeps the default), ``com_height_scale`` and ``expansiveness`` 1.0, double support
-    inverted through the rule."""
+def _p0(summary: ClipSummary) -> tuple[GaitParameters, float, tuple[str, ...]]:
+    """``(P0, raw double support, unobservable fields)``: the cycle mean as parameters,
+    ``com_height_scale`` and ``expansiveness`` 1.0, double support inverted through the rule.
+    A field the extractor could not read (NaN: a landmark is absent) keeps the
+    ``GaitParameters`` default and is listed as unobservable; ``load_rig`` records it."""
     m = summary.mean
     defaults = GaitParameters()
     values = {}
+    unobservable = []
     for f in fields(GaitParameters):
         if f.name in ("com_height_scale", "expansiveness"):
             values[f.name] = 1.0
             continue
         value = float(getattr(m, f.name))
-        values[f.name] = value if math.isfinite(value) else float(getattr(defaults, f.name))
+        if not math.isfinite(value):
+            unobservable.append(f.name)
+            value = float(getattr(defaults, f.name))
+        values[f.name] = value
     p0 = GaitParameters(**values)
     raw = p0.double_support_frac
-    return replace(p0, double_support_frac=invert_double_support(raw, p0)), raw
+    p0 = replace(p0, double_support_frac=invert_double_support(raw, p0))
+    return p0, raw, tuple(unobservable)
 
 
 PELVIS_FACTOR_MIN = 0.75  # the lowest nominal pelvis height tried, x the source's mean
@@ -236,6 +248,10 @@ def reachable_pelvis_factor(p0: GaitParameters, robot: RobotModel, source_height
     source's own mean pelvis height (often near the straight-leg height) can leave its stride
     unreachable. The G1 does the same: nominal 0.68 m below its 0.79 m straight-leg stand.
     ``f = 1`` is tried first, so a rig that already fits keeps the source height.
+
+    Assumes feasibility is monotone in ``f`` (a lower pelvis only makes the stride easier to
+    reach, down to the window's floor); on a rig where it is not, the ``f`` found is feasible
+    but not necessarily the largest one.
     """
 
     def feasible(f: float) -> bool:
@@ -246,8 +262,8 @@ def reachable_pelvis_factor(p0: GaitParameters, robot: RobotModel, source_height
     if feasible(1.0):
         return 1.0
     lo, hi = PELVIS_FACTOR_MIN, 1.0
-    if not feasible(lo):
-        return lo
+    # No probe of ``lo`` itself: if nothing above it is feasible the answer is ``lo`` whether
+    # or not ``lo`` is (then the flag stays false downstream), so it would cost a generate.
     while hi - lo > PELVIS_FACTOR_STEP:
         mid = 0.5 * (lo + hi)
         if feasible(mid):
@@ -293,7 +309,7 @@ def load_rig(
     summary = summarise(clip, mapping.landmarks)
     if summary.n_cycles == 0:  # reference_pose has already refused this; kept as a guard
         raise RigError(f"no usable cycle: {dict(summary.discard_reasons)}")
-    p0, raw = _p0(summary)
+    p0, raw, unobservable = _p0(summary)
     source_height = float(reference.pelvis_height)
     factor = reachable_pelvis_factor(p0, rig_robot(driven, profile), source_height)
     profile = replace(profile, nominal_pelvis_height=factor * source_height)
@@ -306,6 +322,15 @@ def load_rig(
                 chosen=f"{factor:.2f} x source mean ({factor * source_height:.3f} m)",
                 source="geometry",
                 note="lowered until P0 is reachable by the flat-foot generator",
+            ),
+            *(
+                Decision(
+                    what=f"p0:{name}",
+                    chosen=f"{getattr(p0, name):g} (GaitParameters default)",
+                    source="geometry",
+                    note="unobservable: the extractor cannot read it on this rig",
+                )
+                for name in unobservable
             ),
         ),
     )
@@ -321,6 +346,7 @@ def load_rig(
         profile=profile,
         p_ref=p_ref,
         compiled=driven,
+        unobservable=unobservable,
     )
 
 
@@ -336,8 +362,6 @@ def resynthesise(
     hierarchy, channel order, units and up-axis. Infeasible parameters are written as well; the
     trajectory's ``feasibility`` says so.
     """
-    if rig.compiled is None:
-        raise ValueError("the LoadedRig carries no compiled chain")
     traj = generate(p1, rig.robot, welded=rig.robot)
     output = write_trajectory(
         traj,
@@ -447,19 +471,24 @@ def round_trip(
     floor_z: float | None = None,
     nominal_pelvis_height: float | None = None,
     trajectory: GaitTrajectory | None = None,
+    unobservable: Iterable[str] = (),
 ) -> RoundTrip:
     """``summarise`` the output and subtract the commanded values (``RoundTrip.residuals``).
 
     With ``trajectory`` the arm swing and elbow ratio are compared with what it renders
-    (``rendered``; the arm swing as in the Phase 4.5 round trip), else with the parameters. A
-    field the trajectory leaves unobservable is NaN and listed in ``RoundTrip.unobservable``.
+    (``rendered``; the arm swing as in the Phase 4.5 round trip), else with the parameters.
+    Fields in ``unobservable`` (``LoadedRig.unobservable``: P0 could not read them) and fields
+    the trajectory leaves undefined get no residual and are listed in
+    ``RoundTrip.unobservable``.
     """
     shaped = None if trajectory is None else rendered(trajectory)
     measured = summarise(output.to_clip(end_sites=True), landmarks)
     m = measured.mean
     residuals: dict[str, float] = {}
-    unobservable = []
+    skipped = list(dict.fromkeys(unobservable))
     for name in MEASURED_FIELDS:
+        if name in skipped:
+            continue
         if name == "com_height_scale":
             if floor_z is None or nominal_pelvis_height is None:
                 residuals[name] = math.nan
@@ -469,13 +498,14 @@ def round_trip(
             continue
         commanded = _commanded(p1, name, shaped)
         if not math.isfinite(commanded):
-            unobservable.append(name)
+            skipped.append(name)
+            continue
         residuals[name] = float(getattr(m, name)) - commanded
     return RoundTrip(
         commanded=p1,
         measured=measured,
         residuals=MappingProxyType(residuals),
-        unobservable=tuple(unobservable),
+        unobservable=tuple(skipped),
     )
 
 
@@ -496,8 +526,8 @@ def within_tolerance(rt: RoundTrip) -> dict[str, bool]:
 # --- the pipeline --------------------------------------------------------------------------
 
 
-def emotional_walk(
-    source: Path,
+def walk(
+    rig: LoadedRig,
     *,
     intensities: Mapping[Emotion, float],
     intensities_source: str,
@@ -505,11 +535,8 @@ def emotional_walk(
     model_name: str,
     scaling: Scaling = "froude",
     duration_s: float | None = None,
-    mapping_overrides: Mapping[str, str] | None = None,
-    scale: float | None = None,
-    up_axis: str | None = None,
 ) -> WalkResult:
-    """Load ``source``, move its neutral by ``intensities`` and write the walk back (spec 4.7).
+    """Move ``rig``'s neutral by ``intensities`` and write the walk back (spec 4.7).
 
     ``duration_s`` defaults to the source's length. The claims are measured on the output
     written to a temporary BVH and read back; the caller writes ``output`` where it wants it.
@@ -519,7 +546,6 @@ def emotional_walk(
         raise ValueError(
             f"intensities_source must be one of {_SOURCES}, got {intensities_source!r}"
         )
-    rig = load_rig(source, scale=scale, up_axis=up_axis, mapping_overrides=mapping_overrides)
     scaled = RigScaledModel(model, scaling=scaling, p0=rig.p0)
     p1 = modulate(rig.p0, intensities, rig.profile, model=scaled)
     dropped = unexpressible(intensities, rig.profile, scaled)
@@ -548,6 +574,37 @@ def emotional_walk(
             floor_z=rig.reference.floor_z,
             nominal_pelvis_height=rig.profile.nominal_pelvis_height,
             trajectory=traj,
+            unobservable=rig.unobservable,
         ),
         output=output,
+    )
+
+
+def emotional_walk(
+    source: Path,
+    *,
+    intensities: Mapping[Emotion, float],
+    intensities_source: str,
+    model: EmotionModel,
+    model_name: str,
+    scaling: Scaling = "froude",
+    duration_s: float | None = None,
+    mapping_overrides: Mapping[str, str] | None = None,
+    scale: float | None = None,
+    up_axis: str | None = None,
+) -> WalkResult:
+    """``load_rig(source, ...)``, then ``walk`` on it (see both)."""
+    if intensities_source not in _SOURCES:
+        raise ValueError(
+            f"intensities_source must be one of {_SOURCES}, got {intensities_source!r}"
+        )
+    rig = load_rig(source, scale=scale, up_axis=up_axis, mapping_overrides=mapping_overrides)
+    return walk(
+        rig,
+        intensities=intensities,
+        intensities_source=intensities_source,
+        model=model,
+        model_name=model_name,
+        scaling=scaling,
+        duration_s=duration_s,
     )

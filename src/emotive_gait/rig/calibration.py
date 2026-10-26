@@ -52,8 +52,8 @@ from emotive_gait.mocap.readers.bvh import BvhFile, rotation_about
 from emotive_gait.mocap.skeleton import Landmark, LandmarkMap, SkeletonClip
 from emotive_gait.rig.compile import (
     CompiledRig,
-    _z_up_matrix,
     channel_angles,
+    z_up_matrix,
 )
 from emotive_gait.rig.errors import RigError
 from emotive_gait.robot.conventions import PROBE_RAD
@@ -161,7 +161,7 @@ def _bone(landmarks: LandmarkMap, lm: Landmark) -> str | None:
 def _reference_points(file: BvhFile, rotations: np.ndarray, pelvis: str) -> dict[str, np.ndarray]:
     """z-up positions relative to the pelvis of every bone (and End Site) below it, with the
     chain at ``rotations`` (file axes; the pelvis's is its world rotation)."""
-    p = _z_up_matrix(file.up_axis)
+    p = z_up_matrix(file.up_axis)
     names = [j.name for j in file.joints]
     root = names.index(pelvis)
     world: dict[int, np.ndarray] = {}
@@ -208,7 +208,7 @@ def reference_pose(file: BvhFile, clip: SkeletonClip, landmarks: LandmarkMap) ->
     world: list[np.ndarray] = []
     for i, joint in enumerate(file.joints):
         world.append(local[i] if joint.parent < 0 else world[joint.parent] @ local[i])
-    p = _z_up_matrix(file.up_axis)
+    p = z_up_matrix(file.up_axis)
     h = _heading_matrices(forward)
 
     def level(i: int) -> np.ndarray:

@@ -4,7 +4,7 @@ Per output frame at the source fps:
 
 - every compiled bone's local rotation is ``R_parent^T @ R_bone`` of the MuJoCo ``xmat`` of the
   bodies carrying their frames (``CompiledRig.frame_of``), brought into the file's axes as
-  ``P^T R P`` (``P = _z_up_matrix(up_axis)``) and decomposed in the bone's channel order
+  ``P^T R P`` (``P = z_up_matrix(up_axis)``) and decomposed in the bone's channel order
   (``channel_angles``, ``euler_from_matrix`` for three axes); undriven channels come out at
   their reference values because they are baked into the body quaternions. The pelvis's parent
   frame is the world turned by the source's first-frame heading ``H``, so its world rotation is
@@ -30,7 +30,7 @@ from emotive_gait.mocap.extract import gait_timing
 from emotive_gait.mocap.readers.bvh import BvhFile
 from emotive_gait.mocap.skeleton import LandmarkMap, SkeletonClip
 from emotive_gait.rig.calibration import ReferencePose
-from emotive_gait.rig.compile import CompiledRig, _z_up_matrix, channel_angles, heading_matrix
+from emotive_gait.rig.compile import CompiledRig, channel_angles, heading_matrix, z_up_matrix
 from emotive_gait.rig.errors import RigError
 from emotive_gait.robot.loader import RobotModel
 
@@ -94,7 +94,7 @@ def write_trajectory(
 
     names = [j.name for j in file.joints]
     pelvis = names.index(compiled.pelvis)
-    p = _z_up_matrix(file.up_axis)
+    p = z_up_matrix(file.up_axis)
     timing = gait_timing(clip, landmarks)
     heading = heading_matrix(timing.frame.forward[0])
     start = clip.positions[0, clip.joint_names.index(compiled.pelvis)]

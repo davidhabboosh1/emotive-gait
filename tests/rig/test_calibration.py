@@ -20,7 +20,7 @@ from emotive_gait.rig.calibration import (
     posture_map,
     reference_pose,
 )
-from emotive_gait.rig.compile import _z_up_matrix, compile_driven, compile_full
+from emotive_gait.rig.compile import compile_driven, compile_full, z_up_matrix
 from emotive_gait.rig.mapping import RigError, bind_roles, map_landmarks
 from emotive_gait.rig.profile import rig_profile, rig_robot
 from emotive_gait.rig.ranges import RANGES
@@ -248,7 +248,7 @@ def test_a_bound_hinge_writes_back_as_its_own_euler_channel_through_a_three_axis
         @ rotation_about(1, theta[2:])[0]
     )
     driven = compile_driven(f, mapping, replace(ref, local_rotations=rotations))
-    p = _z_up_matrix(f.up_axis)
+    p = z_up_matrix(f.up_axis)
     data = mujoco.MjData(driven.model)
     parent = names[f.joints[i].parent]
 
