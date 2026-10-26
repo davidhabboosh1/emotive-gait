@@ -104,36 +104,76 @@ def _wanted(dataset: DatasetEntry, base: Path) -> list[AuxFile | ClipEntry]:
     return out
 
 
+def _attempt(action: Callable[[], None], dest: Path) -> str | None:
+    """Run ``action``; on ``OSError`` remove ``dest``'s ``.part`` file and return the error text."""
+    try:
+        action()
+    except OSError as exc:
+        dest.with_name(dest.name + ".part").unlink(missing_ok=True)
+        return f"{type(exc).__name__}: {exc}"
+    return None
+
+
+def _copy(source: Path, dest: Path) -> None:
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    part = dest.with_name(dest.name + ".part")
+    shutil.copyfile(source, part)
+    os.replace(part, dest)
+
+
 def _fetch_dataset(
     dataset: DatasetEntry, root: Path, source: Path | None, downloader: Downloader
-) -> list[HashProblem]:
+) -> tuple[list[HashProblem], bool]:
+    """Obtain the wanted files; return the failures and whether the archive itself is bad."""
     base = root / dataset.id
     wanted = _wanted(dataset, base)
     if not wanted:
-        return []
+        return [], False
     base.mkdir(parents=True, exist_ok=True)
+    failures: list[HashProblem] = []
     if dataset.archive is None:
         prefix = dataset.url.rstrip("/") + "/"
         for entry in wanted:
-            downloader(prefix + entry.path, base / entry.path)
-        return []
+            dest = base / entry.path
+            if source is not None:
+                action = lambda e=entry, d=dest: _copy(source / e.path, d)
+            else:
+                action = lambda e=entry, d=dest: downloader(prefix + e.path, d)
+            error = _attempt(action, dest)
+            if error is not None:
+                failures.append(
+                    HashProblem(f"{dataset.id}/{entry.path}", entry.sha256, None, error)
+                )
+        return failures, False
     archive = base / dataset.archive
+    shown = f"{dataset.id}/{dataset.archive}"
     if not archive.is_file() or _archive_problems(dataset, archive):
         if source is not None:
-            if source.resolve() != archive.resolve():
-                shutil.copyfile(source, archive)
+            if source.resolve() == archive.resolve():
+                error = None
+            else:
+                error = _attempt(lambda: _copy(source, archive), archive)
         else:
-            downloader(dataset.url, archive)
+            error = _attempt(lambda: downloader(dataset.url, archive), archive)
+        if error is not None:
+            expected = dataset.archive_sha256 or f"md5:{dataset.archive_md5}"
+            return [HashProblem(shown, expected, None, error)], True
     problems = _archive_problems(dataset, archive)
     if problems:
-        return problems
+        return problems, True
     members = _Members(archive)
     try:
         for entry in wanted:
-            members.extract(entry.archive_member or entry.path, base / entry.path)
+            dest = base / entry.path
+            member = entry.archive_member or entry.path
+            error = _attempt(lambda m=member, d=dest: members.extract(m, d), dest)
+            if error is not None:
+                failures.append(
+                    HashProblem(f"{dataset.id}/{entry.path}", entry.sha256, None, error)
+                )
     finally:
         members.close()
-    return []
+    return failures, False
 
 
 def fetch(
@@ -144,15 +184,23 @@ def fetch(
     downloader: Downloader = urlretrieve_to,
     datasets: Iterable[str] | None = None,
 ) -> list[HashProblem]:
-    """Make ``root/<id>/`` hold the manifest's files; return every hash problem left."""
+    """Make ``root/<id>/`` hold the manifest's files; return every problem left.
+
+    ``from_paths[id]`` is a local copy: the archive for an archive dataset, else a directory
+    laid out like ``root/<id>/``. An ``OSError`` on one file or archive (network, missing
+    source, disk) becomes a ``HashProblem`` with ``error`` set and ``actual=None``; the rest
+    is still fetched.
+    """
     root = Path(root)
     local = from_paths or {}
     problems: list[HashProblem] = []
     for dataset in select(manifest, datasets):
         source = Path(local[dataset.id]) if dataset.id in local else None
-        archive_problems = _fetch_dataset(dataset, root, source, downloader)
-        if archive_problems:
-            problems.extend(archive_problems)
-        else:
-            problems.extend(verify(manifest, root, datasets=[dataset.id]))
+        failures, archive_bad = _fetch_dataset(dataset, root, source, downloader)
+        problems.extend(failures)
+        if not archive_bad:
+            failed = {p.path for p in failures}
+            problems.extend(
+                p for p in verify(manifest, root, datasets=[dataset.id]) if p.path not in failed
+            )
     return problems

@@ -115,6 +115,7 @@ class HashProblem:
     path: str
     expected: str
     actual: str | None  # None = missing
+    error: str | None = None  # why a fetch of this file failed, when it did
 
 
 def _file_hash(path: Path, algorithm: str) -> str:

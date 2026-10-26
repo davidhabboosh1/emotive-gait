@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from urllib.error import URLError
+
 import pytest
 
 from emotive_gait.learn.fetch import fetch
@@ -118,3 +120,46 @@ def test_fetch_prints_nothing_and_unknown_datasets_raise(tmp_path, capsys):
     assert out.out == "" and out.err == ""
     with pytest.raises(ValueError, match="nope"):
         fetch(m, tmp_path / "raw", datasets=["nope"])
+
+
+def two_clip_manifest(tmp_path):
+    clips = [clip_dict("a.bvh", b"a"), clip_dict("b.bvh", b"b")]
+    return load_manifest(write_manifest(tmp_path, [dataset_dict(files=clips)]))
+
+
+def test_a_local_directory_serves_an_archive_less_dataset(tmp_path):
+    m = two_clip_manifest(tmp_path)
+    local = tmp_path / "mine"
+    local.mkdir()
+    (local / "a.bvh").write_bytes(b"a")
+    (local / "b.bvh").write_bytes(b"b")
+    problems = fetch(m, tmp_path / "raw", from_paths={"toy": local}, downloader=fail_if_called)
+    assert problems == [] and (tmp_path / "raw" / "toy" / "b.bvh").read_bytes() == b"b"
+
+
+def test_a_failed_download_is_a_problem_and_the_other_files_still_arrive(tmp_path):
+    m = two_clip_manifest(tmp_path)
+
+    def dl(url, dest):
+        if url.endswith("a.bvh"):
+            dest.with_name(dest.name + ".part").write_bytes(b"half")
+            raise URLError("no route")
+        dest.write_bytes(b"b")
+
+    problems = fetch(m, tmp_path / "raw", downloader=dl)
+    assert [p.path for p in problems] == ["toy/a.bvh"]
+    assert problems[0].actual is None and problems[0].error.startswith("URLError")
+    assert (tmp_path / "raw" / "toy" / "b.bvh").exists()
+    assert not (tmp_path / "raw" / "toy" / "a.bvh.part").exists()
+
+
+def test_a_missing_local_source_gives_problems_not_an_exception(tmp_path):
+    m = load_manifest(write_archive_manifest(tmp_path))
+    problems = fetch(
+        m, tmp_path / "raw", from_paths={"toy": tmp_path / "gone.zip"}, downloader=fail_if_called
+    )
+    assert len(problems) == 1 and problems[0].path == "toy/toy.zip"
+    assert problems[0].actual is None and "FileNotFoundError" in problems[0].error
+    d = load_manifest(write_minimal_manifest(tmp_path))
+    problems = fetch(d, tmp_path / "raw2", from_paths={"toy": tmp_path / "nodir"})
+    assert problems and problems[0].error is not None
