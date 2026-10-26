@@ -17,7 +17,8 @@ Names first, geometry as referee:
    ankle must be an ancestor chain.
 4. Side referee: the sign of each limb root's lateral coordinate relative to the pelvis along
    ``path_frame(pelvis, fps).left``, averaged over the clip. Limbs whose names disagree with
-   geometry are swapped, with a warning that says "side".
+   geometry are swapped, with a warning that says "side". A clip without forward travel has
+   no path frame: the referee is skipped and the names are kept, with a warning.
 5. ``overrides`` (landmark value -> bone name) are applied last, ``source="user"``.
 
 Every choice is a :class:`Decision`, so ``inspect`` can print an audit.
@@ -91,6 +92,7 @@ class LandmarkMapping:
     family: str | None
     decisions: tuple[Decision, ...]
     warnings: tuple[str, ...]
+    trunk_root: str | None = None  # the lowest spine bone; None without a spine
 
 
 def required_landmarks_present(landmarks: LandmarkMap) -> tuple[Landmark, ...]:
@@ -179,6 +181,7 @@ class _Binding:
     bound: dict[Landmark, str] = field(default_factory=dict)
     why: dict[Landmark, tuple[Source, str]] = field(default_factory=dict)
     spine: tuple[str, ...] = ()
+    trunk_root: str | None = None
     decisions: list[Decision] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
 
@@ -274,6 +277,7 @@ def _bind_by_name(tree: _Tree) -> _Binding:
         b.spine = tuple(n for n in pool if n not in b.bound.values())
     spine = sorted(b.spine, key=lambda n: (tree.depth(n), tree.index[n]))
     if spine:
+        b.trunk_root = spine[0]
         b.decisions.append(Decision("trunk_root", spine[0], "geometry", "lowest spine bone"))
     b.bind(L.NECK, pick("neck"), "name", token)
     if spine:
@@ -294,14 +298,21 @@ def _bind_by_name(tree: _Tree) -> _Binding:
 
 
 def _referee_sides(b: _Binding, clip: SkeletonClip) -> None:
-    """Swap limbs whose side names disagree with the rest-pose lateral coordinate."""
+    """Swap limbs whose side names disagree with the rest-pose lateral coordinate.
+
+    Without forward travel there is no path frame, so no "left" to measure against: the
+    referee is skipped and the names are kept unverified (with a warning), never guessed.
+    """
     index = {n: i for i, n in enumerate(clip.joint_names)}
     pelvis = clip.positions[:, index[b.bound[L.PELVIS]]]
     try:
         left = path_frame(pelvis, clip.fps).left
     except ValueError:
-        left = np.tile([0.0, 1.0, 0.0], (len(pelvis), 1))
-        b.warnings.append("no forward travel: side referee uses the world +y axis as left")
+        b.warnings.append(
+            "side referee skipped: the clip has no forward travel, so there is no path frame; "
+            "side names kept unverified"
+        )
+        return
 
     def lateral(bone: str) -> float:
         rel = clip.positions[:, index[bone]] - pelvis
@@ -330,6 +341,28 @@ def _referee_sides(b: _Binding, clip: SkeletonClip) -> None:
         b.decisions.append(Decision(f"{limb}_side", "swapped", "geometry", message))
 
 
+def _warn_on_broken_leg_chains(b: _Binding, clip: SkeletonClip, overridden: set[Landmark]) -> None:
+    """An override is the user's call: a leg chain it breaks is warned about, not refused."""
+
+    def ancestors(name: str) -> set[str]:
+        out, i = set(), clip.parents[clip.joint_names.index(name)] if clip.parents else -1
+        while i >= 0:
+            out.add(clip.joint_names[i])
+            i = clip.parents[i]
+        return out
+
+    for s in _SIDES:
+        lms = [_landmark(stem, s) for stem in ("hip", "knee", "ankle")]
+        chain = [b.bound.get(lm) for lm in lms]
+        if None in chain or clip.parents is None or not overridden.intersection(lms):
+            continue
+        if not (chain[0] in ancestors(chain[1]) and chain[1] in ancestors(chain[2])):
+            b.warnings.append(
+                f"override: hip_{s}, knee_{s}, ankle_{s} ({', '.join(chain)}) are not an "
+                "ancestor chain"
+            )
+
+
 def map_landmarks(
     file: BvhFile, clip: SkeletonClip, *, overrides: Mapping[str, str] | None = None
 ) -> LandmarkMapping:
@@ -347,6 +380,8 @@ def map_landmarks(
             raise RigError(f"override {key}={bone}: no bone {bone!r} in {file.source or 'file'}")
         b.bound[lm] = bone
         b.why[lm] = ("user", "override")
+    if overrides:
+        _warn_on_broken_leg_chains(b, clip, {Landmark(k) for k in overrides})
     missing = required_landmarks_present(b.bound)
     if missing:
         names = ", ".join(lm.value for lm in missing)
@@ -359,6 +394,7 @@ def map_landmarks(
         family=b.family,
         decisions=tuple(b.decisions + per_landmark),
         warnings=tuple(b.warnings),
+        trunk_root=b.trunk_root,
     )
 
 

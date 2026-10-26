@@ -17,7 +17,14 @@ from emotive_gait.rig.mapping import (
     map_landmarks,
     required_landmarks_present,
 )
-from rig.rigs import FAMILIES, FAMILY_VARIANTS, RigSpec, walk_and_clip, write_walk
+from rig.rigs import (
+    FAMILIES,
+    FAMILY_VARIANTS,
+    RigSpec,
+    build_rig,
+    walk_and_clip,
+    write_walk,
+)
 
 FIX = Path(__file__).resolve().parents[1] / "mocap" / "fixtures"
 
@@ -83,6 +90,32 @@ def test_swapped_rest_sides_are_corrected_by_geometry_with_a_warning(tmp_path):
     m = map_landmarks(f, clip)
     right_hip = FAMILIES["mixamo"]["hip"].replace("Left", "Right")
     assert m.landmarks[Landmark.HIP_L] == right_hip and any("side" in w for w in m.warnings)
+
+
+def test_a_standing_clip_turned_around_keeps_the_names_and_skips_the_referee():
+    """No forward travel, no path frame: names are kept, never re-sided against world +y."""
+    rig = build_rig(RigSpec())
+    rig = rig.with_motion(np.repeat(rig.motion, 60, axis=0))
+    clip = rig.to_clip(end_sites=True)
+    turned = clip.positions * np.array([-1.0, -1.0, 1.0])  # 180 degrees about z
+    clip = replace(clip, positions=turned)
+    m = map_landmarks(rig, clip)
+    assert m.landmarks[Landmark.HIP_L] == FAMILIES["mixamo"]["hip"]
+    assert m.landmarks[Landmark.SHOULDER_L] == FAMILIES["mixamo"]["upper_arm"]
+    assert any("referee skipped" in w for w in m.warnings)
+    assert not any("swapped" in w for w in m.warnings)
+
+
+def test_trunk_root_is_the_lowest_spine_bone(tmp_path):
+    f, clip = walk_and_clip(RigSpec(), tmp_path)
+    assert map_landmarks(f, clip).trunk_root == FAMILIES["mixamo"]["spine1"]
+
+
+def test_an_override_that_breaks_the_leg_chain_is_warned_not_refused(tmp_path):
+    f, clip = walk_and_clip(RigSpec(), tmp_path)
+    m = map_landmarks(f, clip, overrides={"knee_l": FAMILIES["mixamo"]["neck"]})
+    assert m.landmarks[Landmark.KNEE_L] == FAMILIES["mixamo"]["neck"]
+    assert any("knee_l" in w and "ancestor chain" in w for w in m.warnings)
 
 
 def test_override_with_an_unknown_bone_is_a_rig_error(tmp_path):
