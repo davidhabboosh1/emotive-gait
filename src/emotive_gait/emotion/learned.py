@@ -8,10 +8,11 @@ emotions mix additively, as in the analytic model; the two differ only in their 
 
 Delegation is per ``(emotion, parameter)`` cell: ``fitted`` and ``thin`` cells use the measured
 effect, while ``missing`` cells and every cell of the unsourced emotions (disgust, surprise) use
-the fallback model's delta for that emotion alone. ``expansiveness`` is never measured, so no
-cell exists for it and its share always comes from the fallback model (in that sense only is it
-"fixed at 1.0" in the learned model; its evidence is carried by the arm-swing, abduction and
-step-height cells).
+the fallback model's delta for that emotion alone. ``expansiveness`` is never measured and has no
+cell: for the four fitted emotions its share is exactly 0.0 (it stays at the base value, 1.0 by
+default, spec 4.2), because the fitted arm-swing, abduction and step-height cells already carry
+the expansiveness folded into the measured motion, and adding the analytic share would count it
+twice. Disgust and surprise stay fully analytic, expansiveness included.
 
 With the ``ratio`` scaling an effect is a fraction of the neutral value, and the neutral used is
 the default :class:`GaitParameters`: lengths, ``cadence`` and ``com_height_scale`` deltas are
@@ -389,16 +390,24 @@ class LearnedEmotionModel(EmotionModel):
     def deltas(
         self, intensities: Mapping[Emotion, float], profile: RobotProfile
     ) -> Mapping[str, float]:
-        """Sum over emotions of each cell's share (measured, or the fallback's for that emotion)."""
+        """Sum over emotions of each cell's share (measured, or the fallback's for that emotion).
+
+        ``expansiveness`` gets a 0.0 share from every fitted emotion (anger, fear, happiness,
+        sadness), whatever its cells' grounding, and the fallback's share from disgust and
+        surprise.
+        """
         clean = validate_intensities(intensities)
         total: dict[str, float] = {}
         for emotion, intensity in clean.items():
             if intensity == 0.0:
                 continue
             fallback: Mapping[str, float] | None = None
+            fitted_emotion = emotion in GROUNDED_EMOTIONS
             for parameter in (*MEASURED_FIELDS, "expansiveness"):
                 cell = None if parameter == "expansiveness" else self.cell(emotion, parameter)
-                if cell is not None:
+                if parameter == "expansiveness" and fitted_emotion:
+                    share = 0.0  # folded into the fitted arm/step cells; fixed at the base
+                elif cell is not None:
                     share = intensity * self._effect(parameter, cell.estimate, profile)
                 else:
                     if fallback is None:

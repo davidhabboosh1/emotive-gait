@@ -5,9 +5,9 @@ from dataclasses import fields
 
 import pytest
 import yaml
-from artefacts import make_artefact
+from artefacts import FULL_AGREEING, make_artefact
 
-from emotive_gait.emotion.evidence import Emotion
+from emotive_gait.emotion.evidence import GROUNDED_EMOTIONS, Emotion
 from emotive_gait.emotion.learned import (
     DIRECTION_CHECKS,
     ArtefactCell,
@@ -86,13 +86,34 @@ def test_analytic_cells_cover_unsourced_emotions_and_skip_used_cells():
     assert len(cells) == 6 * len(MEASURED_FIELDS) - len(AGREEING)
 
 
-def test_expansiveness_always_comes_from_the_fallback():
+def test_expansiveness_is_fixed_for_fitted_emotions_and_analytic_for_unsourced():
     m = LearnedEmotionModel(make_artefact(AGREEING))
     for e in Emotion:
         d = m.deltas({e: 0.6}, G1_PROFILE_WITH_NECK)
-        assert (
-            d["expansiveness"] == ANALYTIC.deltas({e: 0.6}, G1_PROFILE_WITH_NECK)["expansiveness"]
-        )
+        if e in GROUNDED_EMOTIONS:
+            assert d["expansiveness"] == 0.0
+        else:
+            analytic = ANALYTIC.deltas({e: 0.6}, G1_PROFILE_WITH_NECK)["expansiveness"]
+            assert d["expansiveness"] == analytic
+
+
+def test_learned_anger_keeps_expansiveness_at_one():  # fix round 2, Ruling Z
+    full = LearnedEmotionModel(make_artefact(FULL_AGREEING))
+    q = modulate(GaitParameters(), {Emotion.ANGER: 1.0}, G1_PROFILE_WITH_NECK, model=full)
+    assert q.expansiveness == 1.0
+    no_anger = {k: v for k, v in FULL_AGREEING.items() if k[0] != "anger"}
+    delegated = LearnedEmotionModel(make_artefact(no_anger))
+    assert all((("anger", p) in delegated.analytic_cells) for p in MEASURED_FIELDS)
+    q = modulate(GaitParameters(), {Emotion.ANGER: 1.0}, G1_PROFILE_WITH_NECK, model=delegated)
+    assert q.expansiveness == 1.0
+
+
+def test_learned_disgust_equals_the_analytic_result():
+    m = LearnedEmotionModel(make_artefact(FULL_AGREEING))
+    a = modulate(GaitParameters(), {Emotion.DISGUST: 1.0}, G1_PROFILE_WITH_NECK)
+    b = modulate(GaitParameters(), {Emotion.DISGUST: 1.0}, G1_PROFILE_WITH_NECK, model=m)
+    assert a.expansiveness != 1.0
+    assert b == a
 
 
 def test_thin_cells_are_used_and_listed():
