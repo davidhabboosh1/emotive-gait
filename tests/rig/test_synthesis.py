@@ -22,10 +22,9 @@ from emotive_gait.gait.generator import generate
 from emotive_gait.gait.params import GaitParameters
 from emotive_gait.gait.scaling import LENGTH_FIELDS, G, to_gait_parameters
 from emotive_gait.mocap.extract import gait_timing
-from emotive_gait.mocap.readers.bvh import BvhFile, read_bvh_file
+from emotive_gait.mocap.readers.bvh import read_bvh_file
 from emotive_gait.mocap.writers.bvh import write_bvh
 from emotive_gait.rig.errors import RigError
-from emotive_gait.rig.mapping import RigMapping
 from emotive_gait.rig.scaled import RigScaledModel
 from emotive_gait.rig.synthesis import (
     LoadedRig,
@@ -39,10 +38,18 @@ from emotive_gait.rig.synthesis import (
     walk,
     within_tolerance,
 )
+from emotive_gait.rig.validate import PITCH_INNERMOST_EXCLUDED, pitch_innermost_exclusion
 from emotive_gait.robot.profiles.g1 import G1_PROFILE_WITH_NECK
 from emotive_gait.robot.roles import JointRole
 from rig.driven import spec_id
-from rig.rigs import FAMILIES, FAMILY_VARIANTS, RigSpec, standing_file, walk_file
+from rig.rigs import (
+    FAMILIES,
+    FAMILY_VARIANTS,
+    RigSpec,
+    fold_into_channels,
+    standing_file,
+    walk_file,
+)
 from rig.test_mapping import drop_bones
 
 FIX = Path(__file__).resolve().parents[1] / "mocap" / "fixtures"
@@ -137,35 +144,6 @@ def _walk(rig: LoadedRig, intensities, *, model=ANALYTIC, model_name="analytic",
     )
 
 
-# Documented limitation (spec 4.7 rulings, Task 8): a driven hinge reproduces its BVH Euler
-# channel, so when the shoulder PITCH channel is the innermost (last) rotation channel it turns
-# about the abducted arm's own lateral axis, not the trunk's; at a large abduction the
-# extractor's sagittal arm angle then over-reads the swing and the abduction reading drops
-# during it (angry on the z-up ZXY rig: +0.089 rad swing, -0.032 rad abduction). The static
-# posture map cannot linearise that coupling.
-PITCH_INNERMOST_ABDUCTION = 0.5  # rad, commanded abduction above which the coupling shows
-PITCH_INNERMOST_EXCLUDED = ("arm_swing_amp", "arm_abduction")
-
-
-def _pitch_innermost_exclusion(
-    mapping: RigMapping, file: BvhFile, p1: GaitParameters
-) -> tuple[str, ...]:
-    """The fields excluded from the gate for the pitch-innermost limitation, else ``()``: either
-    side's shoulder pitch channel is its bone's innermost rotation channel and the commanded
-    abduction exceeds ``PITCH_INNERMOST_ABDUCTION``."""
-    innermost = False
-    for role in (JointRole.SHOULDER_PITCH_L, JointRole.SHOULDER_PITCH_R):
-        binding = mapping.roles.get(role)
-        if binding is None:
-            continue
-        bone, channel = binding.hinge.rsplit("/", 1)
-        joint = next(j for j in file.joints if j.name == bone)
-        innermost |= [c for c in joint.channels if c.endswith("rotation")][-1] == channel
-    if innermost and p1.expansiveness * p1.arm_abduction > PITCH_INNERMOST_ABDUCTION:
-        return PITCH_INNERMOST_EXCLUDED
-    return ()
-
-
 def _failing(r) -> dict[str, float]:
     ok = within_tolerance(r.round_trip)
     return {k: r.round_trip.residuals[k] for k, v in ok.items() if not v}
@@ -186,7 +164,7 @@ def test_emotion_round_trip_recovers_p1(rigs, spec, preset):
     r = _walk(rigs[spec], PRESETS[preset])
     assert r.p1 != r.rig.p0
     ok = within_tolerance(r.round_trip)
-    excluded = _pitch_innermost_exclusion(r.rig.mapping, r.rig.file, r.p1)
+    excluded = pitch_innermost_exclusion(r.rig.mapping, r.rig.file, r.p1)
     gated = {k: v for k, v in ok.items() if k not in excluded}
     assert all(gated.values()), {k: r.round_trip.residuals[k] for k, v in gated.items() if not v}
     if r.feasibility.feasible:
@@ -383,15 +361,15 @@ def test_the_pitch_innermost_exclusion_names_only_that_rig_and_large_abduction(r
     z_up, y_up = rigs[replace(RigSpec(), up_axis="z")], rigs[RigSpec()]
     wide = replace(z_up.p0, arm_abduction=0.45, expansiveness=1.35)  # angry: 0.61 rad
     narrow = replace(z_up.p0, arm_abduction=0.45, expansiveness=1.0)
-    assert _pitch_innermost_exclusion(z_up.mapping, z_up.file, wide) == PITCH_INNERMOST_EXCLUDED
-    assert _pitch_innermost_exclusion(z_up.mapping, z_up.file, narrow) == ()
-    assert _pitch_innermost_exclusion(y_up.mapping, y_up.file, wide) == ()
+    assert pitch_innermost_exclusion(z_up.mapping, z_up.file, wide) == PITCH_INNERMOST_EXCLUDED
+    assert pitch_innermost_exclusion(z_up.mapping, z_up.file, narrow) == ()
+    assert pitch_innermost_exclusion(y_up.mapping, y_up.file, wide) == ()
     # Either side alone triggers it.
     sides = {JointRole.SHOULDER_PITCH_L, JointRole.SHOULDER_PITCH_R}
     for kept in sides:
         roles = {r: b for r, b in z_up.mapping.roles.items() if r not in sides - {kept}}
         one_sided = replace(z_up.mapping, roles=roles)
-        assert _pitch_innermost_exclusion(one_sided, z_up.file, wide) == PITCH_INNERMOST_EXCLUDED
+        assert pitch_innermost_exclusion(one_sided, z_up.file, wide) == PITCH_INNERMOST_EXCLUDED
 
 
 def test_a_p0_field_the_extractor_cannot_read_is_an_unobservable_decision(tmp_path):
@@ -440,3 +418,21 @@ def test_a_still_arm_leaves_the_elbow_ratio_unobservable_and_a_straight_elbow_re
     rt = round_trip(out, rig.mapping.landmarks, bent_back, trajectory=traj)
     ok = within_tolerance(rt)
     assert ok["elbow_flexion"] and ok["elbow_swing_ratio"], rt.residuals
+
+
+def test_a_rig_with_constant_bone_translations_round_trips_and_keeps_them(tmp_path):
+    spec = RigSpec()
+    source = walk_file(spec, tmp_path)
+    file = read_bvh_file(source, scale=1.0, up_axis=spec.up_axis)
+    names = FAMILIES[spec.family]
+    for bone in (names["knee"], names["spine2"]):
+        file = fold_into_channels(file, bone, 0.6)
+    folded = tmp_path / "folded.bvh"
+    write_bvh(file, folded)
+    r = _walk(load_rig(folded, scale=None, up_axis=None, mapping_overrides=None), ZERO)
+    assert all(within_tolerance(r.round_trip).values()), _failing(r)
+    assert r.slip.max_travel_m <= 0.002, r.slip
+    for bone in (names["knee"], names["spine2"]):
+        columns = r.output.channel_slice(bone)
+        kept = r.output.motion[:, columns][:, :3]
+        assert np.allclose(kept, file.motion[0, columns][:3])  # the source's constants

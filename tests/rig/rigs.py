@@ -429,3 +429,26 @@ def walk_and_clip(spec: RigSpec, directory: Path) -> tuple[BvhFile, SkeletonClip
     path = walk_file(spec, directory)
     file = read_bvh_file(path, scale=1.0 / spec.units_per_m, up_axis=spec.up_axis)
     return file, file.to_clip(end_sites=True)
+
+
+def fold_into_channels(f: BvhFile, bone: str, fraction: float) -> BvhFile:
+    """``f`` with ``fraction`` of ``bone``'s OFFSET moved into constant position channels
+    (prepended to its channels), so the reader's positions are unchanged."""
+    joint = next(j for j in f.joints if j.name == bone)
+    moved = np.asarray(joint.offset, dtype=float) * fraction
+    start = f.channel_slice(bone).start
+    joints = tuple(
+        BvhJoint(
+            j.name,
+            j.parent,
+            np.asarray(j.offset, dtype=float) - moved,
+            ("Xposition", "Yposition", "Zposition") + j.channels,
+            j.end_site,
+        )
+        if j.name == bone
+        else j
+        for j in f.joints
+    )
+    extra = np.tile(moved, (f.motion.shape[0], 1))
+    motion = np.concatenate([f.motion[:, :start], extra, f.motion[:, start:]], axis=1)
+    return replace(f, joints=joints, motion=motion)

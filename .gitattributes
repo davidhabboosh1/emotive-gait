@@ -1,6 +1,7 @@
 # Ruling AA: hashed and generated files keep LF on every checkout, so the manifest SHA-256
 # recorded in the artefact provenance does not depend on core.autocrlf.
 data/manifest.yaml text eol=lf
+data/rig-manifest.yaml text eol=lf
 src/emotive_gait/emotion/data/*.yaml text eol=lf
 src/emotive_gait/rig/data/*.yaml text eol=lf
 docs/reports/*.md text eol=lf

@@ -21,8 +21,9 @@ Conventions:
   ``frame_of`` the body whose frame is the bone's rotated frame (the carrier for the pelvis).
   Ancestors of the pelvis are not compiled, so their rotations are not represented.
 - The pelvis's position channels are irrelevant: everything is measured relative to the pelvis.
-  Translation channels below the pelvis are refused (``RigError``) unless their motion column is
-  identically zero.
+  A translation channel below the pelvis that is constant over the clip is folded into its
+  body's offset (``bone_offset``, mapped to metres and z-up like the offset) in both modes; a
+  varying one is refused (``RigError``). The writer keeps the source's constant values.
 - Hinges and their position actuators are named ``f"{bone}/{channel}"``; bodies are named after
   their bones; a site sits at every bone origin (named like the bone) and every End Site
   (``f"{bone}_End"``); ``driven`` adds ``foot_l`` / ``foot_r`` on the ankle bodies. Ranges are
@@ -100,20 +101,38 @@ def _subtree(file: BvhFile, root: int) -> list[int]:
     return sorted(inside)
 
 
-def _refuse_translation(file: BvhFile, bones: Sequence[int], root: int) -> None:
-    """Raise ``RigError`` for a non-zero position channel on a bone below the pelvis."""
-    for bone in bones:
-        if bone == root:
+CONSTANT_TRANSLATION_TOL = 1e-9  # file units: a position column within this of frame 0 is fixed
+
+
+def bone_offset(file: BvhFile, bone: int) -> np.ndarray:
+    """``bone``'s OFFSET plus its constant position channels (file units and axes).
+
+    For a bone below the pelvis: the reader adds a position channel to the offset, so a column
+    constant over the clip (within ``CONSTANT_TRANSLATION_TOL``) is part of the bone vector and
+    is folded in. Raises ``RigError`` for a varying column: only the pelvis may translate.
+    """
+    joint = file.joints[bone]
+    offset = np.array(joint.offset, dtype=float)
+    for channel in joint.channels:
+        if not channel.endswith("position"):
             continue
-        name = file.joints[bone].name
-        for channel in file.joints[bone].channels:
-            if not channel.endswith("position"):
-                continue
-            if np.any(file.motion[:, file.channel_index(name, channel)] != 0.0):
-                raise RigError(
-                    f"bone {name!r} has a non-zero translation channel {channel!r}; "
-                    "only the pelvis may translate"
-                )
+        column = file.motion[:, file.channel_index(joint.name, channel)]
+        if column.size == 0:
+            continue
+        if np.max(np.abs(column - column[0])) > CONSTANT_TRANSLATION_TOL:
+            raise RigError(
+                f"bone {joint.name!r} has a non-zero translation channel {channel!r}; "
+                "only the pelvis may translate"
+            )
+        offset[_AXIS[channel[0]]] += float(column[0])
+    return offset
+
+
+def _refuse_translation(file: BvhFile, bones: Sequence[int], root: int) -> None:
+    """Raise ``RigError`` for a varying position channel on a bone below the pelvis."""
+    for bone in bones:
+        if bone != root:
+            bone_offset(file, bone)
 
 
 def _build(
@@ -188,7 +207,7 @@ def _build(
                 body = new_body(body, PELVIS_CARRIER, np.zeros(3), quat)
             frame_of[joint.name] = body.name
         else:
-            offset = p @ (np.asarray(joint.offset, dtype=float) * file.scale)
+            offset = p @ (bone_offset(file, bone) * file.scale)
             body = new_body(hangs_from[joint.parent], joint.name, offset, quat_for(bone))
             body_of[joint.name] = joint.name
             frame_of[joint.name] = joint.name
@@ -292,7 +311,7 @@ def _point_in_frame(
             raise RigError(f"{target!r} is not below {ancestor!r}")
     pos, rot = np.zeros(3), np.eye(3)
     for i in reversed(chain):
-        pos = pos + rot @ (p @ (np.asarray(file.joints[i].offset, dtype=float) * file.scale))
+        pos = pos + rot @ (p @ (bone_offset(file, i) * file.scale))
         rot = rot @ rotations_z[names[i]]
     if end:
         pos = pos + rot @ (p @ (np.asarray(file.joints[names.index(bone)].end_site) * file.scale))

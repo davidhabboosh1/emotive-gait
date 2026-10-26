@@ -52,6 +52,7 @@ from emotive_gait.mocap.readers.bvh import BvhFile, rotation_about
 from emotive_gait.mocap.skeleton import Landmark, LandmarkMap, SkeletonClip
 from emotive_gait.rig.compile import (
     CompiledRig,
+    bone_offset,
     channel_angles,
     z_up_matrix,
 )
@@ -170,7 +171,7 @@ def _reference_points(file: BvhFile, rotations: np.ndarray, pelvis: str) -> dict
         if i == root:
             pos = np.zeros(3)
         elif joint.parent in world:
-            offset = p @ (np.asarray(joint.offset, dtype=float) * file.scale)
+            offset = p @ (bone_offset(file, i) * file.scale)
             pos = points[names[joint.parent]] + world[joint.parent] @ offset
         else:
             continue

@@ -14,7 +14,7 @@ from emotive_gait.mocap.skeleton import Landmark
 from emotive_gait.rig.compile import PELVIS_CARRIER, compile_full, heading_matrix, z_up_matrix
 from emotive_gait.rig.errors import RigError
 from rig.driven import driven_rig
-from rig.rigs import RigSpec, build_rig, pelvis_name, write_walk
+from rig.rigs import FAMILIES, RigSpec, build_rig, fold_into_channels, pelvis_name, write_walk
 
 FIX = Path(__file__).resolve().parents[1] / "mocap" / "fixtures"
 
@@ -112,13 +112,29 @@ def _with_translation(f: BvhFile, bone: str, values: float) -> BvhFile:
     return replace(f, joints=joints, motion=motion)
 
 
-def test_translation_channels_below_the_pelvis_are_refused_unless_zero():
+def test_a_varying_translation_channel_below_the_pelvis_is_refused():
     f = build_rig(RigSpec())
     bone = "mixamorig:LeftLeg"
+    moving = _with_translation(f, bone, 0.0)
+    column = moving.channel_index(bone, "Yposition")
+    motion = np.repeat(moving.motion, 2, axis=0)
+    motion[1, column] = 1.5
     with pytest.raises(RigError, match="mixamorig:LeftLeg"):
-        compile_full(_with_translation(f, bone, 1.5), pelvis=pelvis_name(RigSpec()))
+        compile_full(moving.with_motion(motion), pelvis=pelvis_name(RigSpec()))
     rig = compile_full(_with_translation(f, bone, 0.0), pelvis=pelvis_name(RigSpec()))
     assert f"{bone}/Xposition" not in rig.hinges
+
+
+@pytest.mark.parametrize("spec", [RigSpec(), replace(RigSpec(), up_axis="z")], ids=["y", "z"])
+def test_a_constant_translation_channel_is_folded_into_the_offset(tmp_path, spec):
+    write_walk(spec, tmp_path / "w.bvh")
+    f = read_bvh_file(tmp_path / "w.bvh", scale=1.0 / spec.units_per_m, up_axis=spec.up_axis)
+    before = f.to_clip().positions
+    names = FAMILIES[spec.family]
+    for bone in (names["knee"], names["spine2"], names["head"]):
+        f = fold_into_channels(f, bone, 0.6)
+    assert np.allclose(f.to_clip().positions, before)  # the reader adds channel to offset
+    _assert_chain_matches_reader(f, pelvis_name(spec), (0, 17, 150))  # compile_full: no raise
 
 
 @pytest.mark.parametrize("forward", [[1.0, 0.0, 0.0], [0.0, 2.0, 0.3], [-1.0, -1.0, 0.0]])

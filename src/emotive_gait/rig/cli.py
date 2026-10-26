@@ -10,7 +10,6 @@ from __future__ import annotations
 import argparse
 import dataclasses
 import json
-import math
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
@@ -26,30 +25,21 @@ from emotive_gait.cli_common import (
     warn_infeasible,
     warn_unsourced,
 )
-from emotive_gait.emotion.evidence import Emotion
 from emotive_gait.emotion.model import ANALYTIC
 from emotive_gait.emotion.prompt import PromptResult, parse_emotion_prompt
 from emotive_gait.mocap.writers.bvh import write_bvh
 from emotive_gait.rig.errors import RigError
 from emotive_gait.rig.synthesis import (
-    RELATIVE_TOLERANCES,
-    TOLERANCES,
     LoadedRig,
     WalkResult,
     load_rig,
     walk,
     within_tolerance,
 )
+from emotive_gait.rig.validate import ValidationTable, render_report, validate_loaded
 
 # the keys ``inspect --json`` adds under "mapping" for the reader; a mapping file may keep them
 _INFORMATIONAL = ("family", "scale", "up_axis", "leg_length", "decisions", "warnings", "skewed")
-_VALIDATE_RUNS = (
-    ("neutral", {}),
-    ("sad", {Emotion.SADNESS: 1.0}),
-    ("angry", {Emotion.ANGER: 1.0}),
-    ("happy", {Emotion.HAPPINESS: 1.0}),
-    ("fear", {Emotion.FEAR: 1.0}),
-)
 _OK = {True: "ok", False: "NO", None: "-"}
 
 
@@ -99,6 +89,9 @@ def add_rig_parser(sub) -> None:
 
     v = rsub.add_parser("validate", help="walk zero and the four presets and tabulate the claims")
     _rig_arguments(v)
+    v.add_argument(
+        "--report", default=None, metavar="REPORT.md", help="also write the Markdown report"
+    )
 
 
 def add_serve_parser(sub) -> None:
@@ -269,45 +262,22 @@ def walk_data(result: WalkResult, prompt: tuple[str, PromptResult] | None, out: 
     return data
 
 
-def _worst(result: WalkResult) -> tuple[str, float, bool]:
-    """The residual furthest from its tolerance: ``(field, residual, all within)``."""
-    rt = result.round_trip
-    worst, worst_ratio = ("-", math.nan), -1.0
-    for name, r in rt.residuals.items():
-        tol = TOLERANCES.get(name)
-        if tol is None:
-            continue
-        if name in RELATIVE_TOLERANCES:
-            tol *= abs(getattr(rt.commanded, name))
-        ratio = abs(r) / tol if math.isfinite(r) and tol > 0 else math.inf
-        if ratio > worst_ratio:
-            worst, worst_ratio = (name, r), ratio
-    return worst[0], worst[1], all(within_tolerance(rt).values())
-
-
-def validate_data(rig: LoadedRig) -> dict:
-    """One row per run (zero and the four presets) on one loaded rig."""
-    runs = []
-    for name, intensities in _VALIDATE_RUNS:
-        result = walk(
-            rig,
-            intensities=intensities,
-            intensities_source="flags",
-            model=ANALYTIC,
-            model_name="analytic",
-        )
-        field, residual, within = _worst(result)
-        runs.append(
-            {
-                "run": name,
-                "feasible": result.feasibility.feasible,
-                "worst_field": field,
-                "worst_residual": residual,
-                "within": within,
-                "slip_mm": result.slip.max_travel_m * 1000.0,
-                "height_mm": result.slip.max_height_error_m * 1000.0,
-            }
-        )
+def validate_data(rig: LoadedRig, *, table: ValidationTable | None = None) -> dict:
+    """One row per run (zero and the four presets) on one loaded rig (``validate_loaded``)."""
+    if table is None:
+        table = validate_loaded(rig, source="", scale_given=False, up_given=False)
+    runs = [
+        {
+            "run": r.run,
+            "feasible": r.feasible,
+            "worst_field": r.worst_field,
+            "worst_residual": r.worst_residual,
+            "within": r.within,
+            "slip_mm": r.slip_m * 1000.0,
+            "height_mm": r.height_m * 1000.0,
+        }
+        for r in table.rows
+    ]
     return {"runs": runs}
 
 
@@ -449,6 +419,25 @@ def _walk_command(args: argparse.Namespace) -> int:
     return 0
 
 
+def _validate_command(args: argparse.Namespace, rig: LoadedRig) -> int:
+    source = Path(args.source)
+    scale, up_axis = resolve_scale_up(_read_mapping(args.mapping)[1], args.scale, args.up)
+    table = validate_loaded(
+        rig, source=source.name, scale_given=scale is not None, up_given=up_axis is not None
+    )
+    if args.report is not None:
+        out = Path(args.report)
+        try:
+            out.parent.mkdir(parents=True, exist_ok=True)
+            # bytes, so the report keeps LF on Windows (docs/reports/*.md are LF-pinned)
+            out.write_bytes(render_report({source.stem: table}, not_run={}).encode("utf-8"))
+        except OSError as exc:
+            _err(f"environment failure: {exc}")
+            return 1
+    _emit(args, validate_data(rig, table=table), _print_validate)
+    return 0
+
+
 def _emit(args: argparse.Namespace, data: dict, printer) -> None:
     if args.json:
         print(json.dumps(clean(data), indent=2))
@@ -465,7 +454,7 @@ def run_rig(args: argparse.Namespace) -> int:
         if args.rig_command == "inspect":
             _emit(args, inspect_data(rig), _print_inspect)
         else:
-            _emit(args, validate_data(rig), _print_validate)
+            return _validate_command(args, rig)
     except ValueError as exc:  # RigError, MocapFormatError, IntensityError, bad prompt, ...
         _err(str(exc))
         return 2

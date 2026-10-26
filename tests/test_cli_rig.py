@@ -97,11 +97,15 @@ def test_serve_without_mcp_exits_one_with_the_install_hint(monkeypatch, capsys):
     assert main(["serve"]) == 1 and "mcp" in capsys.readouterr().err
 
 
-def test_rig_validate_prints_five_rows(tmp_path, capsys):
-    assert main(["rig", "validate", str(walk_file(RigSpec(), tmp_path))]) == 0
+def test_rig_validate_prints_five_rows_and_writes_the_report(tmp_path, capsys):
+    report = tmp_path / "reports" / "rig.md"
+    argv = ["rig", "validate", str(walk_file(RigSpec(), tmp_path)), "--report", str(report)]
+    assert main(argv) == 0
     out = capsys.readouterr().out
     assert all(name in out for name in ("neutral", "sad", "angry", "happy", "fear"))
     assert out.count("\n") >= 5
+    text = report.read_bytes().decode("utf-8")
+    assert "\r" not in text and "## mixamo" in text and "| fear | yes |" in text
 
 
 def _inspect_mapping(path, capsys, *extra):

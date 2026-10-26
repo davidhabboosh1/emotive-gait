@@ -1,0 +1,78 @@
+# Rig-validation manifest (Phase 4.6, Task 12): real rigs for `emotive-gait rig validate`, read
+# with `emotive-gait fetch --manifest data/rig-manifest.yaml`. Same layout as data/manifest.yaml
+# (see emotive_gait.learn.manifest), kept separate so the fit manifest's SHA-256 (recorded in
+# the committed learned artefact's provenance) does not change. Nothing here is committed: both
+# datasets are `committable: false`, the clips stay under data/raw/ (git-ignored), and only
+# aggregates enter docs/reports/phase-4-6-rig-validation.md. Every file below was hashed after
+# download (2026-10-26).
+#
+# cmu_bvh: Bruce Hahne's MotionBuilder-friendly BVH conversion of the CMU Graphics Lab Motion
+#   Capture Database (cgspeed.com, READMEFIRST v1.1, 2010).
+#   - Release page: https://sites.google.com/a/cgspeed.com/cgspeed/motion-capture/the-motionbuilder-friendly-bvh-conversion-release-of-cmus-motion-capture-database
+#   - The archive cmuconvert-mb2-01-09.zip (subjects 01-09; 111 entries) is linked from the
+#     MediaFire page in `url`. MediaFire's direct download link is session-bound, so `fetch`
+#     cannot pull it from a stable URL: download the archive from the MediaFire page by hand
+#     and pass it with `emotive-gait fetch --manifest data/rig-manifest.yaml --datasets
+#     cmu_bvh --from cmu_bvh=PATH`; the archive hash below is checked.
+#   - Clip: subject 07 trial 01 (a walk), 317 frames at 120 fps; frame one is the release's
+#     added T-pose. Bone names of the MotionBuilder family (Hips, LHipJoint, LeftUpLeg, LeftLeg,
+#     LeftFoot, LeftToeBase, LowerBack, ...).
+#   - Units: the CMU ASF length unit (`length 0.45`: 1/0.45 inch = 0.0564444 m, what
+#     mocap/readers/asf_amc.py uses; subject 104's ASF femur is 6.998 units, this file's thigh
+#     6.92). `rig`'s hip-to-ankle inference picks 0.0254 (inches) instead: see the rig
+#     validation report.
+# bandai2: Bandai-Namco-Research-Motiondataset-2 (Bandai Namco Research Inc., GitHub; the
+#   repository's LICENSE file is CC BY-NC 4.0). Archive-less: the clip downloads from `url` +
+#   its path.
+#   - Clip: dataset-2_walk_normal_001.bvh, 360,143 bytes, 273 frames at 30 fps, 22 joints,
+#     centimetres, y up; root joint_Root with Hips as its 6-channel child. Every joint has 6
+#     channels; the bone vectors sit in constant translation columns (rig.compile folds them).
+#     Those position values repeat the OFFSETs, and the BVH reader adds a position channel to
+#     the OFFSET, so at scale 0.01 every bone below the root reads at twice its length (0.005
+#     reads true size): see the rig validation report.
+datasets:
+- id: cmu_bvh
+  name: CMU Graphics Lab Motion Capture Database, MotionBuilder-friendly BVH conversion (cgspeed, 2010)
+  url: http://www.mediafire.com/?o6ncxuu1oq5r6z9
+  archive: cmuconvert-mb2-01-09.zip
+  archive_sha256: 8822d96dac5694cb5df35e017fa7df174a051249d48d70d6732a7b68953016d9
+  archive_bytes: 33755687
+  licence: 'Conversion (READMEFIRST v1.1, 2010): "CMU places no restrictions on the use of the
+    original dataset, and I (Bruce) place no additional restrictions on the use of this particular"
+    conversion. CMU: "Use this data! This data is free for use in research and commercial projects
+    ... obtained from mocap.cs.cmu.edu. The database was created with funding from NSF EIA-0196217."'
+  committable: false
+  permission: ''
+  reader: bvh
+  reader_args:
+    scale: 0.0564444
+    up_axis: y
+  files:
+  - path: 07/07_01.bvh
+    sha256: f8d82ea6ed1aab0cb7d9ee680f476b65471e2322e1da84add8a8527a2cb0b9a2
+    subject: '07'
+    actor: cmu_07
+    emotion: neutral
+    label: walk
+    label_kind: exact
+  excluded: []
+- id: bandai2
+  name: Bandai-Namco-Research-Motiondataset-2
+  url: https://raw.githubusercontent.com/BandaiNamcoResearchInc/Bandai-Namco-Research-Motiondataset/master/dataset/Bandai-Namco-Research-Motiondataset-2/data/
+  archive: null
+  licence: CC BY-NC 4.0 (Bandai Namco Research Inc.; the repository's LICENSE file)
+  committable: false
+  permission: ''
+  reader: bvh
+  reader_args:
+    scale: 0.01
+    up_axis: y
+  files:
+  - path: dataset-2_walk_normal_001.bvh
+    sha256: 30aa8c9251ffdaa9c3ed416953d4e4154ad4132e607987231ea02ad2fde9672d
+    subject: bandai2
+    actor: bandai2
+    emotion: neutral
+    label: walk_normal
+    label_kind: exact
+  excluded: []
