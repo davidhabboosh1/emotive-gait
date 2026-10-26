@@ -63,7 +63,10 @@ Seven packages (`robot/`, `gait/`, `emotion/`, `sim/`, `mocap/`, `learn/`, `rig/
   `emotion/model.py` holds the `EmotionModel` protocol. Only `cli.py` runs the learned-preset IK. `tests/mocap/` may import `sim/`; the package may not.
 - `rig/`: any BVH walk, read, measured, moved by an emotion and written back on its own rig
   (mapping, compile to MuJoCo, calibration, synthesis, writer, validate, MCP server). May import
-  everything except `learn/` and `sim/`; ONLY `cli.py` imports it (lazily, for `rig` and `serve`).
+  everything except `learn/` and `sim/`; ONLY `cli.py` imports it: `rig.cli` (parser
+  registration, light) on every `main`, and `rig/cli.py` imports the pipeline (`rig.synthesis`,
+  `rig.validate`, mink), the lexicon and the BVH writer only inside its command functions, so
+  `evidence`, `fit`, `fetch` and `--help` never load mink.
   `rig/server.py` is the only module that uses `mcp` (inside functions); `rig/cli.py` only probes
   whether it is installed. `emotion/prompt.py` (the
   English lexicon) imports only `emotion.evidence` and pyyaml. `mocap/writers/` holds the BVH writer.

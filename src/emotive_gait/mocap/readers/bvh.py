@@ -26,7 +26,6 @@ class _Joint:
     parent: int
     offset: np.ndarray
     channels: list[str] = field(default_factory=list)
-    first_channel: int = 0
     end_site: np.ndarray | None = None
 
 
@@ -59,7 +58,6 @@ def _parse_hierarchy(path: Path, lines: list[str]) -> tuple[list[_Joint], int]:
     stack: list[int | None] = []  # joint index, or None for an End Site block
     pending: _Joint | None = None  # declared, awaiting its opening brace
     in_end_site = False
-    channel_total = 0
     for idx, raw in enumerate(lines):
         number = idx + 1
         tokens = raw.split()
@@ -122,8 +120,6 @@ def _parse_hierarchy(path: Path, lines: list[str]) -> tuple[list[_Joint], int]:
                 raise MocapFormatError(path, number, f"bad channel list {names}")
             joint = joints[stack[-1]]
             joint.channels = names
-            joint.first_channel = channel_total
-            channel_total += count
         else:
             raise MocapFormatError(path, number, f"unexpected token {key!r} in hierarchy")
     raise MocapFormatError(path, len(lines), "no MOTION section (file ends in the hierarchy)")

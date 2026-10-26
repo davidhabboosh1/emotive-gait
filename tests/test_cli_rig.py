@@ -185,3 +185,59 @@ def test_mapping_file_with_only_scale_and_up_axis_is_used_without_inference(tmp_
     mapping = json.loads(capsys.readouterr().out)["mapping"]
     assert mapping["scale"] == 0.01 and mapping["up_axis"] == "y"
     assert not {"scale", "up_axis"} & {d["what"] for d in mapping["decisions"]}
+
+
+def test_rig_walk_refuses_out_equal_to_the_source(tmp_path, capsys):
+    path = walk_file(RigSpec(), tmp_path)
+    before = path.read_bytes()
+    argv = ["rig", "walk", str(path), "--emotion", "sadness=0.5", "--out", str(path)]
+    assert main(argv) == 2
+    assert "--out must not be the source file" in capsys.readouterr().err
+    assert path.read_bytes() == before
+
+
+def test_scale_alone_loads_a_file_whose_units_cannot_be_inferred(tmp_path, capsys):
+    path = walk_file(replace(RigSpec(), units_per_m=3.0), tmp_path)  # y-up; only up is inferred
+    assert main(["rig", "inspect", str(path), "--json", "--scale", "0.3333"]) == 0
+    mapping = json.loads(capsys.readouterr().out)["mapping"]
+    assert mapping["up_axis"] == "y" and mapping["scale"] == pytest.approx(0.3333)
+    decisions = {d["what"]: d for d in mapping["decisions"]}
+    assert decisions["up_axis"]["source"] == "geometry" and "scale" not in decisions
+
+
+def test_inferred_scale_and_up_axis_are_geometry_decisions(tmp_path, capsys):
+    mapping = _inspect_mapping(walk_file(RigSpec(), tmp_path), capsys)
+    decisions = {d["what"]: d for d in mapping["decisions"]}
+    assert decisions["scale"]["source"] == "geometry" and decisions["scale"]["chosen"] == "0.01"
+    assert "units" in decisions["scale"]["note"] and " m" in decisions["scale"]["note"]
+    assert decisions["up_axis"]["source"] == "geometry" and decisions["up_axis"]["chosen"] == "y"
+    assert "pelvis-to-head" in decisions["up_axis"]["note"]
+
+
+def test_walk_too_short_for_a_cycle_is_unmeasured_not_failing(tmp_path, capsys):
+    source = walk_file(RigSpec(), tmp_path)
+    argv = [*("rig", "walk", str(source), "--emotion", "sadness=0.5", "--duration", "0.05")]
+    assert main([*argv, "--out", str(tmp_path / "o.bvh")]) == 0
+    captured = capsys.readouterr()
+    assert "unmeasured: no complete cycle" in captured.out and "NO" not in captured.out
+    assert "shorter than one gait cycle" in captured.err
+    assert main([*argv, "--out", str(tmp_path / "o.bvh"), "--json"]) == 0
+    rt = json.loads(capsys.readouterr().out)["round_trip"]
+    assert rt["measured_cycles"] == 0 and rt["status"].startswith("unmeasured")
+    assert rt["residuals"] == []
+
+
+def test_evidence_does_not_import_the_rig_pipeline_or_mink():
+    import subprocess
+
+    code = (
+        "import sys\n"
+        "from emotive_gait.cli import main\n"
+        "assert main(['evidence']) == 0\n"
+        "loaded = [m for m in ('mink', 'emotive_gait.rig.synthesis') if m in sys.modules]\n"
+        "print('LOADED', loaded)\n"
+    )
+    out = subprocess.run(
+        [sys.executable, "-c", code], capture_output=True, text=True, check=True
+    ).stdout
+    assert "LOADED []" in out

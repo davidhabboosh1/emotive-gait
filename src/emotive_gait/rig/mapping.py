@@ -414,10 +414,8 @@ def map_landmarks(
     )
 
 
-def infer_scale_and_up(
-    file_at_unit_scale: BvhFile,
-) -> tuple[float, Literal["y", "z"], tuple[Decision, ...]]:
-    """Scale and up-axis from the rest hierarchy of a file read at scale 1.0, up_axis "z"."""
+def _rest_positions(file_at_unit_scale: BvhFile) -> tuple[_Binding, dict[str, np.ndarray]]:
+    """The name binding and every joint's (and End Site's) rest position, in file units."""
     tree = _Tree.of(file_at_unit_scale)
     b = _bind_by_name(tree)
     rest: dict[str, np.ndarray] = {}
@@ -426,21 +424,28 @@ def infer_scale_and_up(
         rest[joint.name] = base + np.asarray(joint.offset, dtype=float)
         if joint.end_site is not None:
             rest[f"{joint.name}_End"] = rest[joint.name] + np.asarray(joint.end_site, dtype=float)
+    return b, rest
 
+
+def infer_up(file_at_unit_scale: BvhFile) -> tuple[Literal["y", "z"], Decision]:
+    """The up-axis from the pelvis-to-head rest extent of a file read at scale 1.0, up "z"."""
+    b, rest = _rest_positions(file_at_unit_scale)
     top = b.bound.get(L.HEAD, b.bound.get(L.NECK))
     if L.PELVIS not in b.bound or top is None:
         raise RigError("cannot find the pelvis and head to infer the up-axis; pass --up")
     extent = np.abs(rest[top] - rest[b.bound[L.PELVIS]])
     up: Literal["y", "z"] = "y" if extent[1] > extent[2] else "z"
-    decisions = [
-        Decision(
-            "up_axis",
-            up,
-            "geometry",
-            f"pelvis-to-head rest extent y {extent[1]:.4g}, z {extent[2]:.4g} file units",
-        )
-    ]
+    return up, Decision(
+        "up_axis",
+        up,
+        "geometry",
+        f"pelvis-to-head rest extent y {extent[1]:.4g}, z {extent[2]:.4g} file units",
+    )
 
+
+def infer_scale(file_at_unit_scale: BvhFile) -> tuple[float, Decision]:
+    """Metres per file unit from the hip-to-ankle rest distance of a file read at scale 1.0."""
+    b, rest = _rest_positions(file_at_unit_scale)
     for s in _SIDES:
         hip, ankle = b.bound.get(_landmark("hip", s)), b.bound.get(_landmark("ankle", s))
         if hip is not None and ankle is not None:
@@ -455,12 +460,19 @@ def infer_scale_and_up(
             f"hip-to-ankle rest distance {leg:.4g} file units fits no known unit "
             f"(nearest {metres:.3f} m at scale {scale:g}); pass --scale"
         )
-    decisions.append(
-        Decision(
-            "scale", f"{scale:g}", "geometry", f"hip-to-ankle {leg:.4g} units = {metres:.3f} m"
-        )
+    return scale, Decision(
+        "scale", f"{scale:g}", "geometry", f"hip-to-ankle {leg:.4g} units = {metres:.3f} m"
     )
-    return scale, up, tuple(decisions)
+
+
+def infer_scale_and_up(
+    file_at_unit_scale: BvhFile,
+) -> tuple[float, Literal["y", "z"], tuple[Decision, ...]]:
+    """Scale and up-axis from the rest hierarchy of a file read at scale 1.0, up_axis "z"
+    (``infer_up`` then ``infer_scale``)."""
+    up, up_decision = infer_up(file_at_unit_scale)
+    scale, scale_decision = infer_scale(file_at_unit_scale)
+    return scale, up, (up_decision, scale_decision)
 
 
 # --- Role bindings by probe (spec 4.4) -----------------------------------------------------

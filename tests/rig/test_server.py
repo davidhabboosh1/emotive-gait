@@ -194,15 +194,21 @@ def test_mapping_schema_example_is_accepted_by_the_tool(server, tmp_path):
 
     from emotive_gait.rig.server import MAPPING_SCHEMA
 
-    mapping = yaml.safe_load(MAPPING_SCHEMA)
-    mapping["landmarks"] = {}  # the example's bone names are illustrative; keys are checked above
-    mapping["roles"] = {}
-    result = call_tool(
-        server,
-        "measure_gait",
-        {"bvh_path": str(walk_file(RigSpec(), tmp_path)), "mapping": mapping},
-    )
+    mapping = yaml.safe_load(MAPPING_SCHEMA)  # unblanked: the example names a Mixamo rig's bones
+    path = str(walk_file(RigSpec(), tmp_path))  # the synthetic Mixamo rig (y-up, centimetres)
+    result = call_tool(server, "inspect_rig", {"bvh_path": path, "mapping": mapping})
+    decisions = {d["what"]: d for d in result["mapping"]["decisions"]}
+    asked = [*mapping["landmarks"], *(f"role:{r}" for r in mapping["roles"])]
+    assert all(decisions[w]["source"] == "user" for w in asked), asked
+    assert decisions["role:knee_l"]["chosen"] == "mixamorig:LeftLeg/Zrotation"
+    assert result["mapping"]["roles"]["knee_r"] == "mixamorig:RightLeg/Zrotation"
     assert result["cycles"]["used"] >= 1
+
+
+def test_measure_gait_on_a_standing_clip_names_the_discard_reasons(server, tmp_path):
+    path = str(standing_file(RigSpec(), tmp_path))
+    err = call_tool_expecting_error(server, "measure_gait", {"bvh_path": path})
+    assert "no usable cycle" in err and "no forward travel" in err
 
 
 def test_measure_gait_never_loads_the_rig(server, tmp_path, monkeypatch):

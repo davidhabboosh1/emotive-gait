@@ -12,7 +12,7 @@ import dataclasses
 import json
 from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from emotive_gait.cli_common import (
     _add_model_arguments,
@@ -26,17 +26,14 @@ from emotive_gait.cli_common import (
     warn_unsourced,
 )
 from emotive_gait.emotion.model import ANALYTIC
-from emotive_gait.emotion.prompt import PromptResult, parse_emotion_prompt
-from emotive_gait.mocap.writers.bvh import write_bvh
 from emotive_gait.rig.errors import RigError
-from emotive_gait.rig.synthesis import (
-    LoadedRig,
-    WalkResult,
-    load_rig,
-    walk,
-    within_tolerance,
-)
-from emotive_gait.rig.validate import ValidationTable, render_report, validate_loaded
+
+# The pipeline (rig.synthesis, rig.validate: mink, the IK) and the lexicon and BVH writer are
+# imported inside the command functions, so registering the parsers on every ``main`` stays light.
+if TYPE_CHECKING:
+    from emotive_gait.emotion.prompt import PromptResult
+    from emotive_gait.rig.synthesis import LoadedRig, WalkResult
+    from emotive_gait.rig.validate import ValidationTable
 
 # the keys ``inspect --json`` adds under "mapping" for the reader; a mapping file may keep them
 _INFORMATIONAL = ("family", "scale", "up_axis", "leg_length", "decisions", "warnings", "skewed")
@@ -171,6 +168,8 @@ def resolve_scale_up(
 
 
 def _load(args: argparse.Namespace) -> LoadedRig:
+    from emotive_gait.rig.synthesis import load_rig
+
     source = Path(args.source)
     if not source.is_file():
         raise RigError(f"{source}: no such file")
@@ -217,10 +216,19 @@ def inspect_data(rig: LoadedRig) -> dict:
 
 
 def walk_data(result: WalkResult, prompt: tuple[str, PromptResult] | None, out: str) -> dict:
-    """What ``walk`` reports: ``inspect_data`` plus the intensities, ``P1`` and the claims."""
+    """What ``walk`` reports: ``inspect_data`` plus the intensities, ``P1`` and the claims.
+
+    An output holding no complete cycle has no residuals: ``round_trip.status`` is
+    ``UNMEASURED`` (as in ``validate``) and the residual list is empty.
+    """
+    from emotive_gait.rig.synthesis import within_tolerance
+    from emotive_gait.rig.validate import MEASURED, UNMEASURED
+
     data = inspect_data(result.rig)
     f, s, rt = result.feasibility, result.slip, result.round_trip
-    ok = within_tolerance(rt)
+    cycles = int(rt.measured.n_cycles)
+    ok = within_tolerance(rt) if cycles else {}
+    residuals = rt.residuals.items() if cycles else ()
     data.update(
         {
             "intensities": {e.value: v for e, v in result.intensities.items()},
@@ -242,9 +250,9 @@ def walk_data(result: WalkResult, prompt: tuple[str, PromptResult] | None, out: 
                 "stances": s.stances,
             },
             "round_trip": {
-                "residuals": [
-                    {"field": n, "residual": r, "ok": ok.get(n)} for n, r in rt.residuals.items()
-                ],
+                "measured_cycles": cycles,
+                "status": MEASURED if cycles else UNMEASURED,
+                "residuals": [{"field": n, "residual": r, "ok": ok.get(n)} for n, r in residuals],
                 "unobservable": list(rt.unobservable),
             },
             "out": out,
@@ -273,6 +281,7 @@ def validate_data(table: ValidationTable) -> dict:
             "within": r.within,
             "slip_mm": r.slip_m * 1000.0,
             "height_mm": r.height_m * 1000.0,
+            "slip_within": r.slip_within,
             "duration_s": r.duration_s,
             "status": r.status,
         }
@@ -345,12 +354,16 @@ def _print_walk(d: dict) -> None:
         f"slip: max travel {s['max_travel_mm']:.1f} mm, max height error "
         f"{s['max_height_error_mm']:.1f} mm over {s['stances']} stances"
     )
-    print("round trip:")
-    rows = [("field", "residual", "ok")]
-    rows += [(r["field"], _num(r["residual"]), _OK[r["ok"]]) for r in d["round_trip"]["residuals"]]
-    _table(rows)
-    if d["round_trip"]["unobservable"]:
-        print("unobservable: " + ", ".join(d["round_trip"]["unobservable"]))
+    rt = d["round_trip"]
+    if rt["status"] == "measured":
+        print(f"round trip ({rt['measured_cycles']} measured cycles):")
+        rows = [("field", "residual", "ok")]
+        rows += [(r["field"], _num(r["residual"]), _OK[r["ok"]]) for r in rt["residuals"]]
+        _table(rows)
+    else:
+        print(f"round trip ({rt['measured_cycles']} measured cycles): {rt['status']}")
+    if rt["unobservable"]:
+        print("unobservable: " + ", ".join(rt["unobservable"]))
     print(f"wrote {d['out']}")
 
 
@@ -364,6 +377,7 @@ def _print_validate(d: dict) -> None:
             "round-trip within",
             "slip_mm",
             "height_mm",
+            "slip within",
             "seconds",
         )
     ]
@@ -377,6 +391,7 @@ def _print_validate(d: dict) -> None:
                 yes[r["within"]],
                 f"{r['slip_mm']:.1f}",
                 f"{r['height_mm']:.1f}",
+                yes[r["slip_within"]],
                 f"{r['duration_s']:.2f}",
             )
         )
@@ -392,6 +407,8 @@ def _intensities(args: argparse.Namespace):
         raise ValueError("give exactly one of --emotion and --prompt")
     if args.prompt is None:
         return _parse_emotions(args.emotion), "flags", None
+    from emotive_gait.emotion.prompt import parse_emotion_prompt
+
     parsed = parse_emotion_prompt(args.prompt)
     if not parsed.matched:
         raise ValueError(
@@ -402,6 +419,11 @@ def _intensities(args: argparse.Namespace):
 
 
 def _walk_command(args: argparse.Namespace) -> int:
+    from emotive_gait.mocap.writers.bvh import write_bvh
+    from emotive_gait.rig.synthesis import walk
+
+    if Path(args.out).resolve() == Path(args.source).resolve():
+        raise ValueError(f"--out must not be the source file ({args.source})")
     intensities, source, prompt = _intensities(args)
     warn_unsourced(intensities)
     model = ANALYTIC
@@ -421,6 +443,12 @@ def _walk_command(args: argparse.Namespace) -> int:
         duration_s=args.duration,
     )
     warn_infeasible(result.feasibility)
+    cycle_s = 2.0 / result.p1.cadence
+    if args.duration is not None and args.duration < cycle_s:
+        _err(
+            f"warning: --duration {args.duration:g} s is shorter than one gait cycle at P1's "
+            f"cadence ({cycle_s:.2f} s); the round trip cannot be measured"
+        )
     out = Path(args.out)
     try:
         out.parent.mkdir(parents=True, exist_ok=True)
@@ -433,6 +461,8 @@ def _walk_command(args: argparse.Namespace) -> int:
 
 
 def _validate_command(args: argparse.Namespace, rig: LoadedRig) -> int:
+    from emotive_gait.rig.validate import render_report, validate_loaded
+
     source = Path(args.source)
     scale, up_axis = resolve_scale_up(_read_mapping(args.mapping)[1], args.scale, args.up)
     table = validate_loaded(

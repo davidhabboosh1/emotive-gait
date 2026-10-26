@@ -228,6 +228,12 @@ On real rigs, worst feasible-run residuals and the maximum foot slip on feasible
 | Bandai Namco dataset-2 walk | `elbow_swing_ratio` -0.0410 | all | 0.0 mm |
 | CMU subject 07 (cgspeed conversion) | `elbow_swing_ratio` -0.5812 (half-bound right elbow) | none: `elbow_r` is skewed, so the elbow fields miss on every run | 2.7 mm |
 
+Max slip on feasible runs: two exceed the 2 mm slip bound, the 100STYLE full clip's neutral
+(2.9 mm) and CMU's neutral (2.7 mm). Feasibility is a per-knot 2 mm position threshold while slip
+is a frame-to-frame measure over a spline-interpolated stance, so a feasible run can slip up to
+about twice the threshold; `rig validate` gates it in its own `slip within` column and the
+report lists both under "Known limitations hit".
+
 Angry and happy are infeasible on every real rig (the generator cannot reach their strides);
 this is reported, not gated.
 

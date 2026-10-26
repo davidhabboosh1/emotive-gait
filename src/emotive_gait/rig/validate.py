@@ -64,6 +64,11 @@ MIN_STEPS = 8
 MEASURED = "measured"
 UNMEASURED = "unmeasured: no complete cycle"
 
+# The zero-slip claim on feasible runs (the CI bound): worst stance-foot travel and height error.
+# Feasibility is a per-knot 2 mm position threshold, while slip is a frame-to-frame measure over
+# the spline-interpolated stance, so a feasible run can slip up to about twice the threshold.
+SLIP_BOUND_M = 0.002
+
 
 @dataclass(frozen=True)
 class ValidationRow:
@@ -82,6 +87,8 @@ class ValidationRow:
     commanded_abduction: float = math.nan  # expansiveness * arm_abduction of P1 (rad)
     duration_s: float = math.nan  # length of the written output
     status: str = "measured"  # MEASURED, UNMEASURED or "error: <message>"
+    # travel and height within SLIP_BOUND_M; None on an infeasible, unmeasured or error run
+    slip_within: bool | None = None
 
     @property
     def measured(self) -> bool:
@@ -155,7 +162,8 @@ def worst_field(result: WalkResult) -> tuple[str, float]:
 
 def validation_row(name: str, result: WalkResult, duration_s: float) -> ValidationRow:
     """The row of one run's ``WalkResult`` written over ``duration_s``; a run whose output holds
-    no complete cycle is ``UNMEASURED`` (no ``within``, no failing fields)."""
+    no complete cycle is ``UNMEASURED`` (no ``within``, no failing fields). ``slip_within`` is
+    gated on feasible measured runs only (``SLIP_BOUND_M`` on travel and height)."""
     common = {
         "run": name,
         "feasible": bool(result.feasibility.feasible),
@@ -167,6 +175,10 @@ def validation_row(name: str, result: WalkResult, duration_s: float) -> Validati
     }
     if result.round_trip.measured.n_cycles == 0:
         return ValidationRow(**common, within=None, status=UNMEASURED)
+    if common["feasible"]:
+        common["slip_within"] = (
+            common["slip_m"] <= SLIP_BOUND_M and common["height_m"] <= SLIP_BOUND_M
+        )
     excluded = pitch_innermost_exclusion(result.rig.mapping, result.rig.file, result.p1)
     ok = within_tolerance(result.round_trip)
     failing = tuple(k for k, v in ok.items() if not v and k not in excluded)
@@ -346,9 +358,9 @@ def _rig_section(name: str, t: ValidationTable) -> list[str]:
         "",
         (
             "| run | feasible | worst field (residual) | within | failing fields | slip mm "
-            "| height mm |"
+            "| height mm | slip within |"
         ),
-        "|---|---|---|---|---|---|---|",
+        "|---|---|---|---|---|---|---|---|",
     ]
     for r in t.rows:
         if r.measured:
@@ -360,7 +372,8 @@ def _rig_section(name: str, t: ValidationTable) -> list[str]:
             failing, worst = r.status, "-"
         lines.append(
             f"| {r.run} | {_YES[r.feasible]} | {worst} | {_YES[r.within]} | {failing} | "
-            f"{_fmt(r.slip_m * 1000, '.1f')} | {_fmt(r.height_m * 1000, '.1f')} |"
+            f"{_fmt(r.slip_m * 1000, '.1f')} | {_fmt(r.height_m * 1000, '.1f')} | "
+            f"{_YES[r.slip_within]} |"
         )
     fields = list(dict.fromkeys(f for r in t.rows for f in r.max_residual))
     lines += [
@@ -408,6 +421,11 @@ def render_report(
             "rig's own channels, read back and measured by the frozen extractor. Infeasible presets "
             "and residuals beyond tolerance are reported, not gated. Aggregates only: no clip or "
             "frame data."
+        ),
+        "",
+        (
+            f"Slip within: worst stance-foot travel and height error both at most "
+            f"{SLIP_BOUND_M * 1000:g} mm, gated on feasible measured runs only (n/a otherwise)."
         ),
         "",
         "Round-trip tolerances (frozen, spec 4.7):",
@@ -488,6 +506,16 @@ def render_report(
         failing = sorted({f for r in t.rows for f in r.failing})
         if failing:
             items.append(f"fields beyond tolerance on some run: {', '.join(failing)}")
+        slipped = [
+            f"{r.run} ({_fmt(r.slip_m * 1000, '.1f')} mm travel, "
+            f"{_fmt(r.height_m * 1000, '.1f')} mm height)"
+            for r in t.rows
+            if r.slip_within is False
+        ]
+        if slipped:
+            items.append(
+                f"slip beyond {SLIP_BOUND_M * 1000:g} mm on feasible runs: {', '.join(slipped)}"
+            )
         other = [f"{r.run} ({r.status})" for r in t.rows if not r.measured]
         if other:
             items.append(f"runs not measured: {', '.join(other)}")

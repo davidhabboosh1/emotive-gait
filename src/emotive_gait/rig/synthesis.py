@@ -56,7 +56,8 @@ from emotive_gait.rig.mapping import (
     Decision,
     RigMapping,
     bind_roles,
-    infer_scale_and_up,
+    infer_scale,
+    infer_up,
     map_landmarks,
 )
 from emotive_gait.rig.profile import rig_profile, rig_robot
@@ -210,7 +211,8 @@ def _split_overrides(
             lm_over[key] = value
         else:
             raise RigError(
-                f"mapping override {key!r} is not a landmark (roles are written 'role:<role>')"
+                f"mapping override {key!r} is not a landmark; put joint roles under the "
+                "'roles:' section (of the mapping file or the MCP mapping argument)"
             )
     return lm_over, role_over
 
@@ -277,18 +279,24 @@ def reachable_pelvis_factor(p0: GaitParameters, robot: RobotModel, source_height
     return lo
 
 
-def _read(source: Path, scale: float | None, up_axis: str | None) -> BvhFile:
-    """Read ``source``; ``scale`` and ``up_axis`` are inferred from the rest hierarchy when
-    ``None``."""
+def _read(
+    source: Path, scale: float | None, up_axis: str | None
+) -> tuple[BvhFile, tuple[Decision, ...]]:
+    """``(file, inference decisions)``: ``source`` read with ``scale`` and ``up_axis``, each
+    inferred from the rest hierarchy only when ``None`` (``infer_scale``, ``infer_up``), and the
+    ``geometry`` decision of each inferred value (none for a given one)."""
+    decisions: list[Decision] = []
     if scale is None or up_axis is None:
-        inferred_scale, inferred_up, _ = infer_scale_and_up(
-            read_bvh_file(source, scale=1.0, up_axis="z")
-        )
-        scale = inferred_scale if scale is None else scale
-        up_axis = inferred_up if up_axis is None else up_axis
+        raw = read_bvh_file(source, scale=1.0, up_axis="z")
+        if up_axis is None:
+            up_axis, decision = infer_up(raw)
+            decisions.append(decision)
+        if scale is None:
+            scale, decision = infer_scale(raw)
+            decisions.append(decision)
     if up_axis not in ("y", "z"):
         raise RigError(f"up axis must be 'y' or 'z', got {up_axis!r}")
-    return read_bvh_file(source, scale=float(scale), up_axis=up_axis)
+    return read_bvh_file(source, scale=float(scale), up_axis=up_axis), tuple(decisions)
 
 
 def _summarise(clip: SkeletonClip, landmarks: LandmarkMap) -> ClipSummary:
@@ -311,7 +319,7 @@ def measure(
     No role binding, calibration or compilation, so any walk whose landmarks map can be
     measured. Landmark overrides are honoured; ``role:`` overrides are ignored.
     """
-    file = _read(Path(source), scale, up_axis)
+    file, _ = _read(Path(source), scale, up_axis)
     clip = file.to_clip(end_sites=True)
     lm_over, _ = _split_overrides(mapping_overrides)
     landmarks = map_landmarks(file, clip, overrides=lm_over)
@@ -326,10 +334,11 @@ def load_rig(
     mapping_overrides: Mapping[str, str] | None,
 ) -> LoadedRig:
     """Read, map, calibrate and compile ``source``; ``scale`` and ``up_axis`` are inferred
-    from the rest hierarchy when ``None``. Raises ``RigError`` (unusable mapping, no usable
+    from the rest hierarchy when ``None`` (each inference recorded as a ``geometry`` decision,
+    first in ``mapping.decisions``). Raises ``RigError`` (unusable mapping, no usable
     cycle, unknown override)."""
     source = Path(source)
-    file = _read(source, scale, up_axis)
+    file, units = _read(source, scale, up_axis)
     clip = file.to_clip(end_sites=True)
     lm_over, role_over = _split_overrides(mapping_overrides)
     landmarks = map_landmarks(file, clip, overrides=lm_over)
@@ -351,6 +360,7 @@ def load_rig(
     mapping = replace(
         mapping,
         decisions=(
+            *units,
             *mapping.decisions,
             Decision(
                 what="pelvis_height",

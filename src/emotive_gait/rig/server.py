@@ -19,17 +19,19 @@ from typing import Any
 MAPPING_SCHEMA = """\
 # Overrides for the automatic bone mapping. Every key is optional.
 # `landmarks` maps a landmark name to the rig's bone name; `roles` maps a G1 joint role to the
-# bone that drives it. Pass this as the `mapping` argument (a dict of the same shape).
+# `Bone/Channel` hinge that drives it (the bone's rotation channel, as `inspect_rig` prints it;
+# which channel is the knee's depends on the rig's axes). Pass this as the `mapping` argument
+# (a dict of the same shape). The names below are a Mixamo rig's (y-up, centimetres).
 landmarks:
-  pelvis: Hips
-  ankle_l: LeftFoot
-  ankle_r: RightFoot
-  toe_l: LeftToeBase
-  toe_r: RightToeBase
-  neck: Neck
+  pelvis: mixamorig:Hips
+  ankle_l: mixamorig:LeftFoot
+  ankle_r: mixamorig:RightFoot
+  toe_l: mixamorig:LeftToeBase
+  toe_r: mixamorig:RightToeBase
+  neck: mixamorig:Neck
 roles:
-  knee_l: LeftLeg
-  knee_r: RightLeg
+  knee_l: mixamorig:LeftLeg/Zrotation
+  knee_r: mixamorig:RightLeg/Zrotation
 # optional: the file's unit and up axis (explicit tool arguments win)
 scale: 0.01      # metres per file unit
 up_axis: y       # y or z

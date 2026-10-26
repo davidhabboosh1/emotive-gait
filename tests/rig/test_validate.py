@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import replace
-from types import MappingProxyType
+from types import MappingProxyType, SimpleNamespace
 
 from emotive_gait.rig.validate import (
     MIN_STEPS,
@@ -114,3 +114,31 @@ def test_the_report_regenerates_from_a_spec(tmp_path, monkeypatch):
     assert "- an authored finding" in text
     (tmp_path / "bad.yaml").write_text("rigs: [{path: x.bvh}]\n", encoding="utf-8")
     assert main(["bad.yaml", "--out", "r.md"]) == 2
+
+
+def test_a_feasible_run_slipping_beyond_two_mm_is_gated_and_listed(tmp_path):
+    from emotive_gait.emotion.model import ANALYTIC
+    from emotive_gait.rig.synthesis import SlipReport, load_rig, walk
+    from emotive_gait.rig.validate import SLIP_BOUND_M, validation_row
+
+    rig = load_rig(walk_file(RigSpec(), tmp_path), scale=None, up_axis=None, mapping_overrides=None)
+    result = walk(
+        rig,
+        intensities={},
+        intensities_source="flags",
+        model=ANALYTIC,
+        model_name="analytic",
+        duration_s=4.0,
+    )
+    assert result.feasibility.feasible and SLIP_BOUND_M == 0.002
+    assert validation_row("neutral", result, 4.0).slip_within is True
+    slipped = replace(
+        result, slip=SlipReport(max_travel_m=0.003, max_height_error_m=0.0, stances=4)
+    )
+    row = validation_row("neutral", slipped, 4.0)
+    assert row.feasible and row.slip_within is False
+    text = render_report({"rig": _table((row,))}, not_run={})
+    assert "| no |" not in text and "| NO |" in text.split("\n## Pelvis")[0]
+    assert "slip beyond 2 mm on feasible runs: neutral (3.0 mm travel, 0.0 mm height)" in text
+    infeasible = replace(slipped, feasibility=SimpleNamespace(feasible=False))  # a flag only
+    assert validation_row("angry", infeasible, 4.0).slip_within is None

@@ -70,3 +70,8 @@ findings:
     Angry and happy are infeasible on every real rig (the generator's feasibility flag is
     false; the pelvis factor is fitted to the neutral only); the arm and elbow fields beyond
     tolerance on the 100STYLE and Bandai rigs occur on those infeasible runs only.
+  - >-
+    Slip on feasible runs: the neutral runs of the 100STYLE full clip (2.9 mm travel) and of
+    CMU 07_01 (2.7 mm) exceed the 2 mm slip bound although feasible, because feasibility is a
+    per-knot 2 mm position threshold while slip is a frame-to-frame measure over a
+    spline-interpolated stance, so up to about twice the threshold can occur.
