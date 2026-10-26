@@ -158,7 +158,7 @@ def _fake(converged=True, bse=(0.01, 0.02), cov=((1e-3, 0.0), (0.0, 2e-3))):
 @pytest.mark.parametrize(
     ("result", "messages", "reason"),
     [
-        (None, [], "fit_error"),
+        (None, [], "maximal_raised"),
         (_fake(converged=False), [], "not_converged"),
         (
             _fake(),
@@ -184,3 +184,42 @@ def _fake(converged=True, bse=(0.01, 0.02), cov=((1e-3, 0.0), (0.0, 2e-3))):
 )
 def test_fallback_trigger_branches(result, messages, reason):
     assert _rejection(result, messages) == reason
+
+
+def _raising_mixedlm(monkeypatch, *, fallback_raises: bool):
+    import statsmodels.formula.api as smf
+
+    real = smf.mixedlm
+
+    def fake(formula, data, *, groups, re_formula):
+        if re_formula != "1" or fallback_raises:
+            raise np.linalg.LinAlgError("Singular matrix")
+        return real(formula, data, groups=groups, re_formula=re_formula)
+
+    monkeypatch.setattr(smf, "mixedlm", fake)
+
+
+def _small_table():
+    return synthetic_table(
+        n_actors=6,
+        emotions=("anger",),
+        effects={("anger", "cadence"): 0.08},
+        actor_sd=0.03,
+        cycle_sd=0.02,
+        cycles_per_clip=6,
+        seed=2,
+    )
+
+
+def test_maximal_fit_that_raises_falls_back_as_maximal_raised(monkeypatch):
+    _raising_mixedlm(monkeypatch, fallback_raises=False)
+    cell = fit_parameter(_small_table(), "cadence")[0]
+    assert cell.converged_maximal is False and cell.fallback_reason == "maximal_raised"
+    assert cell.grounding == "fitted" and cell.ci_low < cell.estimate < cell.ci_high
+
+
+def test_fit_error_means_the_fallback_raised_too(monkeypatch):
+    _raising_mixedlm(monkeypatch, fallback_raises=True)
+    cell = fit_parameter(_small_table(), "cadence")[0]
+    assert cell.fallback_reason == "fit_error" and cell.grounding == "missing"
+    assert cell.estimate == 0.0

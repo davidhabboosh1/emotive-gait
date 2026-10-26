@@ -226,6 +226,7 @@ def write_artefact(
     path.write_text(
         yaml.safe_dump(document, sort_keys=True, default_flow_style=False, allow_unicode=True),
         encoding="utf-8",
+        newline="\n",
     )
     return load_artefact(path)
 

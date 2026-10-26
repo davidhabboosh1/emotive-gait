@@ -131,8 +131,7 @@ def _build_parser() -> argparse.ArgumentParser:
     f.add_argument(
         "--report",
         default=None,
-        help=f"report path (default {_REPORT}; with --include-uncommittable, fit-report.md "
-        "beside --out)",
+        help=f"report path (default {_REPORT}; with --out, fit-report.md beside --out)",
     )
     f.add_argument("--derived", default=_DERIVED, help=f"per-cycle tables (default {_DERIVED})")
     f.add_argument(
@@ -385,10 +384,12 @@ def _load_learned(scaling: str):
 
 def _warn_learned_cells(model, intensities: dict[Emotion, float]) -> None:
     """One warning for the thin cells and one for the delegated cells of the requested emotions."""
+    from emotive_gait.emotion.learned import describe_thin
+
     asked = {e.value for e, v in intensities.items() if v > 0}
-    thin = [
-        f"{e}.{p} ({model.cell(e, p).n_actors} actors)" for e, p in model.thin_cells if e in asked
-    ]
+    thin = describe_thin(
+        (e, p, model.cell(e, p).n_actors) for e, p in model.thin_cells if e in asked
+    )
     if thin:
         _err(
             "warning: thin cells (one or two actors, no interval) in the learned model: "
@@ -477,7 +478,8 @@ def _fit(args: argparse.Namespace) -> int:
     target = Path(args.out) if args.out else default_artefact_path()
     if args.report:
         report = Path(args.report)
-    elif args.include_uncommittable:
+    elif args.out:
+        # beside --out, so a local experiment never overwrites the committed report
         report = target.parent / "fit-report.md"
     else:
         report = Path(_REPORT)
@@ -496,16 +498,25 @@ def _fit(args: argparse.Namespace) -> int:
         from emotive_gait.learn.console import print_summary
 
         print_summary(summary)
-        _report_feasibility(target, report)
     except pipeline.FitInputError as exc:
         _err(str(exc))
         return 2
     except (pipeline.FitEnvironmentError, ArtefactMissingError, ArtefactSchemaError) as exc:
         _err(str(exc))
         return 1
-    except (OSError, ValueError) as exc:
+    except OSError as exc:
         _err(f"environment failure: {exc}")
         return 1
+    except ValueError as exc:
+        _err(f"fit failed: {exc}")
+        return 1
+    try:
+        _report_feasibility(target, report)
+    except Exception as exc:  # noqa: BLE001 - the artefact is written; the check is a report extra
+        print(
+            "note: feasibility of the learned presets not reported "
+            f"({type(exc).__name__}: {exc}); the artefact and report are written"
+        )
     return 0
 
 

@@ -307,7 +307,8 @@ def test_fit_prints_the_headline_thin_cells_and_contradictions(
     code = main(args)
     out = capsys.readouterr().out
     assert code == 0
-    assert "thin cells" in out and "anger." in out and "(1 actors)" in out
+    assert "thin cells" in out and "anger" in out and "(1 actor)" in out
+    assert "(1 actors)" not in out
     assert "contradictions" in out and (tmp_path / "c.md").is_file()
 
 
@@ -398,3 +399,45 @@ def test_demo_learned_with_an_artefact_lacking_the_scaling_exits_one(capsys, mon
     _use_artefact(monkeypatch, path)
     code = main(["demo", "--emotion", "anger=1.0", "--model", "learned", "--dry-run"])
     assert code == 1 and "froude" in capsys.readouterr().err
+
+
+def test_fit_with_out_defaults_the_report_beside_it_never_the_committed_one(
+    capsys, monkeypatch, tmp_path, synthetic_dataset_on_disk
+):
+    committed = tmp_path / "docs" / "committed-report.md"
+    monkeypatch.setattr("emotive_gait.cli._REPORT", str(committed))
+    monkeypatch.setattr("emotive_gait.cli._report_feasibility", lambda *a: None)
+    data = synthetic_dataset_on_disk
+    out = tmp_path / "local" / "c.yaml"
+    args = ["fit", "--manifest", str(data.manifest), "--root", str(data.root), "--out", str(out)]
+    assert main([*args, "--derived", str(tmp_path / "d"), "--datasets", "toy"]) == 0
+    assert (out.parent / "fit-report.md").is_file() and not committed.exists()
+
+
+def test_fit_keeps_exit_zero_when_the_feasibility_step_fails(
+    capsys, monkeypatch, tmp_path, synthetic_dataset_on_disk
+):
+    def broken(*args):
+        raise RuntimeError("ik exploded")
+
+    monkeypatch.setattr("emotive_gait.cli._report_feasibility", broken)
+    out = tmp_path / "c.yaml"
+    assert main([*_fit_args(synthetic_dataset_on_disk, out), "--datasets", "toy"]) == 0
+    captured = capsys.readouterr()
+    assert "feasibility of the learned presets not reported" in captured.out
+    assert "ik exploded" in captured.out and "Traceback" not in captured.err
+    assert out.is_file()
+
+
+def test_fit_reports_a_value_error_as_a_failed_fit(
+    capsys, monkeypatch, tmp_path, synthetic_dataset_on_disk
+):
+    from emotive_gait.learn import pipeline
+
+    def broken(*args, **kwargs):
+        raise ValueError("bad numbers")
+
+    monkeypatch.setattr(pipeline, "run_fit", broken)
+    code = main(_fit_args(synthetic_dataset_on_disk, tmp_path / "c.yaml"))
+    err = capsys.readouterr().err
+    assert code == 1 and "fit failed: bad numbers" in err and "environment failure" not in err

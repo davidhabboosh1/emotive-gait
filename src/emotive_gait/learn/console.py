@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
+from emotive_gait.emotion.learned import describe_thin
 from emotive_gait.learn.pipeline import FitSummary
 
 
@@ -19,7 +20,7 @@ def print_summary(summary: FitSummary, out: Callable[[str], None] = print) -> No
             f"E_zero {overall.e_zero:.3f}  (n_pairs {overall.n_pairs})"
         )
     if summary.thin_cells:
-        listing = ", ".join(f"{e}.{p} ({n} actors)" for e, p, n in summary.thin_cells)
+        listing = ", ".join(describe_thin(summary.thin_cells))
         out(f"thin cells (no interval): {listing}")
     else:
         out("thin cells: none")

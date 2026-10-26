@@ -15,6 +15,7 @@ from emotive_gait.emotion.learned import (
     ArtefactSchemaError,
     LearnedEmotionModel,
     default_artefact_path,
+    describe_thin,
     direction_check,
     load_artefact,
 )
@@ -195,6 +196,12 @@ def test_artefact_cell_fields_match_the_fit_cell():
 
     names = {f.name for f in fields(ArtefactCell)}
     assert names == {f.name for f in fields(Cell)} | {"direction_check"}
+    from typing import get_args
+
+    from emotive_gait.learn.fit import FallbackReason
+
+    # the maximal fit raising is its own label; fit_error means no result at all
+    assert {"maximal_raised", "fit_error"} <= set(get_args(FallbackReason))
 
 
 def _cell_yaml(**overrides):
@@ -346,3 +353,19 @@ def test_learned_module_needs_no_fit_dependency():  # Review Focus 4
         "assert not bad, bad"
     )
     subprocess.run([sys.executable, "-c", code], check=True)
+
+
+def test_a_maximal_raised_fallback_label_loads(tmp_path):
+    data = _artefact_yaml(cell=_cell_yaml(fallback_reason="maximal_raised"))
+    cell = load_artefact(_write(tmp_path, data)).cells[("froude", "sadness", "cadence")]
+    assert cell.fallback_reason == "maximal_raised"
+
+
+def test_describe_thin_collapses_an_all_thin_emotion_and_pluralises():
+    every = [("anger", p, 1) for p in MEASURED_FIELDS]
+    some = [("fear", "cadence", 1), ("fear", "trunk_pitch", 2)]
+    assert describe_thin([*every, *some]) == [
+        f"anger: all {len(MEASURED_FIELDS)} cells thin (1 actor)",
+        "fear.cadence (1 actor)",
+        "fear.trunk_pitch (2 actors)",
+    ]

@@ -7,8 +7,8 @@ Design spec 4.3. One model per parameter, fitted by REML with ``statsmodels`` ``
 ``neutral`` is a level of ``emotion``, not a subtraction, so each ``beta[e]`` carries the
 uncertainty of every actor's neutral mean. Actors are the groups (keyed by dataset and actor, so
 two datasets reusing an actor name stay apart). The maximal random structure (an intercept and
-one slope per emotion) falls back to the random intercept alone when it does not converge or its
-covariance is singular; the fallback is recorded as ``converged_maximal=False`` with a
+one slope per emotion) falls back to the random intercept alone when it raises, does not converge
+or its covariance is singular; the fallback is recorded as ``converged_maximal=False`` with a
 ``fallback_reason``, and nothing is tuned to make it converge.
 
 Grounding per ``(emotion, parameter)`` cell: ``fitted`` with three or more actors (95 % Wald
@@ -53,8 +53,15 @@ _SINGULAR_CORRELATION = 0.999  # lme4's convention for a singular fit
 # failed fit: the final ``converged`` flag and the relative singularity test judge it instead.
 _TERMINAL_WARNINGS = ("MixedLM optimization failed", "Gradient optimization failed")
 
+# ``maximal_raised``: the maximal fit raised and the random-intercept fallback succeeded;
+# ``fit_error``: the fallback raised too, so there is no result at all.
 FallbackReason = Literal[
-    "not_converged", "terminal_warning", "nonfinite_se", "singular_cov_re", "fit_error"
+    "maximal_raised",
+    "not_converged",
+    "terminal_warning",
+    "nonfinite_se",
+    "singular_cov_re",
+    "fit_error",
 ]
 
 
@@ -109,15 +116,16 @@ def _level(emotion: str) -> str:
 def _rejection(result, messages: Sequence[str]) -> FallbackReason | None:
     """Why a maximal fit cannot be kept, or ``None`` when it can.
 
-    ``result`` needs ``converged``, ``bse_fe`` and ``cov_re``; ``messages`` are the texts of the
-    ``ConvergenceWarning``s raised while fitting. Checked in order: no result (``fit_error``);
-    ``converged`` false; a terminal warning (``_TERMINAL_WARNINGS``); a non-finite fixed-effect
-    standard error (the Hessian is not positive definite there); ``cov_re`` non-finite or with
-    smallest / largest eigenvalue below 1e-6, or an off-diagonal correlation with |r| > 0.999
-    (``singular_cov_re``).
+        ``result`` needs ``converged``, ``bse_fe`` and ``cov_re``; ``messages`` are the texts of the
+        ``ConvergenceWarning``s raised while fitting. Checked in order: no result because the maximal
+    fit raised (``maximal_raised``);
+        ``converged`` false; a terminal warning (``_TERMINAL_WARNINGS``); a non-finite fixed-effect
+        standard error (the Hessian is not positive definite there); ``cov_re`` non-finite or with
+        smallest / largest eigenvalue below 1e-6, or an off-diagonal correlation with |r| > 0.999
+        (``singular_cov_re``).
     """
     if result is None:
-        return "fit_error"
+        return "maximal_raised"
     if not result.converged:
         return "not_converged"
     if any(str(m).startswith(_TERMINAL_WARNINGS) for m in messages):
@@ -143,8 +151,8 @@ def _mixed_fit(rows: pd.DataFrame, formula: str):
     """Fit ``formula`` with the maximal random structure, else with the random intercept.
 
     Returns ``(result, fallback_reason)``: ``fallback_reason`` is ``None`` when the maximal fit
-    is kept (see ``_rejection``), and ``result`` is ``None`` when the random-intercept fallback
-    raised too. The fallback is kept whatever its own convergence; every warning is swallowed.
+    is kept (see ``_rejection``; ``maximal_raised`` when the maximal fit raised), and ``result``
+    is ``None`` with ``fit_error`` when the random-intercept fallback raised too. The fallback is kept whatever its own convergence; every warning is swallowed.
     """
     from statsmodels.formula.api import mixedlm
     from statsmodels.tools.sm_exceptions import ConvergenceWarning

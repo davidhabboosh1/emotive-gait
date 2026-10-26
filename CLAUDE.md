@@ -35,7 +35,7 @@ CI runs `ruff check .`, `ruff format --check .` and `pytest -q`. `docs/archive` 
 
 ## Architecture
 
-Four layers plus `cli.py` on top:
+Six packages (`robot/`, `gait/`, `emotion/`, `sim/`, `mocap/`, `learn/`) plus `cli.py` on top:
 
 - `robot/`: semantic `JointRole`s, the G1 profile (role -> actuator name), the model loader, neck
   injection, root modes (`FREE`, `Z_RAIL`, `XZ_RAIL` (experimental), `WELD`).
@@ -52,19 +52,20 @@ Four layers plus `cli.py` on top:
   `mocap/`, `gait.params`, `emotion.evidence`, `emotion.model`, `emotion.learned`; `fit.py` and
   `artefact.py` also import `robot.profiles.g1` for the hand-tuned baseline (allowed). Needs
   statsmodels and pandas; ONLY `cli.py` imports `learn/`.
-- `gait/scaling.py` (`Scaling`, `G`, `to_gait_parameters`) is importable by both `mocap/` and
-  `emotion/`. `emotion/learned.py` reads the packaged artefact with pyyaml, never imports `learn/`,
-  `mocap/` or `sim/`; `emotion/model.py` holds the `EmotionModel` protocol. Only `cli.py` runs the
-  learned-preset IK. `tests/mocap/` may import `sim/`; the package may not.
+- `gait/scaling.py` (`Scaling`, `G`, `to_gait_parameters`) is imported by `mocap/`, `emotion/`
+  and `learn/`. `emotion/learned.py` reads the packaged artefact with pyyaml, imports
+  `robot.roles` under `TYPE_CHECKING` only, and never imports `learn/`, `mocap/` or `sim/`;
+  `emotion/model.py` holds the `EmotionModel` protocol. Only `cli.py` runs the learned-preset IK. `tests/mocap/` may import `sim/`; the package may not.
 
 Dependency rules:
 
-- `robot/` is the base layer and imports nothing from the other three.
+- `robot/` is the base layer and imports nothing from the other packages.
 - `gait/` depends on `robot/` (the generator needs `RobotModel` and `JointRole`).
   `gait/footsteps.py` imports nothing from `robot/` (pure math, no MuJoCo); `gait/ik.py`
   imports `mink`, `mujoco` and `robot/`.
 - `emotion/` depends on `gait.params`; ONLY `emotion/model.py` additionally imports `robot.roles`
-  and `robot.profiles.g1` (to drop cues the profile cannot show). Nothing in `emotion/` imports
+  and `robot.profiles.g1` (to drop cues the profile cannot show; `emotion/learned.py` imports
+  `robot.roles` for type hints only). Nothing in `emotion/` imports
   `gait.generator` or `sim/`.
 - `sim/` depends on `gait/` and `robot/` only, never `emotion/`; nothing imports `sim/` except
   `cli.py`.
@@ -169,8 +170,11 @@ Dependency rules:
   provenance records the manifest's SHA-256.
 - The maximal mixed model falls back to a random intercept on non-convergence, terminal warnings,
   non-finite SEs or a singular `cov_re` (relative eigenvalue 1e-6, |r| > 0.999) and records
-  `fallback_reason`. On the 4-actor committable tier every cell falls back with `fit_error`: the
-  maximal fit is unestimable.
+  `fallback_reason`; `maximal_raised` when the maximal fit raised and the fallback succeeded,
+  `fit_error` only when the fallback raised too (no result). On the 4-actor committable tier every
+  cell falls back with `maximal_raised` (`LinAlgError`: 4 groups, 5x5 random-effect covariance),
+  so the Wald intervals carry only cycle-level residual variance and the fixed effects are
+  cycle-weighted.
 - Learned presets are flagged and rendered, not gated (user decision 2026-10-26): the feasibility
   test gates the analytic presets only; learned residuals (froude angry 6.37 mm, happy 5.62 mm) are
   documented in the fit report.
@@ -179,8 +183,8 @@ Dependency rules:
 
 - `emotive-gait demo` returns 2 on user-input errors and 1 on environment failures (ffmpeg,
   disk), always with a stderr message, and never lets a traceback escape `main`.
-- Design and plan documents live under `docs/superpowers/`; do not edit the design doc.
-- The design doc is not edited except at the user's request.
+- Design and plan documents live under `docs/superpowers/`; the design doc is not edited except
+  at the user's request.
 - `emotive-gait fit` and `fetch` use the same exit codes: 2 for manifest, hash or user-input
   errors (naming the file, expected and actual hash), 1 for environment failures (including
   statsmodels missing); no traceback escapes `main`.

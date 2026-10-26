@@ -93,8 +93,9 @@ def _select(
     include_uncommittable: bool,
     target: Path,
     log: Callable[[str], None],
-) -> tuple[list[DatasetEntry], list[dict[str, str]]]:
-    """The datasets to fit and those left out with the reason."""
+) -> tuple[list[DatasetEntry], list[dict[str, object]]]:
+    """The datasets to fit and those left out, each with the reason, ``committable`` and
+    ``permission`` (the permission state the report prints, spec 4.6)."""
     named = None if datasets is None else list(datasets)
     try:
         chosen = list(manifest.datasets) if named is None else [manifest.dataset(i) for i in named]
@@ -124,6 +125,8 @@ def _select(
         {
             "id": d.id,
             "reason": "not committable" if not d.committable and d not in used else "not selected",
+            "committable": d.committable,
+            "permission": d.permission,
         }
         for d in manifest.datasets
         if d not in used
@@ -282,7 +285,7 @@ def run_fit(
         "cycles_per_emotion": {str(e): len(g) for e, g in emotions},
         "model_formula": (
             f"parameter ~ {_TERM} + (1 + {_TERM} | dataset/actor), REML; falls back to "
-            "(1 | dataset/actor) when the maximal structure does not converge"
+            "(1 | dataset/actor) when the maximal fit raises, does not converge or is singular"
         ),
         "fallbacks": [{"scaling": s, "parameter": p, "reason": r} for s, p, r in fallbacks],
         "seed": seed,

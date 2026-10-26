@@ -2,7 +2,8 @@
 
 from pathlib import Path
 
-from test_model import check_directions
+import pytest
+from directions import check_directions
 
 from emotive_gait.emotion.learned import LearnedEmotionModel, default_artefact_path, load_artefact
 from emotive_gait.learn.manifest import sha256_of
@@ -22,6 +23,9 @@ def test_every_cell_has_a_grounding_and_fitted_cells_have_intervals():
     for cell in load_artefact(default_artefact_path()).cells.values():
         assert cell.grounding in ("fitted", "thin", "missing")
         assert (cell.ci_low is not None) == (cell.grounding == "fitted")
+        if cell.grounding != "missing":
+            # fit_error means no result at all; a cell with an estimate never carries it
+            assert cell.fallback_reason != "fit_error"
 
 
 def test_committed_direction_checks_are_consistent_with_evidence():
@@ -45,18 +49,20 @@ def _documented_feasibility(scaling: str) -> dict[str, tuple[bool, float]]:
     return rows
 
 
-def test_the_reports_feasibility_section_matches_the_committed_artefact():
+@pytest.mark.parametrize("scaling", ["froude", "ratio"])
+def test_the_reports_feasibility_section_matches_the_committed_artefact(scaling):
     # Learned presets are flagged and rendered, not gated (spec 4.5, decision 2026-10-26); this
-    # pins the documented residuals to what the IK computes on the committed artefact.
+    # pins the documented residuals of both scalings to what the IK computes on the committed
+    # artefact.
     from emotive_gait.emotion.model import learned_presets
     from emotive_gait.gait.generator import generate
     from emotive_gait.robot.loader import load_robot
 
     robot = load_robot()
-    documented = _documented_feasibility("froude")
+    documented = _documented_feasibility(scaling)
     computed = {
         name: generate(p, robot).feasibility
-        for name, p in learned_presets(LearnedEmotionModel.default()).items()
+        for name, p in learned_presets(LearnedEmotionModel.default(scaling=scaling)).items()
     }
     assert set(documented) == set(computed)
     infeasible = {name for name, rep in computed.items() if not rep.feasible}

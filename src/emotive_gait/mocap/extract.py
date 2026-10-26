@@ -101,7 +101,7 @@ class GaitMeasurement:
     end_frame: int
 
 
-_FLOAT_FIELDS = tuple(f.name for f in fields(GaitMeasurement) if f.type == "float")
+_FLOAT_FIELDS = tuple(f.name for f in fields(GaitMeasurement) if f.type in ("float", float))
 
 
 @dataclass(frozen=True)

@@ -65,7 +65,12 @@ def test_the_provenance_block_has_every_documented_key(fitted_toy):
         "n_cycles",
     } <= set(included[0])
     assert provenance["datasets_excluded"] == [
-        {"id": "toy_uncommittable", "reason": "not committable"}
+        {
+            "id": "toy_uncommittable",
+            "reason": "not committable",
+            "committable": False,
+            "permission": "",
+        }
     ]
     assert provenance["actors_per_emotion"]["anger"] == 3
     assert set(provenance["hand_tuned"]) == {"froude", "ratio"}

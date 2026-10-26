@@ -1,5 +1,5 @@
 # Data manifest for the learned emotion model (see emotive_gait.learn.manifest for the layout).
-# Frozen 2026-10-25 (Phase 4.5, Task 9). Every file below was hashed after download; `fit` and
+# Frozen 2026-10-26 (Phase 4.5, Task 9). Every file below was hashed after download; `fit` and
 # `fetch` refuse a file whose SHA-256 differs. Label kinds follow spec 4.1: `exact` for
 # angry/happy/sad/scared/neutral/normal, `mapped` for Depressed, Elated, HappyGoLucky, the
 # ambiguous "happy or fast walk forward" and BML `af`. Actor ids: one per performer.
@@ -51,7 +51,7 @@
 #     lin, mac, pet, she; records 1 and 2): undocumented in the archive (Key.pdf is the actor
 #     table, alt_naming_convention_PTD.pdf a marker list); assumed 'afraid' and mapped to fear.
 #   - Archive defects ("Problems with the data.pdf"): kat walk_sa_1 head point buried in the
-#     chest (extractor reads neck_pitch 2.0 rad): excluded. The PDF says chr walk_nu_2 is
+#     chest (the extracted neck_pitch is implausible): excluded. The PDF says chr walk_nu_2 is
 #     missing "so there is no anticlockwise walk"; in the PTD set chr_walk_nu_2 is a real
 #     clockwise walk and chr_walk_nu_1 (the anticlockwise record) is a static placeholder
 #     (every frame identical): nu_1 excluded, nu_2 kept.

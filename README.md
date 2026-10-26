@@ -92,7 +92,10 @@ interval and whether the data agree with the cited direction. The fit report is
 clips, 51 cycles): 4 actors, 114 cycles, 2 datasets. Happiness and sadness are fitted (3 actors,
 with 95 % intervals). Anger and fear are thin (1 actor each): they carry an actor count instead
 of an interval, enter no headline number, and the CLI warns. Disgust and surprise have no data
-and stay with the analytic model, unsourced.
+and stay with the analytic model, unsourced. Every happiness actor rests on a `mapped` label (3 of
+3: 100STYLE Elated, CMU 82 "happy or fast walk forward", CMU 104 HappyGoLuckWalk), and 2 of the 3
+sadness actors do (100STYLE Depressed, CMU 91 DepressedWalk beside its exact SadWalk); the report's
+`n_mapped_actors` column counts them per cell.
 
 **Held-out validation.** Leaving each actor out in turn (6 held-out actor-emotion pairs), the
 standardised error of the fitted map (E_fit) against the hand-tuned gains (E_hand) and against
@@ -115,6 +118,19 @@ sadness `elbow_flexion` and sadness `elbow_swing_ratio` (and, under `ratio`, sad
 `cadence`, `elbow_swing_ratio` and `step_length` (Halovic and Kroos 2018) and fear `neck_pitch`
 (Roether 2011).
 
+Every committed cell is the random-intercept fallback (`maximal_raised`: with four actor groups
+and a 5x5 random-effect covariance the maximal fit raises `LinAlgError`), so the Wald intervals
+carry only cycle-level residual variance, not the between-actor variance of the emotion slopes,
+and the fixed effects are cycle-weighted. The sign of the happiness `elbow_flexion` finding
+survives this: the observed per-actor deltas are +0.56 rad (100STYLE), +0.61 (CMU 104) and +0.02
+(CMU 82), against a pooled between-actor SD of 0.23.
+
+On the G1 the learned posture effects pass through two rig constants. The elbow's geometric bend
+is 1.385 rad minus the joint angle, so the +0.47 rad happiness `elbow_flexion` finding (more
+flexed human elbows) renders as straighter G1 elbows; and the pelvis-to-neck vector pitches 0.88
+of the commanded waist pitch, so learned trunk effects show at that gain and the head-on-trunk
+angle inherits the difference.
+
 **Three-axis structure test.** On held-out actors the analytic three-axis structure loses 0.072
 against a full free-form structure (`froude`; in-sample R^2 0.047 against 0.750; held-out error
 1.444 against 1.372). Caveat: five group means always lie in a four-dimensional affine space, so
@@ -124,7 +140,7 @@ held-out actors", never as "the data discovered three axes".
 **G1 feasibility is a documented limitation.** Learned presets are flagged and rendered, not
 gated (user decision 2026-10-26); only the analytic presets must solve the leg IK. Under `froude`
 the learned anger preset misses its foot target by 6.37 mm (driven by `step_length` 0.497 m and
-`com_height_scale` 0.9795, with the ankle pitch at its limit) and the learned happy preset by
+`com_height_scale` 0.9795) and the learned happy preset by
 5.62 mm (`step_length` 0.422 m and `com_bounce_amp` 0.054 m), against the 2 mm threshold. Under
 `ratio` anger misses by 9.07 mm and happy by 141.6 mm. Neutral and sad are feasible. The CLI
 warns once and still renders.
@@ -205,7 +221,7 @@ Halovic and Kroos 2018, and Randhavane 2019. `emotive-gait evidence` prints the 
 This project differs in being an interpretable map from emotion to named gait parameters, with
 effects fitted from public motion capture, intervals, held-out-actor validation, no RL and no
 learned balance, released open, where EMoG is learned from a proprietary dataset. That is a
-difference, not an advantage, and no recognition result of ours is comparable with theirs.
+difference, not an advantage, and we have no recognition result to set against theirs.
 
 ## Attributions
 

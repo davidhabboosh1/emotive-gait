@@ -165,9 +165,9 @@ def foot_events(
     k = np.arange(n)
     filled = np.interp(k, k[ok], x[ok])
     lo, hi = np.percentile(filled, [5, 95])
-    kw = {"distance": max(1, round(min_peak_s * fps)), "prominence": prominence_frac * (hi - lo)}
     if not hi > lo:
         return FootEvents(empty, empty, np.zeros(n, dtype=bool))
+    kw = {"distance": max(1, round(min_peak_s * fps)), "prominence": prominence_frac * (hi - lo)}
     maxima, _ = find_peaks(filled, **kw)
     minima, _ = find_peaks(-filled, **kw)
     sequence = _alternate(maxima, minima, filled)

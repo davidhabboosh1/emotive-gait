@@ -8,7 +8,7 @@ cells:
         converged_maximal: false
         direction_check: no_claim
         estimate: 0.019547231163446577
-        fallback_reason: fit_error
+        fallback_reason: maximal_raised
         grounding: thin
         n_actors: 1
         n_cycles: 9
@@ -24,7 +24,7 @@ cells:
         converged_maximal: false
         direction_check: contradicts
         estimate: -0.046562187286644754
-        fallback_reason: fit_error
+        fallback_reason: maximal_raised
         grounding: thin
         n_actors: 1
         n_cycles: 9
@@ -40,7 +40,7 @@ cells:
         converged_maximal: false
         direction_check: agrees
         estimate: 0.2538275126654674
-        fallback_reason: fit_error
+        fallback_reason: maximal_raised
         grounding: thin
         n_actors: 1
         n_cycles: 9
@@ -56,7 +56,7 @@ cells:
         converged_maximal: false
         direction_check: no_claim
         estimate: 0.01633780437136821
-        fallback_reason: fit_error
+        fallback_reason: maximal_raised
         grounding: thin
         n_actors: 1
         n_cycles: 9
@@ -72,7 +72,7 @@ cells:
         converged_maximal: false
         direction_check: thin_unchecked
         estimate: -0.020167900522318233
-        fallback_reason: fit_error
+        fallback_reason: maximal_raised
         grounding: thin
         n_actors: 1
         n_cycles: 9
@@ -88,7 +88,7 @@ cells:
         converged_maximal: false
         direction_check: no_claim
         estimate: -0.09858499492415172
-        fallback_reason: fit_error
+        fallback_reason: maximal_raised
         grounding: thin
         n_actors: 1
         n_cycles: 9
@@ -104,7 +104,7 @@ cells:
         converged_maximal: false
         direction_check: agrees
         estimate: 0.2957489650335681
-        fallback_reason: fit_error
+        fallback_reason: maximal_raised
         grounding: thin
         n_actors: 1
         n_cycles: 9
@@ -120,7 +120,7 @@ cells:
         converged_maximal: false
         direction_check: no_claim
         estimate: 2.1587750658268323
-        fallback_reason: fit_error
+        fallback_reason: maximal_raised
         grounding: thin
         n_actors: 1
         n_cycles: 9
@@ -136,7 +136,7 @@ cells:
         converged_maximal: false
         direction_check: no_claim
         estimate: -0.010739620094302467
-        fallback_reason: fit_error
+        fallback_reason: maximal_raised
         grounding: thin
         n_actors: 1
         n_cycles: 9
@@ -152,7 +152,7 @@ cells:
         converged_maximal: false
         direction_check: no_claim
         estimate: -0.012737522413190202
-        fallback_reason: fit_error
+        fallback_reason: maximal_raised
         grounding: thin
         n_actors: 1
         n_cycles: 9
@@ -168,7 +168,7 @@ cells:
         converged_maximal: false
         direction_check: thin_unchecked
         estimate: 0.17997228529573117
-        fallback_reason: fit_error
+        fallback_reason: maximal_raised
         grounding: thin
         n_actors: 1
         n_cycles: 9
@@ -184,7 +184,7 @@ cells:
         converged_maximal: false
         direction_check: no_claim
         estimate: 0.003595881513040161
-        fallback_reason: fit_error
+        fallback_reason: maximal_raised
         grounding: thin
         n_actors: 1
         n_cycles: 9
@@ -200,7 +200,7 @@ cells:
         converged_maximal: false
         direction_check: agrees
         estimate: 0.21274509427948804
-        fallback_reason: fit_error
+        fallback_reason: maximal_raised
         grounding: thin
         n_actors: 1
         n_cycles: 9
@@ -216,7 +216,7 @@ cells:
         converged_maximal: false
         direction_check: agrees
         estimate: 0.11626534228185663
-        fallback_reason: fit_error
+        fallback_reason: maximal_raised
         grounding: thin
         n_actors: 1
         n_cycles: 9
@@ -233,7 +233,7 @@ cells:
         converged_maximal: false
         direction_check: no_claim
         estimate: 0.02576075584277364
-        fallback_reason: fit_error
+        fallback_reason: maximal_raised
         grounding: thin
         n_actors: 1
         n_cycles: 3
@@ -249,7 +249,7 @@ cells:
         converged_maximal: false
         direction_check: agrees
         estimate: -0.07033178647194008
-        fallback_reason: fit_error
+        fallback_reason: maximal_raised
         grounding: thin
         n_actors: 1
         n_cycles: 3
@@ -265,7 +265,7 @@ cells:
         converged_maximal: false
         direction_check: contradicts
         estimate: -0.26047159347135707
-        fallback_reason: fit_error
+        fallback_reason: maximal_raised
         grounding: thin
         n_actors: 1
         n_cycles: 3
@@ -281,7 +281,7 @@ cells:
         converged_maximal: false
         direction_check: no_claim
         estimate: 0.008550793937329814
-        fallback_reason: fit_error
+        fallback_reason: maximal_raised
         grounding: thin
         n_actors: 1
         n_cycles: 3
@@ -297,7 +297,7 @@ cells:
         converged_maximal: false
         direction_check: agrees
         estimate: -0.004913796471656313
-        fallback_reason: fit_error
+        fallback_reason: maximal_raised
         grounding: thin
         n_actors: 1
         n_cycles: 3
@@ -313,7 +313,7 @@ cells:
         converged_maximal: false
         direction_check: no_claim
         estimate: -0.01851326983437153
-        fallback_reason: fit_error
+        fallback_reason: maximal_raised
         grounding: thin
         n_actors: 1
         n_cycles: 3
@@ -329,7 +329,7 @@ cells:
         converged_maximal: false
         direction_check: agrees
         estimate: 0.15310355952376503
-        fallback_reason: fit_error
+        fallback_reason: maximal_raised
         grounding: thin
         n_actors: 1
         n_cycles: 3
@@ -345,7 +345,7 @@ cells:
         converged_maximal: false
         direction_check: contradicts
         estimate: -0.33461833421669124
-        fallback_reason: fit_error
+        fallback_reason: maximal_raised
         grounding: thin
         n_actors: 1
         n_cycles: 3
@@ -361,7 +361,7 @@ cells:
         converged_maximal: false
         direction_check: no_claim
         estimate: -0.014021263697342051
-        fallback_reason: fit_error
+        fallback_reason: maximal_raised
         grounding: thin
         n_actors: 1
         n_cycles: 3
@@ -377,7 +377,7 @@ cells:
         converged_maximal: false
         direction_check: no_claim
         estimate: 0.02158091952195504
-        fallback_reason: fit_error
+        fallback_reason: maximal_raised
         grounding: thin
         n_actors: 1
         n_cycles: 3
@@ -393,7 +393,7 @@ cells:
         converged_maximal: false
         direction_check: contradicts
         estimate: 0.08763079508534788
-        fallback_reason: fit_error
+        fallback_reason: maximal_raised
         grounding: thin
         n_actors: 1
         n_cycles: 3
@@ -409,7 +409,7 @@ cells:
         converged_maximal: false
         direction_check: no_claim
         estimate: 0.012090286932043275
-        fallback_reason: fit_error
+        fallback_reason: maximal_raised
         grounding: thin
         n_actors: 1
         n_cycles: 3
@@ -425,7 +425,7 @@ cells:
         converged_maximal: false
         direction_check: contradicts
         estimate: 0.04905890558316112
-        fallback_reason: fit_error
+        fallback_reason: maximal_raised
         grounding: thin
         n_actors: 1
         n_cycles: 3
@@ -441,7 +441,7 @@ cells:
         converged_maximal: false
         direction_check: agrees
         estimate: 0.09179196755084817
-        fallback_reason: fit_error
+        fallback_reason: maximal_raised
         grounding: thin
         n_actors: 1
         n_cycles: 3
@@ -458,7 +458,7 @@ cells:
         converged_maximal: false
         direction_check: no_claim
         estimate: 0.17942048475903488
-        fallback_reason: fit_error
+        fallback_reason: maximal_raised
         grounding: fitted
         n_actors: 3
         n_cycles: 11
@@ -475,7 +475,7 @@ cells:
         converged_maximal: false
         direction_check: agrees
         estimate: 0.45067639606640314
-        fallback_reason: fit_error
+        fallback_reason: maximal_raised
         grounding: fitted
         n_actors: 3
         n_cycles: 11
@@ -492,7 +492,7 @@ cells:
         converged_maximal: false
         direction_check: no_claim
         estimate: 0.1086007887194161
-        fallback_reason: fit_error
+        fallback_reason: maximal_raised
         grounding: fitted
         n_actors: 3
         n_cycles: 11
@@ -509,7 +509,7 @@ cells:
         converged_maximal: false
         direction_check: agrees
         estimate: 0.0492836646668816
-        fallback_reason: fit_error
+        fallback_reason: maximal_raised
         grounding: fitted
         n_actors: 3
         n_cycles: 11
@@ -526,7 +526,7 @@ cells:
         converged_maximal: false
         direction_check: no_claim
         estimate: -0.0076048352076481685
-        fallback_reason: fit_error
+        fallback_reason: maximal_raised
         grounding: fitted
         n_actors: 3
         n_cycles: 11
@@ -543,7 +543,7 @@ cells:
         converged_maximal: false
         direction_check: no_claim
         estimate: -0.08799635569192181
-        fallback_reason: fit_error
+        fallback_reason: maximal_raised
         grounding: fitted
         n_actors: 3
         n_cycles: 11
@@ -560,7 +560,7 @@ cells:
         converged_maximal: false
         direction_check: contradicts
         estimate: 0.4698221120156024
-        fallback_reason: fit_error
+        fallback_reason: maximal_raised
         grounding: fitted
         n_actors: 3
         n_cycles: 11
@@ -577,7 +577,7 @@ cells:
         converged_maximal: false
         direction_check: no_claim
         estimate: 0.20589210419803924
-        fallback_reason: fit_error
+        fallback_reason: maximal_raised
         grounding: fitted
         n_actors: 3
         n_cycles: 11
@@ -594,7 +594,7 @@ cells:
         converged_maximal: false
         direction_check: no_claim
         estimate: 0.012108681947852496
-        fallback_reason: fit_error
+        fallback_reason: maximal_raised
         grounding: fitted
         n_actors: 3
         n_cycles: 11
@@ -611,7 +611,7 @@ cells:
         converged_maximal: false
         direction_check: no_claim
         estimate: -0.0035822096206969173
-        fallback_reason: fit_error
+        fallback_reason: maximal_raised
         grounding: fitted
         n_actors: 3
         n_cycles: 11
@@ -628,7 +628,7 @@ cells:
         converged_maximal: false
         direction_check: contradicts_ci_spans_zero
         estimate: 0.005101347320946061
-        fallback_reason: fit_error
+        fallback_reason: maximal_raised
         grounding: fitted
         n_actors: 3
         n_cycles: 11
@@ -645,7 +645,7 @@ cells:
         converged_maximal: false
         direction_check: no_claim
         estimate: 0.02501065014167082
-        fallback_reason: fit_error
+        fallback_reason: maximal_raised
         grounding: fitted
         n_actors: 3
         n_cycles: 11
@@ -662,7 +662,7 @@ cells:
         converged_maximal: false
         direction_check: agrees
         estimate: 0.10384250923981607
-        fallback_reason: fit_error
+        fallback_reason: maximal_raised
         grounding: fitted
         n_actors: 3
         n_cycles: 11
@@ -679,7 +679,7 @@ cells:
         converged_maximal: false
         direction_check: agrees_ci_spans_zero
         estimate: -0.0015378110017725676
-        fallback_reason: fit_error
+        fallback_reason: maximal_raised
         grounding: fitted
         n_actors: 3
         n_cycles: 11
@@ -697,7 +697,7 @@ cells:
         converged_maximal: false
         direction_check: no_claim
         estimate: -0.035414195201123495
-        fallback_reason: fit_error
+        fallback_reason: maximal_raised
         grounding: fitted
         n_actors: 3
         n_cycles: 43
@@ -714,7 +714,7 @@ cells:
         converged_maximal: false
         direction_check: agrees_ci_spans_zero
         estimate: -0.0196932885983247
-        fallback_reason: fit_error
+        fallback_reason: maximal_raised
         grounding: fitted
         n_actors: 3
         n_cycles: 43
@@ -731,7 +731,7 @@ cells:
         converged_maximal: false
         direction_check: agrees
         estimate: -0.05712391813388712
-        fallback_reason: fit_error
+        fallback_reason: maximal_raised
         grounding: fitted
         n_actors: 3
         n_cycles: 43
@@ -748,7 +748,7 @@ cells:
         converged_maximal: false
         direction_check: contradicts_ci_spans_zero
         estimate: 0.0012580128486959533
-        fallback_reason: fit_error
+        fallback_reason: maximal_raised
         grounding: fitted
         n_actors: 3
         n_cycles: 43
@@ -765,7 +765,7 @@ cells:
         converged_maximal: false
         direction_check: no_claim
         estimate: 0.006842001707473168
-        fallback_reason: fit_error
+        fallback_reason: maximal_raised
         grounding: fitted
         n_actors: 3
         n_cycles: 43
@@ -782,7 +782,7 @@ cells:
         converged_maximal: false
         direction_check: no_claim
         estimate: -0.03001746317246956
-        fallback_reason: fit_error
+        fallback_reason: maximal_raised
         grounding: fitted
         n_actors: 3
         n_cycles: 43
@@ -799,7 +799,7 @@ cells:
         converged_maximal: false
         direction_check: contradicts_ci_spans_zero
         estimate: 0.008531887614411832
-        fallback_reason: fit_error
+        fallback_reason: maximal_raised
         grounding: fitted
         n_actors: 3
         n_cycles: 43
@@ -816,7 +816,7 @@ cells:
         converged_maximal: false
         direction_check: contradicts_ci_spans_zero
         estimate: 0.05233134697988745
-        fallback_reason: fit_error
+        fallback_reason: maximal_raised
         grounding: fitted
         n_actors: 3
         n_cycles: 43
@@ -833,7 +833,7 @@ cells:
         converged_maximal: false
         direction_check: no_claim
         estimate: -0.00020033210577132335
-        fallback_reason: fit_error
+        fallback_reason: maximal_raised
         grounding: fitted
         n_actors: 3
         n_cycles: 43
@@ -850,7 +850,7 @@ cells:
         converged_maximal: false
         direction_check: agrees_ci_spans_zero
         estimate: 1.89244853622966e-05
-        fallback_reason: fit_error
+        fallback_reason: maximal_raised
         grounding: fitted
         n_actors: 3
         n_cycles: 43
@@ -867,7 +867,7 @@ cells:
         converged_maximal: false
         direction_check: agrees
         estimate: 0.40459417597955827
-        fallback_reason: fit_error
+        fallback_reason: maximal_raised
         grounding: fitted
         n_actors: 3
         n_cycles: 43
@@ -884,7 +884,7 @@ cells:
         converged_maximal: false
         direction_check: no_claim
         estimate: -0.01570667234719264
-        fallback_reason: fit_error
+        fallback_reason: maximal_raised
         grounding: fitted
         n_actors: 3
         n_cycles: 43
@@ -901,7 +901,7 @@ cells:
         converged_maximal: false
         direction_check: agrees_ci_spans_zero
         estimate: -0.034993607815183195
-        fallback_reason: fit_error
+        fallback_reason: maximal_raised
         grounding: fitted
         n_actors: 3
         n_cycles: 43
@@ -918,7 +918,7 @@ cells:
         converged_maximal: false
         direction_check: agrees
         estimate: 0.14384826009807883
-        fallback_reason: fit_error
+        fallback_reason: maximal_raised
         grounding: fitted
         n_actors: 3
         n_cycles: 43
@@ -937,7 +937,7 @@ cells:
         converged_maximal: false
         direction_check: no_claim
         estimate: 0.019547231163446577
-        fallback_reason: fit_error
+        fallback_reason: maximal_raised
         grounding: thin
         n_actors: 1
         n_cycles: 9
@@ -953,7 +953,7 @@ cells:
         converged_maximal: false
         direction_check: contradicts
         estimate: -0.046562187286644754
-        fallback_reason: fit_error
+        fallback_reason: maximal_raised
         grounding: thin
         n_actors: 1
         n_cycles: 9
@@ -969,7 +969,7 @@ cells:
         converged_maximal: false
         direction_check: agrees
         estimate: 0.5419431848103178
-        fallback_reason: fit_error
+        fallback_reason: maximal_raised
         grounding: thin
         n_actors: 1
         n_cycles: 9
@@ -985,7 +985,7 @@ cells:
         converged_maximal: false
         direction_check: no_claim
         estimate: 1.1228231811148672
-        fallback_reason: fit_error
+        fallback_reason: maximal_raised
         grounding: thin
         n_actors: 1
         n_cycles: 9
@@ -1001,7 +1001,7 @@ cells:
         converged_maximal: false
         direction_check: thin_unchecked
         estimate: -0.019988054432843124
-        fallback_reason: fit_error
+        fallback_reason: maximal_raised
         grounding: thin
         n_actors: 1
         n_cycles: 9
@@ -1017,7 +1017,7 @@ cells:
         converged_maximal: false
         direction_check: no_claim
         estimate: -0.09858499492415172
-        fallback_reason: fit_error
+        fallback_reason: maximal_raised
         grounding: thin
         n_actors: 1
         n_cycles: 9
@@ -1033,7 +1033,7 @@ cells:
         converged_maximal: false
         direction_check: agrees
         estimate: 0.2957489650335681
-        fallback_reason: fit_error
+        fallback_reason: maximal_raised
         grounding: thin
         n_actors: 1
         n_cycles: 9
@@ -1049,7 +1049,7 @@ cells:
         converged_maximal: false
         direction_check: no_claim
         estimate: 2.1587750658268323
-        fallback_reason: fit_error
+        fallback_reason: maximal_raised
         grounding: thin
         n_actors: 1
         n_cycles: 9
@@ -1065,7 +1065,7 @@ cells:
         converged_maximal: false
         direction_check: no_claim
         estimate: -0.07371507814528942
-        fallback_reason: fit_error
+        fallback_reason: maximal_raised
         grounding: thin
         n_actors: 1
         n_cycles: 9
@@ -1081,7 +1081,7 @@ cells:
         converged_maximal: false
         direction_check: no_claim
         estimate: -0.3751428953704916
-        fallback_reason: fit_error
+        fallback_reason: maximal_raised
         grounding: thin
         n_actors: 1
         n_cycles: 9
@@ -1097,7 +1097,7 @@ cells:
         converged_maximal: false
         direction_check: thin_unchecked
         estimate: 0.17997228529573117
-        fallback_reason: fit_error
+        fallback_reason: maximal_raised
         grounding: thin
         n_actors: 1
         n_cycles: 9
@@ -1113,7 +1113,7 @@ cells:
         converged_maximal: false
         direction_check: no_claim
         estimate: 0.048880758014460166
-        fallback_reason: fit_error
+        fallback_reason: maximal_raised
         grounding: thin
         n_actors: 1
         n_cycles: 9
@@ -1129,7 +1129,7 @@ cells:
         converged_maximal: false
         direction_check: agrees
         estimate: 0.3948863567029748
-        fallback_reason: fit_error
+        fallback_reason: maximal_raised
         grounding: thin
         n_actors: 1
         n_cycles: 9
@@ -1145,7 +1145,7 @@ cells:
         converged_maximal: false
         direction_check: agrees
         estimate: 0.11626534228185663
-        fallback_reason: fit_error
+        fallback_reason: maximal_raised
         grounding: thin
         n_actors: 1
         n_cycles: 9
@@ -1162,7 +1162,7 @@ cells:
         converged_maximal: false
         direction_check: no_claim
         estimate: 0.02576075584277364
-        fallback_reason: fit_error
+        fallback_reason: maximal_raised
         grounding: thin
         n_actors: 1
         n_cycles: 3
@@ -1178,7 +1178,7 @@ cells:
         converged_maximal: false
         direction_check: agrees
         estimate: -0.07033178647194008
-        fallback_reason: fit_error
+        fallback_reason: maximal_raised
         grounding: thin
         n_actors: 1
         n_cycles: 3
@@ -1194,7 +1194,7 @@ cells:
         converged_maximal: false
         direction_check: contradicts
         estimate: -0.5887821283027164
-        fallback_reason: fit_error
+        fallback_reason: maximal_raised
         grounding: thin
         n_actors: 1
         n_cycles: 3
@@ -1210,7 +1210,7 @@ cells:
         converged_maximal: false
         direction_check: no_claim
         estimate: 0.5384879140995129
-        fallback_reason: fit_error
+        fallback_reason: maximal_raised
         grounding: thin
         n_actors: 1
         n_cycles: 3
@@ -1226,7 +1226,7 @@ cells:
         converged_maximal: false
         direction_check: agrees
         estimate: -0.0033997663959061254
-        fallback_reason: fit_error
+        fallback_reason: maximal_raised
         grounding: thin
         n_actors: 1
         n_cycles: 3
@@ -1242,7 +1242,7 @@ cells:
         converged_maximal: false
         direction_check: no_claim
         estimate: -0.01851326983437153
-        fallback_reason: fit_error
+        fallback_reason: maximal_raised
         grounding: thin
         n_actors: 1
         n_cycles: 3
@@ -1258,7 +1258,7 @@ cells:
         converged_maximal: false
         direction_check: agrees
         estimate: 0.15310355952376503
-        fallback_reason: fit_error
+        fallback_reason: maximal_raised
         grounding: thin
         n_actors: 1
         n_cycles: 3
@@ -1274,7 +1274,7 @@ cells:
         converged_maximal: false
         direction_check: contradicts
         estimate: -0.33461833421669124
-        fallback_reason: fit_error
+        fallback_reason: maximal_raised
         grounding: thin
         n_actors: 1
         n_cycles: 3
@@ -1290,7 +1290,7 @@ cells:
         converged_maximal: false
         direction_check: no_claim
         estimate: -0.14612887568271937
-        fallback_reason: fit_error
+        fallback_reason: maximal_raised
         grounding: thin
         n_actors: 1
         n_cycles: 3
@@ -1306,7 +1306,7 @@ cells:
         converged_maximal: false
         direction_check: no_claim
         estimate: 0.5118541834044386
-        fallback_reason: fit_error
+        fallback_reason: maximal_raised
         grounding: thin
         n_actors: 1
         n_cycles: 3
@@ -1322,7 +1322,7 @@ cells:
         converged_maximal: false
         direction_check: contradicts
         estimate: 0.08763079508534788
-        fallback_reason: fit_error
+        fallback_reason: maximal_raised
         grounding: thin
         n_actors: 1
         n_cycles: 3
@@ -1338,7 +1338,7 @@ cells:
         converged_maximal: false
         direction_check: no_claim
         estimate: 0.11634099191755005
-        fallback_reason: fit_error
+        fallback_reason: maximal_raised
         grounding: thin
         n_actors: 1
         n_cycles: 3
@@ -1354,7 +1354,7 @@ cells:
         converged_maximal: false
         direction_check: contradicts
         estimate: 0.09795663121136802
-        fallback_reason: fit_error
+        fallback_reason: maximal_raised
         grounding: thin
         n_actors: 1
         n_cycles: 3
@@ -1370,7 +1370,7 @@ cells:
         converged_maximal: false
         direction_check: agrees
         estimate: 0.09179196755084817
-        fallback_reason: fit_error
+        fallback_reason: maximal_raised
         grounding: thin
         n_actors: 1
         n_cycles: 3
@@ -1387,7 +1387,7 @@ cells:
         converged_maximal: false
         direction_check: no_claim
         estimate: 0.17942048475903488
-        fallback_reason: fit_error
+        fallback_reason: maximal_raised
         grounding: fitted
         n_actors: 3
         n_cycles: 11
@@ -1404,7 +1404,7 @@ cells:
         converged_maximal: false
         direction_check: agrees
         estimate: 0.45067639606640314
-        fallback_reason: fit_error
+        fallback_reason: maximal_raised
         grounding: fitted
         n_actors: 3
         n_cycles: 11
@@ -1421,7 +1421,7 @@ cells:
         converged_maximal: false
         direction_check: no_claim
         estimate: 0.22865526025804117
-        fallback_reason: fit_error
+        fallback_reason: maximal_raised
         grounding: fitted
         n_actors: 3
         n_cycles: 11
@@ -1438,7 +1438,7 @@ cells:
         converged_maximal: false
         direction_check: agrees
         estimate: 3.357713192037711
-        fallback_reason: fit_error
+        fallback_reason: maximal_raised
         grounding: fitted
         n_actors: 3
         n_cycles: 11
@@ -1455,7 +1455,7 @@ cells:
         converged_maximal: false
         direction_check: no_claim
         estimate: -0.005078921119502253
-        fallback_reason: fit_error
+        fallback_reason: maximal_raised
         grounding: fitted
         n_actors: 3
         n_cycles: 11
@@ -1472,7 +1472,7 @@ cells:
         converged_maximal: false
         direction_check: no_claim
         estimate: -0.08799635569192181
-        fallback_reason: fit_error
+        fallback_reason: maximal_raised
         grounding: fitted
         n_actors: 3
         n_cycles: 11
@@ -1489,7 +1489,7 @@ cells:
         converged_maximal: false
         direction_check: contradicts
         estimate: 0.4698221120156024
-        fallback_reason: fit_error
+        fallback_reason: maximal_raised
         grounding: fitted
         n_actors: 3
         n_cycles: 11
@@ -1506,7 +1506,7 @@ cells:
         converged_maximal: false
         direction_check: no_claim
         estimate: 0.20589210419803924
-        fallback_reason: fit_error
+        fallback_reason: maximal_raised
         grounding: fitted
         n_actors: 3
         n_cycles: 11
@@ -1523,7 +1523,7 @@ cells:
         converged_maximal: false
         direction_check: no_claim
         estimate: 0.08957958609944264
-        fallback_reason: fit_error
+        fallback_reason: maximal_raised
         grounding: fitted
         n_actors: 3
         n_cycles: 11
@@ -1540,7 +1540,7 @@ cells:
         converged_maximal: false
         direction_check: no_claim
         estimate: -0.09692390639625843
-        fallback_reason: fit_error
+        fallback_reason: maximal_raised
         grounding: fitted
         n_actors: 3
         n_cycles: 11
@@ -1557,7 +1557,7 @@ cells:
         converged_maximal: false
         direction_check: contradicts_ci_spans_zero
         estimate: 0.005101347320946061
-        fallback_reason: fit_error
+        fallback_reason: maximal_raised
         grounding: fitted
         n_actors: 3
         n_cycles: 11
@@ -1574,7 +1574,7 @@ cells:
         converged_maximal: false
         direction_check: no_claim
         estimate: 0.2596816211380836
-        fallback_reason: fit_error
+        fallback_reason: maximal_raised
         grounding: fitted
         n_actors: 3
         n_cycles: 11
@@ -1591,7 +1591,7 @@ cells:
         converged_maximal: false
         direction_check: agrees
         estimate: 0.17077197182714232
-        fallback_reason: fit_error
+        fallback_reason: maximal_raised
         grounding: fitted
         n_actors: 3
         n_cycles: 11
@@ -1608,7 +1608,7 @@ cells:
         converged_maximal: false
         direction_check: agrees_ci_spans_zero
         estimate: -0.0015378110017725676
-        fallback_reason: fit_error
+        fallback_reason: maximal_raised
         grounding: fitted
         n_actors: 3
         n_cycles: 11
@@ -1626,7 +1626,7 @@ cells:
         converged_maximal: false
         direction_check: no_claim
         estimate: -0.035414195201123495
-        fallback_reason: fit_error
+        fallback_reason: maximal_raised
         grounding: fitted
         n_actors: 3
         n_cycles: 43
@@ -1643,7 +1643,7 @@ cells:
         converged_maximal: false
         direction_check: agrees_ci_spans_zero
         estimate: -0.0196932885983247
-        fallback_reason: fit_error
+        fallback_reason: maximal_raised
         grounding: fitted
         n_actors: 3
         n_cycles: 43
@@ -1660,7 +1660,7 @@ cells:
         converged_maximal: false
         direction_check: agrees
         estimate: -0.12861678908283272
-        fallback_reason: fit_error
+        fallback_reason: maximal_raised
         grounding: fitted
         n_actors: 3
         n_cycles: 43
@@ -1677,7 +1677,7 @@ cells:
         converged_maximal: false
         direction_check: contradicts_ci_spans_zero
         estimate: 0.08755365567389477
-        fallback_reason: fit_error
+        fallback_reason: maximal_raised
         grounding: fitted
         n_actors: 3
         n_cycles: 43
@@ -1694,7 +1694,7 @@ cells:
         converged_maximal: false
         direction_check: no_claim
         estimate: 0.009389289829872123
-        fallback_reason: fit_error
+        fallback_reason: maximal_raised
         grounding: fitted
         n_actors: 3
         n_cycles: 43
@@ -1711,7 +1711,7 @@ cells:
         converged_maximal: false
         direction_check: no_claim
         estimate: -0.03001746317246956
-        fallback_reason: fit_error
+        fallback_reason: maximal_raised
         grounding: fitted
         n_actors: 3
         n_cycles: 43
@@ -1728,7 +1728,7 @@ cells:
         converged_maximal: false
         direction_check: contradicts_ci_spans_zero
         estimate: 0.008531887614411832
-        fallback_reason: fit_error
+        fallback_reason: maximal_raised
         grounding: fitted
         n_actors: 3
         n_cycles: 43
@@ -1745,7 +1745,7 @@ cells:
         converged_maximal: false
         direction_check: contradicts_ci_spans_zero
         estimate: 0.05233134697988745
-        fallback_reason: fit_error
+        fallback_reason: maximal_raised
         grounding: fitted
         n_actors: 3
         n_cycles: 43
@@ -1762,7 +1762,7 @@ cells:
         converged_maximal: false
         direction_check: no_claim
         estimate: -0.01733805950426661
-        fallback_reason: fit_error
+        fallback_reason: maximal_raised
         grounding: fitted
         n_actors: 3
         n_cycles: 43
@@ -1779,7 +1779,7 @@ cells:
         converged_maximal: false
         direction_check: contradicts_ci_spans_zero
         estimate: -0.014313859034543935
-        fallback_reason: fit_error
+        fallback_reason: maximal_raised
         grounding: fitted
         n_actors: 3
         n_cycles: 43
@@ -1796,7 +1796,7 @@ cells:
         converged_maximal: false
         direction_check: agrees
         estimate: 0.40459417597955827
-        fallback_reason: fit_error
+        fallback_reason: maximal_raised
         grounding: fitted
         n_actors: 3
         n_cycles: 43
@@ -1813,7 +1813,7 @@ cells:
         converged_maximal: false
         direction_check: no_claim
         estimate: -0.1416512029756689
-        fallback_reason: fit_error
+        fallback_reason: maximal_raised
         grounding: fitted
         n_actors: 3
         n_cycles: 43
@@ -1830,7 +1830,7 @@ cells:
         converged_maximal: false
         direction_check: agrees_ci_spans_zero
         estimate: -0.062076545586576416
-        fallback_reason: fit_error
+        fallback_reason: maximal_raised
         grounding: fitted
         n_actors: 3
         n_cycles: 43
@@ -1847,7 +1847,7 @@ cells:
         converged_maximal: false
         direction_check: agrees
         estimate: 0.14384826009807883
-        fallback_reason: fit_error
+        fallback_reason: maximal_raised
         grounding: fitted
         n_actors: 3
         n_cycles: 43
@@ -2019,7 +2019,9 @@ provenance:
     neutral: 48
     sadness: 43
   datasets_excluded:
-  - id: bml
+  - committable: false
+    id: bml
+    permission: ''
     reason: not committable
   datasets_included:
   - committable: true
@@ -2046,91 +2048,91 @@ provenance:
     at 12 Hz.
   fallbacks:
   - parameter: arm_abduction
-    reason: fit_error
+    reason: maximal_raised
     scaling: froude
   - parameter: arm_swing_amp
-    reason: fit_error
+    reason: maximal_raised
     scaling: froude
   - parameter: cadence
-    reason: fit_error
+    reason: maximal_raised
     scaling: froude
   - parameter: com_bounce_amp
-    reason: fit_error
+    reason: maximal_raised
     scaling: froude
   - parameter: com_height_scale
-    reason: fit_error
+    reason: maximal_raised
     scaling: froude
   - parameter: double_support_frac
-    reason: fit_error
+    reason: maximal_raised
     scaling: froude
   - parameter: elbow_flexion
-    reason: fit_error
+    reason: maximal_raised
     scaling: froude
   - parameter: elbow_swing_ratio
-    reason: fit_error
+    reason: maximal_raised
     scaling: froude
   - parameter: feet_spacing
-    reason: fit_error
+    reason: maximal_raised
     scaling: froude
   - parameter: lateral_sway_amp
-    reason: fit_error
+    reason: maximal_raised
     scaling: froude
   - parameter: neck_pitch
-    reason: fit_error
+    reason: maximal_raised
     scaling: froude
   - parameter: step_height
-    reason: fit_error
+    reason: maximal_raised
     scaling: froude
   - parameter: step_length
-    reason: fit_error
+    reason: maximal_raised
     scaling: froude
   - parameter: trunk_pitch
-    reason: fit_error
+    reason: maximal_raised
     scaling: froude
   - parameter: arm_abduction
-    reason: fit_error
+    reason: maximal_raised
     scaling: ratio
   - parameter: arm_swing_amp
-    reason: fit_error
+    reason: maximal_raised
     scaling: ratio
   - parameter: cadence
-    reason: fit_error
+    reason: maximal_raised
     scaling: ratio
   - parameter: com_bounce_amp
-    reason: fit_error
+    reason: maximal_raised
     scaling: ratio
   - parameter: com_height_scale
-    reason: fit_error
+    reason: maximal_raised
     scaling: ratio
   - parameter: double_support_frac
-    reason: fit_error
+    reason: maximal_raised
     scaling: ratio
   - parameter: elbow_flexion
-    reason: fit_error
+    reason: maximal_raised
     scaling: ratio
   - parameter: elbow_swing_ratio
-    reason: fit_error
+    reason: maximal_raised
     scaling: ratio
   - parameter: feet_spacing
-    reason: fit_error
+    reason: maximal_raised
     scaling: ratio
   - parameter: lateral_sway_amp
-    reason: fit_error
+    reason: maximal_raised
     scaling: ratio
   - parameter: neck_pitch
-    reason: fit_error
+    reason: maximal_raised
     scaling: ratio
   - parameter: step_height
-    reason: fit_error
+    reason: maximal_raised
     scaling: ratio
   - parameter: step_length
-    reason: fit_error
+    reason: maximal_raised
     scaling: ratio
   - parameter: trunk_pitch
-    reason: fit_error
+    reason: maximal_raised
     scaling: ratio
   fit_date: '2026-10-26'
-  git_commit: fd281375998075eaf6bb6f8089e8cf24d34f0812
+  git_commit: d6b1c2cbbd6c1f38feb04d5ef7ef4a4b6b64c163
   hand_tuned:
     froude:
       e_fit: 1.1894358774527352
@@ -2146,10 +2148,10 @@ provenance:
       e_hand_natural: 0.44876733730493173
       e_zero: 1.4071714209091175
       n_pairs: 6
-  manifest_sha256: 37a9683b6391305fca563b0136fa4a24485ba80f0d95c86f0f99eb181e0fd086
+  manifest_sha256: 2ebda4e6ebd6fc86c01bebe3154a5cd2e03bed625ec8ceea30260a6273ecf3c8
   model_formula: parameter ~ C(emotion, Treatment('neutral')) + (1 + C(emotion, Treatment('neutral'))
-    | dataset/actor), REML; falls back to (1 | dataset/actor) when the maximal structure
-    does not converge
+    | dataset/actor), REML; falls back to (1 | dataset/actor) when the maximal fit
+    raises, does not converge or is singular
   numpy_version: 2.4.6
   pandas_version: 3.1.0
   schema_version: 1

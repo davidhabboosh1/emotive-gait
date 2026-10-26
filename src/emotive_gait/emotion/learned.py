@@ -24,7 +24,7 @@ This module needs only ``pyyaml`` at runtime; it never imports ``learn/``, ``moc
 
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field, fields
 from importlib import resources
 from pathlib import Path
@@ -137,6 +137,32 @@ def direction_check(
     if sign == claim_direction:
         return "agrees_ci_spans_zero" if spans else "agrees"
     return "contradicts_ci_spans_zero" if spans else "contradicts"
+
+
+def _actors(counts: Iterable[int]) -> str:
+    values = sorted(set(counts))
+    noun = "actor" if values == [1] else "actors"
+    span = str(values[0]) if len(values) == 1 else f"{values[0]}-{values[-1]}"
+    return f"{span} {noun}"
+
+
+def describe_thin(entries: Iterable[tuple[str, str, int]]) -> list[str]:
+    """``(emotion, parameter, n_actors)`` thin cells as short phrases for a warning.
+
+    An emotion whose every measured parameter is thin collapses to one phrase
+    (``"anger: all 14 cells thin (1 actor)"``); otherwise each cell is
+    ``"emotion.parameter (n actors)"``. Emotions keep their first-seen order.
+    """
+    by_emotion: dict[str, list[tuple[str, int]]] = {}
+    for emotion, parameter, n in entries:
+        by_emotion.setdefault(emotion, []).append((parameter, int(n)))
+    out: list[str] = []
+    for emotion, cells in by_emotion.items():
+        if {p for p, _ in cells} >= set(MEASURED_FIELDS):
+            out.append(f"{emotion}: all {len(cells)} cells thin ({_actors(n for _, n in cells)})")
+        else:
+            out += [f"{emotion}.{p} ({_actors([n])})" for p, n in cells]
+    return out
 
 
 def default_artefact_path() -> Path:

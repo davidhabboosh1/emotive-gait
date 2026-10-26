@@ -50,7 +50,12 @@ LIMITATIONS = (
         "**Transfer is approximate.** Froude similarity is a first-order rule (Donelan & Kram 1997); "
         "the G1 walks crouched with a bent knee and its joint limits clip some effects. The robot "
         "plays a rescaled, clipped version of a human effect; data value and played value are "
-        "reported separately."
+        "reported separately. Two rig constants sit between a learned posture delta and what the "
+        "G1 shows: its elbow's geometric bend is 1.385 rad minus the joint angle, so a positive "
+        "(more flexed) human `elbow_flexion` delta, such as happiness's, renders as straighter "
+        "elbows; and the pelvis-to-neck vector pitches 0.88 of the commanded waist pitch, so a "
+        "learned trunk effect renders at that gain and the measured head-on-trunk angle inherits "
+        "the difference."
     ),
     (
         "**The structure test is low-powered**: four emotions give five group means, so rank 3 is "
@@ -177,7 +182,18 @@ def _provenance_section(provenance: Mapping[str, object]) -> list[str]:
     )
     if excluded:
         lines += ["### Datasets excluded", ""]
-        lines += _table(["id", "reason"], [(d["id"], d["reason"]) for d in excluded])
+        lines += _table(
+            ["id", "reason", "committable", "permission"],
+            [
+                (
+                    d["id"],
+                    d["reason"],
+                    "yes" if d.get("committable") else "no",
+                    d.get("permission") or "none",
+                )
+                for d in excluded
+            ],
+        )
     bml = [d for d in [*datasets, *excluded] if "bml" in str(d["id"]).lower()]
     if bml:
         entry = bml[0]
@@ -185,7 +201,14 @@ def _provenance_section(provenance: Mapping[str, object]) -> list[str]:
             committable = "committable" if entry.get("committable") else "not committable"
             lines += [f"Body Movement Library: included in this fit; {committable}.", ""]
         else:
-            lines += [f"Body Movement Library: excluded from this fit ({entry['reason']}).", ""]
+            permission = entry.get("permission") or "none recorded"
+            lines += [
+                (
+                    f"Body Movement Library: excluded from this fit ({entry['reason']}; "
+                    f"permission: {permission})."
+                ),
+                "",
+            ]
     actors = provenance.get("actors_per_emotion") or {}
     cycles = provenance.get("cycles_per_emotion") or {}
     lines += ["### Actors and cycles per emotion", ""]
@@ -195,10 +218,33 @@ def _provenance_section(provenance: Mapping[str, object]) -> list[str]:
     return lines
 
 
+MIXED_UNITS = "mixed units"
+
+
+def all_fell_back_note(scaling: str, artefact: Artefact) -> str | None:
+    """One sentence when every fitted or thin cell of ``scaling`` used the random-intercept
+    fallback, else ``None``."""
+    cells = [
+        c for (s, _, _), c in artefact.cells.items() if s == scaling and c.grounding != "missing"
+    ]
+    if not cells or any(c.converged_maximal for c in cells):
+        return None
+    reasons = ", ".join(f"`{r}`" for r in sorted({str(c.fallback_reason) for c in cells}))
+    return (
+        f"Every cell of the `{scaling}` fit fell back to the random intercept ({reasons}): the "
+        "Wald intervals then carry only the cycle-level residual variance, not the between-actor "
+        "variance of the emotion slopes, and the fixed effects are cycle-weighted (an actor with "
+        "more cycles counts for more)."
+    )
+
+
 def _headline_section(
-    scaling: str, held: Sequence[HeldOut], provenance: Mapping[str, object]
+    scaling: str, held: Sequence[HeldOut], provenance: Mapping[str, object], artefact: Artefact
 ) -> list[str]:
     lines = [f"### Held-out error, `{scaling}` scaling", ""]
+    note = all_fell_back_note(scaling, artefact)
+    if note is not None:
+        lines += [note, ""]
     if not held:
         return [*lines, "No cell is `fitted` (three or more actors): no held-out validation.", ""]
     rows = [
@@ -207,8 +253,8 @@ def _headline_section(
             _f(h.e_fit),
             _f(h.e_hand),
             _f(h.e_zero),
-            _f(h.e_fit_natural, 4),
-            _f(h.e_hand_natural, 4),
+            MIXED_UNITS if h.parameter == "overall" else _f(h.e_fit_natural, 4),
+            MIXED_UNITS if h.parameter == "overall" else _f(h.e_hand_natural, 4),
             h.n_pairs,
         )
         for h in held
@@ -382,7 +428,7 @@ def write_report(
         "",
     ]
     for scaling in scalings:
-        lines += _headline_section(scaling, held_out.get(scaling, []), provenance)
+        lines += _headline_section(scaling, held_out.get(scaling, []), provenance, artefact)
     lines += ["## Per-cell effects", ""]
     for scaling in scalings:
         lines += _cell_section(scaling, artefact)
@@ -404,7 +450,7 @@ def write_report(
     lines += [f"Measured parameters: {fields_note}.", ""]
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text("\n".join(lines), encoding="utf-8")
+    path.write_text("\n".join(lines), encoding="utf-8", newline="\n")
 
 
 FEASIBILITY_HEADING = "## G1 feasibility of the learned presets"
@@ -478,4 +524,4 @@ def append_feasibility(path: Path, rows: Sequence[Mapping[str, object]]) -> None
     ]
     path = Path(path)
     text = path.read_text(encoding="utf-8").rstrip("\n")
-    path.write_text(text + "\n" + "\n".join(lines) + "\n", encoding="utf-8")
+    path.write_text(text + "\n" + "\n".join(lines) + "\n", encoding="utf-8", newline="\n")
