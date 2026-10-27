@@ -69,7 +69,8 @@ L = Landmark
 MIN_FAMILY_OVERLAP = 6
 # Frozen inference constants: candidate file-unit-to-metre scales, the target hip-to-ankle rest
 # distance, and the window a chosen scale must land the leg inside.
-SCALES = (1.0, 0.01, 0.0254, 0.1, 0.001)
+# 0.0564444: the CMU ASF length unit, 1/0.45 inch (the cgspeed BVH conversion keeps it)
+SCALES = (1.0, 0.01, 0.0254, 0.0564444, 0.1, 0.001)
 LEG_TARGET_M = 0.8
 LEG_WINDOW_M = (0.3, 1.3)
 
@@ -453,16 +454,19 @@ def infer_scale(file_at_unit_scale: BvhFile) -> tuple[float, Decision]:
     else:
         raise RigError("cannot find a hip and ankle to infer the units; pass --scale")
     leg = float(np.linalg.norm(rest[ankle] - rest[hip]))
-    scale = min(SCALES, key=lambda s: abs(s * leg - LEG_TARGET_M))
+    ranked = sorted(SCALES, key=lambda s: abs(s * leg - LEG_TARGET_M))
+    scale = ranked[0]
     metres = scale * leg
     if not LEG_WINDOW_M[0] <= metres <= LEG_WINDOW_M[1]:
         raise RigError(
             f"hip-to-ankle rest distance {leg:.4g} file units fits no known unit "
             f"(nearest {metres:.3f} m at scale {scale:g}); pass --scale"
         )
-    return scale, Decision(
-        "scale", f"{scale:g}", "geometry", f"hip-to-ankle {leg:.4g} units = {metres:.3f} m"
-    )
+    note = f"hip-to-ankle {leg:.4g} units = {metres:.3f} m"
+    runner_metres = ranked[1] * leg
+    if LEG_WINDOW_M[0] <= runner_metres <= LEG_WINDOW_M[1]:
+        note += f"; runner-up {ranked[1]:g} ({runner_metres:.3f} m); pass --scale to override"
+    return scale, Decision("scale", f"{scale:g}", "geometry", note)
 
 
 def infer_scale_and_up(
