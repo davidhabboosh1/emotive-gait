@@ -220,12 +220,13 @@ Dependency rules:
   `load_rig` takes namespaces them `role:<role>`.
 - Position channels REPLACE the OFFSET axis by axis (reader and compile alike), except an
   identically zero column, which keeps the OFFSET; the writer carries the root OFFSET. Below the
-  pelvis constant columns are folded into the compiled offsets, varying ones are refused. Bandai
+  pelvis a constant column replaces that axis of the compiled bone vector, varying ones are
+  refused. Bandai
   (child columns repeat their OFFSETs) reads at true size; Phase 4.6 added them (twice the bone
   length).
 - Units inference knows six scales (1, 0.01, 0.0254, 0.1, 0.001, 0.0564444 m per unit; the last is
-  the CMU ASF unit, 1/0.45 inch). The `scale` decision names a runner-up scale inside the
-  leg-length window.
+  the CMU ASF unit, 1/0.45 inch). The `scale` decision names the runner-up scale only when
+  it too lands the leg inside the leg-length window.
 - A bone with two rotation channels: the chordal-mean reference is refit to the closest rotation
   its channels can write (`fit_two_channel`), recorded as a `reference:<bone>` decision and
   warned above `TWO_CHANNEL_WARN_RAD = 0.01`; `channel_angles`' two-axis path takes the Euler

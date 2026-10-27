@@ -280,7 +280,9 @@ def validate_rig(
 
 def _git(args: Sequence[str], cwd: Path) -> str:
     """Stdout of ``git <args>`` run in ``cwd`` (raises ``OSError``/``CalledProcessError``)."""
-    out = subprocess.run(["git", *args], capture_output=True, text=True, check=True, cwd=cwd)
+    out = subprocess.run(
+        ["git", *args], capture_output=True, encoding="utf-8", errors="replace", check=True, cwd=cwd
+    )
     return out.stdout
 
 

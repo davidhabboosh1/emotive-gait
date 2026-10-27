@@ -23,7 +23,8 @@ Conventions:
 - The pelvis's position channels are irrelevant: everything is measured relative to the pelvis.
   A translation channel below the pelvis that is constant over the clip is the bone vector on
   that axis, replacing the OFFSET's component as the reader does (``bone_offset``, mapped to
-  metres and z-up like the offset) in both modes; a varying one is refused (``RigError``). The writer keeps the source's constant values.
+  metres and z-up like the offset) in both modes; a varying one is refused (``RigError``). The
+  writer keeps the source's constant values.
 - Hinges and their position actuators are named ``f"{bone}/{channel}"``; bodies are named after
   their bones; a site sits at every bone origin (named like the bone) and every End Site
   (``f"{bone}_End"``); ``driven`` adds ``foot_l`` / ``foot_r`` on the ankle bodies. Ranges are

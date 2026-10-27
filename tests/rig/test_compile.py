@@ -182,6 +182,21 @@ def test_a_constant_position_column_replaces_the_offset_in_the_chain(tmp_path):
     _assert_chain_matches_reader(f, pelvis_name(spec), (0, 17, 150))
 
 
+def test_a_zero_position_column_under_a_non_zero_offset_keeps_the_offset_in_the_chain(tmp_path):
+    spec = RigSpec()
+    write_walk(spec, tmp_path / "w.bvh")
+    f = read_bvh_file(tmp_path / "w.bvh", scale=1.0 / spec.units_per_m, up_axis=spec.up_axis)
+    knee = FAMILIES[spec.family]["knee"]
+    joint = next(j for j in f.joints if j.name == knee)
+    thigh_m = float(np.linalg.norm(joint.offset)) * f.scale
+    f = move_offset_into_channels(f, knee, [0.0, 0.0, 0.0])
+    clip = f.to_clip()
+    knee_pos = clip.positions[:, clip.joint_names.index(knee)]
+    hip_pos = clip.positions[:, clip.joint_names.index(joint_parent_name(f, knee))]
+    assert np.allclose(np.linalg.norm(knee_pos - hip_pos, axis=-1), thigh_m, atol=1e-9)
+    _assert_chain_matches_reader(f, pelvis_name(spec), (0, 17, 150))
+
+
 @pytest.mark.parametrize("forward", [[1.0, 0.0, 0.0], [0.0, 2.0, 0.3], [-1.0, -1.0, 0.0]])
 def test_heading_matrix_takes_x_to_the_horizontal_forward_and_keeps_z(forward):
     r = heading_matrix(np.array(forward))
