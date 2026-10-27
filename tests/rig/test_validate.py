@@ -7,11 +7,14 @@ import math
 from dataclasses import replace
 from types import MappingProxyType, SimpleNamespace
 
+from emotive_gait.rig import validate as validate_mod
 from emotive_gait.rig.validate import (
     MIN_STEPS,
     UNMEASURED,
     ValidationRow,
     ValidationTable,
+    _commit,
+    _commit_line,
     main,
     render_report,
     validate_rig,
@@ -142,3 +145,45 @@ def test_a_feasible_run_slipping_beyond_two_mm_is_gated_and_listed(tmp_path):
     assert "slip beyond 2 mm on feasible runs: neutral (3.0 mm travel, 0.0 mm height)" in text
     infeasible = replace(slipped, feasibility=SimpleNamespace(feasible=False))  # a flag only
     assert validation_row("angry", infeasible, 4.0).slip_within is None
+
+
+def test_commit_line_is_the_hash_alone_when_clean_or_only_the_report_changed():
+    assert _commit_line("abc1234") == "Commit: `abc1234`."
+
+
+def test_commit_line_names_the_modified_tracked_files():
+    assert _commit_line("abc1234|src/a.py,tests/b.py") == (
+        "Commit: `abc1234`; uncommitted changes in 2 tracked files at generation: "
+        "src/a.py, tests/b.py."
+    )
+    assert _commit_line("abc1234|src/a.py") == (
+        "Commit: `abc1234`; uncommitted changes in 1 tracked file at generation: src/a.py."
+    )
+
+
+def _fake_git(root, status):
+    def fake(args, cwd):
+        if args[:2] == ["rev-parse", "--show-toplevel"]:
+            return str(root) + "\n"
+        if args[:2] == ["rev-parse", "--short"]:
+            return "abc1234\n"
+        assert args[0] == "status"
+        return status
+
+    return fake
+
+
+def test_commit_ignores_the_report_being_written(tmp_path, monkeypatch):
+    monkeypatch.setattr(validate_mod, "_git", _fake_git(tmp_path, " M docs/reports/x.md\n"))
+    assert _commit(report_path=tmp_path / "docs/reports/x.md") == "abc1234"
+    status = " M docs/reports/x.md\n M src/b.py\nR  old.py -> src/a.py\n"
+    monkeypatch.setattr(validate_mod, "_git", _fake_git(tmp_path, status))
+    assert _commit(report_path=tmp_path / "docs/reports/x.md") == "abc1234|src/a.py,src/b.py"
+
+
+def test_commit_line_outside_a_checkout_says_unknown(monkeypatch):
+    def boom(*a, **k):
+        raise FileNotFoundError("git")
+
+    monkeypatch.setattr(validate_mod.subprocess, "run", boom)
+    assert _commit() == "unknown" and _commit_line("unknown") == "Commit: `unknown`."
