@@ -174,8 +174,9 @@ naming the bone and the residual. Plumbing: `ReferencePose` gains `decisions: tu
 `reference_pose` fills them; `load_rig` merges them into `RigMapping.decisions` and
 `RigMapping.warnings` next to the unit decisions it already prepends, so `inspect`, `walk`,
 `validate` and the MCP `inspect_rig` show them through the paths that print mapping decisions
-and warnings today. `calibration.py` imports `Decision` from `rig/mapping.py` (it already
-imports from it). Bones with one rotation channel need nothing: the chordal
+and warnings today. `rig/mapping.py` imports `rig/calibration.py` at module level, so
+`Decision` and `Source` move to a tiny `rig/decision.py` that both import; `rig/mapping.py`
+keeps exporting the names. Bones with one rotation channel need nothing: the chordal
 mean of rotations about one axis is about that axis, and `channel_angles` is exact for one axis
 (a comment says so). Bones with no rotation channel are unchanged.
 
