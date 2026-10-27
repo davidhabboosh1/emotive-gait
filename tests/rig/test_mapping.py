@@ -179,6 +179,7 @@ def test_required_landmarks_present_lists_the_missing_minimum():
         replace(RigSpec(), up_axis="z", units_per_m=1.0),
         replace(RigSpec(), units_per_m=39.37),
         replace(RigSpec(), units_per_m=10.0),
+        replace(RigSpec(), units_per_m=1 / 0.0564444),
     ],
     ids=_spec_id,
 )
@@ -194,3 +195,35 @@ def test_uninferable_units_are_a_rig_error(tmp_path):
     write_walk(replace(RigSpec(), units_per_m=3.0), tmp_path / "w.bvh")  # 2.43 or 0.24 m legs
     with pytest.raises(RigError, match="--scale"):
         infer_scale_and_up(read_bvh_file(tmp_path / "w.bvh", scale=1.0, up_axis="z"))
+
+
+def _infer(tmp_path, spec):
+    write_walk(spec, tmp_path / "w.bvh")
+    scale, _, decisions = infer_scale_and_up(
+        read_bvh_file(tmp_path / "w.bvh", scale=1.0, up_axis="z")
+    )
+    return scale, next(d for d in decisions if d.what == "scale").note
+
+
+def test_the_cmu_unit_is_inferred_from_a_fourteen_unit_leg(tmp_path):
+    # rest hip-to-ankle is 0.9 * leg_length_m (thigh and shin OFFSETs 0.45 each); 0.809 m is
+    # 14.33 units at the CMU unit
+    spec = replace(RigSpec(), units_per_m=1 / 0.0564444, leg_length_m=0.809 / 0.9)
+    scale, note = _infer(tmp_path, spec)
+    assert scale == pytest.approx(0.0564444)
+    assert "runner-up 0.0254" in note and "0.364 m" in note and "--scale" in note
+
+
+def test_an_unambiguous_leg_has_no_runner_up(tmp_path):
+    # 90 units at 0.01: runner-up 0.0254 gives 2.29 m, outside the window
+    scale, note = _infer(tmp_path, RigSpec())
+    assert scale == pytest.approx(0.01)
+    assert "runner-up" not in note
+
+
+def test_an_ambiguous_leg_names_the_runner_up_scale(tmp_path):
+    # 19 units: 0.483 m at inches, 1.072 m at the CMU unit; both inside the window and the CMU
+    # unit is nearer 0.8 m (the crossover is 19.55 units)
+    spec = replace(RigSpec(), units_per_m=39.3701, leg_length_m=0.4826 / 0.9)
+    scale, note = _infer(tmp_path, spec)
+    assert scale == pytest.approx(0.0564444) and "runner-up 0.0254" in note

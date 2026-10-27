@@ -361,6 +361,7 @@ def load_rig(
         mapping,
         decisions=(
             *units,
+            *reference.decisions,
             *mapping.decisions,
             Decision(
                 what="pelvis_height",
@@ -378,6 +379,7 @@ def load_rig(
                 for name in unobservable
             ),
         ),
+        warnings=(*mapping.warnings, *reference.warnings),
     )
     return LoadedRig(
         file=file,

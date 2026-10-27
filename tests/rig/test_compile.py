@@ -9,14 +9,33 @@ import mujoco
 import numpy as np
 import pytest
 
-from emotive_gait.mocap.readers.bvh import BvhFile, BvhJoint, euler_from_matrix, read_bvh_file
+from emotive_gait.mocap.readers.bvh import BvhFile, BvhJoint, read_bvh_file
 from emotive_gait.mocap.skeleton import Landmark
-from emotive_gait.rig.compile import PELVIS_CARRIER, compile_full, heading_matrix, z_up_matrix
+from emotive_gait.rig.compile import (
+    PELVIS_CARRIER,
+    channel_angles,
+    compile_full,
+    heading_matrix,
+    z_up_matrix,
+)
 from emotive_gait.rig.errors import RigError
 from rig.driven import driven_rig
-from rig.rigs import FAMILIES, RigSpec, build_rig, fold_into_channels, pelvis_name, write_walk
+from rig.rigs import (
+    FAMILIES,
+    RigSpec,
+    build_rig,
+    duplicate_offsets,
+    move_offset_into_channels,
+    pelvis_name,
+    write_walk,
+)
 
 FIX = Path(__file__).resolve().parents[1] / "mocap" / "fixtures"
+
+
+def joint_parent_name(f, bone: str) -> str:
+    joint = next(j for j in f.joints if j.name == bone)
+    return f.joints[joint.parent].name
 
 
 def _assert_chain_matches_reader(f, pelvis: str, frames: tuple[int, ...]) -> None:
@@ -45,8 +64,18 @@ def _assert_chain_matches_reader(f, pelvis: str, frames: tuple[int, ...]) -> Non
         replace(RigSpec(), order="ZYX"),
         replace(RigSpec(), up_axis="z"),
         replace(RigSpec(), root_above_pelvis=True),
+        replace(RigSpec(), root_height_in_channels=True),
+        replace(RigSpec(), two_channel_limbs=True),
     ],
-    ids=["ZXY", "XYZ", "ZYX", "z-up", "root-above-pelvis"],
+    ids=[
+        "ZXY",
+        "XYZ",
+        "ZYX",
+        "z-up",
+        "root-above-pelvis",
+        "root-height-in-channels",
+        "two-channel-limbs",
+    ],
 )
 def test_full_chain_reproduces_the_reader_positions_relative_to_the_pelvis(tmp_path, spec):
     write_walk(spec, tmp_path / "w.bvh")
@@ -126,15 +155,46 @@ def test_a_varying_translation_channel_below_the_pelvis_is_refused():
 
 
 @pytest.mark.parametrize("spec", [RigSpec(), replace(RigSpec(), up_axis="z")], ids=["y", "z"])
-def test_a_constant_translation_channel_is_folded_into_the_offset(tmp_path, spec):
+def test_duplicated_offsets_leave_the_reader_and_the_chain_unchanged(tmp_path, spec):
     write_walk(spec, tmp_path / "w.bvh")
     f = read_bvh_file(tmp_path / "w.bvh", scale=1.0 / spec.units_per_m, up_axis=spec.up_axis)
     before = f.to_clip().positions
     names = FAMILIES[spec.family]
     for bone in (names["knee"], names["spine2"], names["head"]):
-        f = fold_into_channels(f, bone, 0.6)
-    assert np.allclose(f.to_clip().positions, before)  # the reader adds channel to offset
+        f = duplicate_offsets(f, bone)
+    assert np.allclose(f.to_clip().positions, before)  # the column replaces its own copy
     _assert_chain_matches_reader(f, pelvis_name(spec), (0, 17, 150))  # compile_full: no raise
+
+
+def test_a_constant_position_column_replaces_the_offset_in_the_chain(tmp_path):
+    spec = RigSpec()
+    write_walk(spec, tmp_path / "w.bvh")
+    f = read_bvh_file(tmp_path / "w.bvh", scale=1.0 / spec.units_per_m, up_axis=spec.up_axis)
+    names = FAMILIES[spec.family]
+    knee = names["knee"]
+    joint = next(j for j in f.joints if j.name == knee)
+    thigh_m = float(np.linalg.norm(joint.offset)) * f.scale
+    f = move_offset_into_channels(f, knee, np.asarray(joint.offset, dtype=float) * 0.8)
+    clip = f.to_clip()
+    knee_pos = clip.positions[:, clip.joint_names.index(knee)]
+    hip_pos = clip.positions[:, clip.joint_names.index(joint_parent_name(f, knee))]
+    assert np.allclose(np.linalg.norm(knee_pos - hip_pos, axis=-1), 0.8 * thigh_m, atol=1e-9)
+    _assert_chain_matches_reader(f, pelvis_name(spec), (0, 17, 150))
+
+
+def test_a_zero_position_column_under_a_non_zero_offset_keeps_the_offset_in_the_chain(tmp_path):
+    spec = RigSpec()
+    write_walk(spec, tmp_path / "w.bvh")
+    f = read_bvh_file(tmp_path / "w.bvh", scale=1.0 / spec.units_per_m, up_axis=spec.up_axis)
+    knee = FAMILIES[spec.family]["knee"]
+    joint = next(j for j in f.joints if j.name == knee)
+    thigh_m = float(np.linalg.norm(joint.offset)) * f.scale
+    f = move_offset_into_channels(f, knee, [0.0, 0.0, 0.0])
+    clip = f.to_clip()
+    knee_pos = clip.positions[:, clip.joint_names.index(knee)]
+    hip_pos = clip.positions[:, clip.joint_names.index(joint_parent_name(f, knee))]
+    assert np.allclose(np.linalg.norm(knee_pos - hip_pos, axis=-1), thigh_m, atol=1e-9)
+    _assert_chain_matches_reader(f, pelvis_name(spec), (0, 17, 150))
 
 
 @pytest.mark.parametrize("forward", [[1.0, 0.0, 0.0], [0.0, 2.0, 0.3], [-1.0, -1.0, 0.0]])
@@ -182,8 +242,9 @@ def _site_points(rig, data) -> dict[str, np.ndarray]:
         replace(RigSpec(), up_axis="z"),
         replace(RigSpec(), root_above_pelvis=True),
         replace(RigSpec(), toes=False),
+        replace(RigSpec(), two_channel_limbs=True),
     ],
-    ids=["ZXY", "XYZ", "ZYX", "z-up", "root-above-pelvis", "no-toes"],
+    ids=["ZXY", "XYZ", "ZYX", "z-up", "root-above-pelvis", "no-toes", "two-channel-limbs"],
 )
 def test_driven_chain_at_zero_equals_full_chain_at_the_reference(tmp_path, spec):
     robot, mapping, ref, driven, full = driven_rig(spec, tmp_path)
@@ -194,10 +255,10 @@ def test_driven_chain_at_zero_equals_full_chain_at_the_reference(tmp_path, spec)
     # The full chain at the reference channel values, the pelvis with the heading put back.
     rotations = ref.baked_rotations(names)
     rotations[pelvis] = p.T @ heading @ p @ rotations[pelvis]
+    # Exact for three channels; for two only because the reference is fitted onto them.
     angles = {
-        bone: np.radians(euler_from_matrix(rotations[i], full.file.joints[i].channels))
+        bone: channel_angles(rotations[i], full.file.joints[i].channels)
         for i, bone in enumerate(names)
-        if len([c for c in full.file.joints[i].channels if c.endswith("rotation")]) == 3
     }
     qpos = np.zeros(full.model.nq)
     for i, hinge in enumerate(full.hinges):

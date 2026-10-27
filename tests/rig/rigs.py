@@ -8,6 +8,12 @@ Channels: every joint has three rotation channels in ``spec.order``; the root ha
 ``Xposition Yposition Zposition`` first. With ``root_above_pelvis`` the root is a ``reference``
 bone at the floor (position + rotation channels) and the pelvis is its child with three rotation
 channels only; without it the pelvis is the root and sits at ``leg_length_m`` above the floor.
+With ``two_channel_limbs`` the knees and elbows have two rotation channels: ``spec.order``
+without the up-axis one (the long axis of a vertical bone at rest); the walker's flexion is
+about the lateral axis, which stays, so their motion is exactly representable.
+With ``root_height_in_channels`` (the Blender export shape) the root OFFSET still holds the rest
+height and the walk's up-axis position column also holds it every frame; the reader's column
+replaces the OFFSET on that axis, so the two do not add.
 
 Leg proportions (fractions of ``leg_length_m`` L): pelvis origin at L, hip joint 0.06 L below it,
 thigh 0.45 L, shin 0.45 L, ankle 0.04 L above the floor, toe joint 0.01 L above the floor. The
@@ -35,6 +41,7 @@ from emotive_gait.mocap.readers.bvh import (
 )
 from emotive_gait.mocap.skeleton import SkeletonClip
 from emotive_gait.mocap.writers.bvh import write_bvh
+from emotive_gait.rig.compile import channel_angles
 
 
 @dataclass(frozen=True)
@@ -50,6 +57,8 @@ class RigSpec:
     root_above_pelvis: bool = False
     swap_rest_sides: bool = False
     leg_length_m: float = 0.9
+    root_height_in_channels: bool = False
+    two_channel_limbs: bool = False
 
 
 # Canonical part -> bone name. Sided parts hold the LEFT bone's name; the right bone's name is
@@ -241,8 +250,9 @@ def _to_file(v: np.ndarray, up_axis: str) -> np.ndarray:
     return np.array([v[0], v[2], -v[1]])
 
 
-def _channels(spec: RigSpec, *, position: bool) -> tuple[str, ...]:
-    rot = tuple(f"{a}rotation" for a in spec.order)
+def _channels(spec: RigSpec, *, position: bool, two: bool = False) -> tuple[str, ...]:
+    up = "Y" if spec.up_axis == "y" else "Z"
+    rot = tuple(f"{a}rotation" for a in spec.order if not (two and a == up))
     return (("Xposition", "Yposition", "Zposition") + rot) if position else rot
 
 
@@ -312,12 +322,17 @@ def build_rig(spec: RigSpec) -> BvhFile:
             add(_sided(names, "finger", left), wrist, direction * 0.08, end=direction * 0.04)
 
     # The root carries position channels; with root_above_pelvis the pelvis has rotations only.
+    two = (
+        {_sided(names, part, left) for part in ("knee", "elbow") for left in (True, False)}
+        if spec.two_channel_limbs
+        else set()
+    )
     joints = tuple(
         BvhJoint(
             name,
             parent,
             _to_file(offset, spec.up_axis) * spec.units_per_m,
-            _channels(spec, position=parent < 0),
+            _channels(spec, position=parent < 0, two=name in two),
             None if end is None else _to_file(end, spec.up_axis) * spec.units_per_m,
         )
         for name, parent, offset, end in rows
@@ -379,11 +394,16 @@ def write_walk(
         # Rotation about the lateral (+y, z-up) axis by -flexion swings a hanging bone forward.
         r_zup = rotation_about(1, np.degrees(-flexion[joint.name]))
         r_file = p @ r_zup @ p.T
-        motion[:, rig.channel_slice(joint.name)] = np.array(
-            [euler_from_matrix(r, joint.channels) for r in r_file]
-        )
+        if len(joint.channels) < 3:  # two_channel_limbs: the lateral axis is kept, exact
+            rows = [np.degrees(channel_angles(r, joint.channels)) for r in r_file]
+        else:
+            rows = [euler_from_matrix(r, joint.channels) for r in r_file]
+        motion[:, rig.channel_slice(joint.name)] = np.array(rows)
     # Forward is +x in z-up terms and in a y-up file alike (the inverse of to_z_up keeps x).
     motion[:, 0] = step_length * cadence * t * spec.units_per_m
+    if spec.root_height_in_channels:
+        # Blender export shape: the rest height is in the position column as well as the OFFSET.
+        motion[:, 2 if spec.up_axis == "z" else 1] = spec.leg_length_m * spec.units_per_m
     walked = replace(rig.with_motion(motion), frame_time=1.0 / fps)
     write_bvh(walked, Path(path))
     return walked
@@ -403,8 +423,10 @@ def _variants() -> tuple[RigSpec, ...]:
         replace(base, clavicles=False),
         replace(base, root_above_pelvis=True),
         replace(base, swap_rest_sides=True),
+        replace(base, root_height_in_channels=True),
         replace(base, leg_length_m=0.6),
         replace(base, leg_length_m=1.1),
+        replace(base, two_channel_limbs=True),
     ]
     return tuple(out)
 
@@ -431,17 +453,15 @@ def walk_and_clip(spec: RigSpec, directory: Path) -> tuple[BvhFile, SkeletonClip
     return file, file.to_clip(end_sites=True)
 
 
-def fold_into_channels(f: BvhFile, bone: str, fraction: float) -> BvhFile:
-    """``f`` with ``fraction`` of ``bone``'s OFFSET moved into constant position channels
-    (prepended to its channels), so the reader's positions are unchanged."""
-    joint = next(j for j in f.joints if j.name == bone)
-    moved = np.asarray(joint.offset, dtype=float) * fraction
+def _with_position_columns(f: BvhFile, bone: str, vector) -> BvhFile:
+    """``f`` with constant position channels (``vector``, file units and axes) prepended to
+    ``bone``'s channels; the OFFSET is left as is and ``f.motion``'s other columns are kept."""
     start = f.channel_slice(bone).start
     joints = tuple(
         BvhJoint(
             j.name,
             j.parent,
-            np.asarray(j.offset, dtype=float) - moved,
+            j.offset,
             ("Xposition", "Yposition", "Zposition") + j.channels,
             j.end_site,
         )
@@ -449,6 +469,19 @@ def fold_into_channels(f: BvhFile, bone: str, fraction: float) -> BvhFile:
         else j
         for j in f.joints
     )
-    extra = np.tile(moved, (f.motion.shape[0], 1))
+    extra = np.tile(np.asarray(vector, dtype=float), (f.motion.shape[0], 1))
     motion = np.concatenate([f.motion[:, :start], extra, f.motion[:, start:]], axis=1)
     return replace(f, joints=joints, motion=motion)
+
+
+def duplicate_offsets(f: BvhFile, bone: str) -> BvhFile:
+    """``f`` with position channels on ``bone`` equal to its OFFSET (the Bandai pattern):
+    under the column-replaces-axis rule the reader's positions are unchanged."""
+    joint = next(j for j in f.joints if j.name == bone)
+    return _with_position_columns(f, bone, joint.offset)
+
+
+def move_offset_into_channels(f: BvhFile, bone: str, vector) -> BvhFile:
+    """``f`` with position channels on ``bone`` set to ``vector`` (file units and axes, length
+    3); the OFFSET stays, so the column replaces it and the bone vector becomes ``vector``."""
+    return _with_position_columns(f, bone, vector)

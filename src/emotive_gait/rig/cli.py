@@ -473,7 +473,9 @@ def _validate_command(args: argparse.Namespace, rig: LoadedRig) -> int:
         try:
             out.parent.mkdir(parents=True, exist_ok=True)
             # bytes, so the report keeps LF on Windows (docs/reports/*.md are LF-pinned)
-            out.write_bytes(render_report({source.stem: table}, not_run={}).encode("utf-8"))
+            out.write_bytes(
+                render_report({source.stem: table}, not_run={}, report_path=out).encode("utf-8")
+            )
         except OSError as exc:
             _err(f"environment failure: {exc}")
             return 1

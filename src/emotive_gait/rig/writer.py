@@ -15,7 +15,8 @@ Per output frame at the source fps:
 - the root's position channels put the pelvis at ``H @ (pelvis_x(t), sway, nominal *
   com_height_scale + bounce)`` plus the source's first-frame horizontal pelvis position and
   ``floor_z``, less the constant root-to-pelvis offset of the held ancestors (zero when the
-  pelvis is the root), in file units and axes.
+  pelvis is the root), in file units and axes. The held row's zero root columns leave the
+  root OFFSET standing, so the written channels carry it.
 """
 
 from __future__ import annotations
@@ -45,7 +46,8 @@ def _rotation_columns(file: BvhFile, bone: int) -> tuple[list[str], list[int]]:
 
 def _held_row(file: BvhFile, reference: ReferencePose) -> np.ndarray:
     """One motion row: every rotation channel at its reference value, every position channel
-    at the source's first frame, the root's position channels at zero."""
+    at the source's first frame, the root's position channels at zero (which leaves the root
+    OFFSET standing under the reader's replace-the-OFFSET rule)."""
     row = np.array(file.motion[0], dtype=float)
     for i, joint in enumerate(file.joints):
         channels, columns = _rotation_columns(file, i)
@@ -125,7 +127,11 @@ def write_trajectory(
 
     motion = np.tile(held, (n, 1))
     # Root translation: the held ancestors carry the pelvis by a constant offset.
-    root_file = np.einsum("ij,tj->ti", p.T, targets - pelvis_held) / file.scale
+    # A position column replaces the OFFSET, and the held row's zero columns left it standing in
+    # pelvis_held, so the channels carry the root OFFSET back.
+    root_file = np.einsum("ij,tj->ti", p.T, targets - pelvis_held) / file.scale + np.asarray(
+        root.offset, dtype=float
+    )
     for axis, column in root_position.items():
         motion[:, column] = root_file[:, axis]
 

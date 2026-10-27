@@ -21,9 +21,10 @@ Conventions:
   ``frame_of`` the body whose frame is the bone's rotated frame (the carrier for the pelvis).
   Ancestors of the pelvis are not compiled, so their rotations are not represented.
 - The pelvis's position channels are irrelevant: everything is measured relative to the pelvis.
-  A translation channel below the pelvis that is constant over the clip is folded into its
-  body's offset (``bone_offset``, mapped to metres and z-up like the offset) in both modes; a
-  varying one is refused (``RigError``). The writer keeps the source's constant values.
+  A translation channel below the pelvis that is constant over the clip is the bone vector on
+  that axis, replacing the OFFSET's component as the reader does (``bone_offset``, mapped to
+  metres and z-up like the offset) in both modes; a varying one is refused (``RigError``). The
+  writer keeps the source's constant values.
 - Hinges and their position actuators are named ``f"{bone}/{channel}"``; bodies are named after
   their bones; a site sits at every bone origin (named like the bone) and every End Site
   (``f"{bone}_End"``); ``driven`` adds ``foot_l`` / ``foot_r`` on the ankle bodies. Ranges are
@@ -105,11 +106,12 @@ CONSTANT_TRANSLATION_TOL = 1e-9  # file units: a position column within this of 
 
 
 def bone_offset(file: BvhFile, bone: int) -> np.ndarray:
-    """``bone``'s OFFSET plus its constant position channels (file units and axes).
+    """``bone``'s vector from its parent (file units and axes), as the reader reads it.
 
-    For a bone below the pelvis: the reader adds a position channel to the offset, so a column
-    constant over the clip (within ``CONSTANT_TRANSLATION_TOL``) is part of the bone vector and
-    is folded in. Raises ``RigError`` for a varying column: only the pelvis may translate.
+    Per axis: no position channel, or an identically zero column (within
+    ``CONSTANT_TRANSLATION_TOL``), leaves the OFFSET component standing; a nonzero column
+    constant over the clip replaces that component. Raises ``RigError`` for a varying column:
+    only the pelvis may translate.
     """
     joint = file.joints[bone]
     offset = np.array(joint.offset, dtype=float)
@@ -124,7 +126,8 @@ def bone_offset(file: BvhFile, bone: int) -> np.ndarray:
                 f"bone {joint.name!r} has a varying translation channel {channel!r}; "
                 "only the pelvis may translate"
             )
-        offset[_AXIS[channel[0]]] += float(column[0])
+        if np.max(np.abs(column)) > CONSTANT_TRANSLATION_TOL:
+            offset[_AXIS[channel[0]]] = float(column[0])
     return offset
 
 
@@ -265,7 +268,8 @@ def _rotation(axis: int, angle: float) -> np.ndarray:
 def channel_angles(rotation: np.ndarray, channels: Sequence[str]) -> np.ndarray:
     """Radians per rotation channel (in order) whose composition ``R_c1 @ R_c2 ...`` is
     ``rotation``: exact for three distinct axes and for one axis when ``rotation`` is about it;
-    with two axes the third (missing) angle of the three-axis decomposition is dropped."""
+    with two axes the third (missing) angle of the three-axis decomposition is dropped, on the
+    branch where it is smaller (exact when the two channels can hold ``rotation``)."""
     rot = [c for c in channels if c.endswith("rotation")]
     axes = [_AXIS[c[0]] for c in rot]
     if len(set(axes)) != len(axes):
@@ -277,7 +281,17 @@ def channel_angles(rotation: np.ndarray, channels: Sequence[str]) -> np.ndarray:
         i, j = [(1, 2), (2, 0), (0, 1)][axes[0]]
         return np.array([np.arctan2(r[j, i] - r[i, j], r[i, i] + r[j, j])])
     full = rot + [f"{'XYZ'[a]}rotation" for a in range(3) if a not in axes]
-    return np.radians(euler_from_matrix(r, tuple(full)))[: len(rot)]
+    angles = np.radians(euler_from_matrix(r, tuple(full)))
+    if len(rot) == 3:
+        return angles
+    # Two axes: the three-axis decomposition has a second branch (a + pi, pi - b, c + pi), the
+    # same rotation. Keep the branch whose dropped angle c is smaller, so a rotation the two
+    # channels can hold (c = 0 on one branch) is decomposed exactly, whatever the size of b.
+    other = np.array([angles[0] + np.pi, np.pi - angles[1], angles[2] + np.pi])
+    other = (other + np.pi) % (2.0 * np.pi) - np.pi
+    if abs(other[2]) < abs(angles[2]):
+        angles = other
+    return angles[:2]
 
 
 def _quat(matrix: np.ndarray) -> np.ndarray:
