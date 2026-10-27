@@ -58,8 +58,9 @@ def _assert_chain_matches_reader(f, pelvis: str, frames: tuple[int, ...]) -> Non
         replace(RigSpec(), order="ZYX"),
         replace(RigSpec(), up_axis="z"),
         replace(RigSpec(), root_above_pelvis=True),
+        replace(RigSpec(), root_height_in_channels=True),
     ],
-    ids=["ZXY", "XYZ", "ZYX", "z-up", "root-above-pelvis"],
+    ids=["ZXY", "XYZ", "ZYX", "z-up", "root-above-pelvis", "root-height-in-channels"],
 )
 def test_full_chain_reproduces_the_reader_positions_relative_to_the_pelvis(tmp_path, spec):
     write_walk(spec, tmp_path / "w.bvh")

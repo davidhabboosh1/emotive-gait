@@ -8,6 +8,9 @@ Channels: every joint has three rotation channels in ``spec.order``; the root ha
 ``Xposition Yposition Zposition`` first. With ``root_above_pelvis`` the root is a ``reference``
 bone at the floor (position + rotation channels) and the pelvis is its child with three rotation
 channels only; without it the pelvis is the root and sits at ``leg_length_m`` above the floor.
+With ``root_height_in_channels`` (the Blender export shape) the root OFFSET still holds the rest
+height and the walk's up-axis position column also holds it every frame; the reader's column
+replaces the OFFSET on that axis, so the two do not add.
 
 Leg proportions (fractions of ``leg_length_m`` L): pelvis origin at L, hip joint 0.06 L below it,
 thigh 0.45 L, shin 0.45 L, ankle 0.04 L above the floor, toe joint 0.01 L above the floor. The
@@ -50,6 +53,7 @@ class RigSpec:
     root_above_pelvis: bool = False
     swap_rest_sides: bool = False
     leg_length_m: float = 0.9
+    root_height_in_channels: bool = False
 
 
 # Canonical part -> bone name. Sided parts hold the LEFT bone's name; the right bone's name is
@@ -384,6 +388,9 @@ def write_walk(
         )
     # Forward is +x in z-up terms and in a y-up file alike (the inverse of to_z_up keeps x).
     motion[:, 0] = step_length * cadence * t * spec.units_per_m
+    if spec.root_height_in_channels:
+        # Blender export shape: the rest height is in the position column as well as the OFFSET.
+        motion[:, 2 if spec.up_axis == "z" else 1] = spec.leg_length_m * spec.units_per_m
     walked = replace(rig.with_motion(motion), frame_time=1.0 / fps)
     write_bvh(walked, Path(path))
     return walked
@@ -403,6 +410,7 @@ def _variants() -> tuple[RigSpec, ...]:
         replace(base, clavicles=False),
         replace(base, root_above_pelvis=True),
         replace(base, swap_rest_sides=True),
+        replace(base, root_height_in_channels=True),
         replace(base, leg_length_m=0.6),
         replace(base, leg_length_m=1.1),
     ]
