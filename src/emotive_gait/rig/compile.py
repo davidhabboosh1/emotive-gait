@@ -267,7 +267,8 @@ def _rotation(axis: int, angle: float) -> np.ndarray:
 def channel_angles(rotation: np.ndarray, channels: Sequence[str]) -> np.ndarray:
     """Radians per rotation channel (in order) whose composition ``R_c1 @ R_c2 ...`` is
     ``rotation``: exact for three distinct axes and for one axis when ``rotation`` is about it;
-    with two axes the third (missing) angle of the three-axis decomposition is dropped."""
+    with two axes the third (missing) angle of the three-axis decomposition is dropped, on the
+    branch where it is smaller (exact when the two channels can hold ``rotation``)."""
     rot = [c for c in channels if c.endswith("rotation")]
     axes = [_AXIS[c[0]] for c in rot]
     if len(set(axes)) != len(axes):
@@ -279,7 +280,17 @@ def channel_angles(rotation: np.ndarray, channels: Sequence[str]) -> np.ndarray:
         i, j = [(1, 2), (2, 0), (0, 1)][axes[0]]
         return np.array([np.arctan2(r[j, i] - r[i, j], r[i, i] + r[j, j])])
     full = rot + [f"{'XYZ'[a]}rotation" for a in range(3) if a not in axes]
-    return np.radians(euler_from_matrix(r, tuple(full)))[: len(rot)]
+    angles = np.radians(euler_from_matrix(r, tuple(full)))
+    if len(rot) == 3:
+        return angles
+    # Two axes: the three-axis decomposition has a second branch (a + pi, pi - b, c + pi), the
+    # same rotation. Keep the branch whose dropped angle c is smaller, so a rotation the two
+    # channels can hold (c = 0 on one branch) is decomposed exactly, whatever the size of b.
+    other = np.array([angles[0] + np.pi, np.pi - angles[1], angles[2] + np.pi])
+    other = (other + np.pi) % (2.0 * np.pi) - np.pi
+    if abs(other[2]) < abs(angles[2]):
+        angles = other
+    return angles[:2]
 
 
 def _quat(matrix: np.ndarray) -> np.ndarray:

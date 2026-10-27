@@ -496,6 +496,30 @@ def test_fit_two_channel_projects_a_circulating_mean_and_reports_the_residual():
     assert np.linalg.norm(fitted - mean) <= np.linalg.norm(plain - mean) + 1e-12
 
 
+def test_fit_two_channel_holds_a_representable_mean_past_ninety_degrees_on_its_branch():
+    # b = 120 deg: the three-axis Euler branch with |middle| <= 90 deg is a different two-angle
+    # rotation (dropped angle pi); channel_angles must take the branch whose dropped angle is 0.
+    channels = ("Zrotation", "Xrotation")
+    mean = _compose(channels, (0.3, np.radians(120.0)))
+    assert np.allclose(channel_angles(mean, channels), [0.3, np.radians(120.0)], atol=1e-12)
+    fitted, residual = fit_two_channel(mean, channels)
+    assert np.allclose(fitted, mean, atol=1e-9) and residual < 1e-9
+
+
+def test_fit_two_channel_beats_the_plain_projection_on_an_asymmetric_mean():
+    # An offset elliptic circulation: the mean's representable part is not the identity, and
+    # the least-squares fit is strictly nearer (Frobenius) than dropping the third angle.
+    channels = ("Zrotation", "Xrotation")
+    t = np.linspace(0.0, 2.0 * np.pi, 400, endpoint=False)
+    rots = np.stack(
+        [_compose(channels, (0.6 + 0.5 * np.sin(x), 0.8 + 0.5 * np.sin(x + np.pi / 4))) for x in t]
+    )
+    mean = chordal_mean(rots)
+    fitted, _ = fit_two_channel(mean, channels)
+    plain = _compose(channels, channel_angles(mean, channels))
+    assert np.linalg.norm(fitted - mean) < np.linalg.norm(plain - mean) - 0.01
+
+
 def _two_channel_circulating(f: BvhFile, bone: str, *, period_s: float = 3.0) -> BvhFile:
     """``f`` with ``bone``'s rotation channels cut to two (the up-axis one dropped) moving
     0.3 sin(t) and 0.3 sin(t + pi/4) rad (written in degrees), t = 2 pi time / ``period_s``."""
