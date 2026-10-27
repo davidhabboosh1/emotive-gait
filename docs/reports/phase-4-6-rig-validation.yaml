@@ -17,12 +17,6 @@ rigs:
     path: data/raw/cmu_bvh/07/07_01.bvh
   - name: Bandai Namco dataset-2 walk_normal_001
     path: data/raw/bandai2/dataset-2_walk_normal_001.bvh
-  - name: CMU 07_01 at the CMU length unit (check)
-    path: data/raw/cmu_bvh/07/07_01.bvh
-    scale: 0.0564444
-  - name: Bandai Namco walk_normal_001, bones at true size, root travel at half (check)
-    path: data/raw/bandai2/dataset-2_walk_normal_001.bvh
-    scale: 0.005
 not_run:
   - name: 100STYLE Neutral_BR, BW, FR, ID, SR, SW, TR1
     reason: >-
@@ -35,23 +29,14 @@ not_run:
     reason: none supplied; Mixamo characters are never committed in any form
 findings:
   - >-
-    CMU units: the hip-to-ankle rule infers 0.0254 m per unit (inches), the known scale nearest
-    the 0.8 m leg target, so the rig is read at 0.45 times its size (see its leg length and
-    pelvis height above). The file keeps the CMU ASF length unit (ASF `length 0.45`: one unit
-    is 1/0.45 inch, 0.0564444 m, what the project's ASF reader uses; subject 104's ASF femur is
-    6.998 units, this file's thigh 6.92 units), which is not among the inference's known
-    scales. The inference rule is unchanged; the check table re-runs the rig at
-    --scale 0.0564444.
+    CMU units: the inference now knows the CMU ASF length unit (1/0.45 inch, 0.0564444 m) and
+    picks it for this file from its 14.33-unit rest leg (0.809 m); Phase 4.6 read the file as
+    inches, at 0.45 of its size (leg 0.387 m).
   - >-
-    Bandai units: inference chose 0.01 m per unit and up axis y (the file's own units and axis;
-    the +x rest spine did not mislead it). Every joint has six channels, and the constant
-    position values of the bones below the pelvis repeat their OFFSETs; the BVH reader adds a
-    position channel to the OFFSET, so every bone is read at twice its length (the pelvis height
-    and leg length above). The constant columns are folded into the compiled offsets
-    (rig.compile). The check table at --scale 0.005 has the bones at true size but also halves
-    the root's varying Hips translation, so the source gait is read at half its step length and
-    speed: bones at true size, root travel at half. A replace-offset reading of position
-    channels would be the faithful re-read; that is a reader change, not made here.
+    Bandai units: position channels replace the OFFSET axis by axis, so the constant child
+    columns that repeat their OFFSETs leave the bones at true size and the Hips' varying
+    columns carry the travel; Phase 4.6's reader added them and read every bone at twice its
+    length (leg 1.848 m).
   - >-
     Bandai shoulders: the shoulder pitch channel is innermost and angry commands 0.483 rad of
     abduction, just under the 0.5 rad exclusion threshold, so the pitch-innermost coupling
@@ -60,7 +45,7 @@ findings:
     CMU elbows: elbow_r is skewed (axis purity 0.72, below 0.8) and left unbound, so the
     elbow_flexion group is half-bound: the bound left elbow is driven, the right is held at the
     reference, and the extractor's two-arm means mix the two (elbow_flexion and
-    elbow_swing_ratio beyond tolerance at both scales: the documented half-bound limitation of
+    elbow_swing_ratio beyond tolerance on every run: the documented half-bound limitation of
     posture_map).
   - >-
     Short clips: every run is written for at least eight steps (four gait cycles) at its own
