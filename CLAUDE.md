@@ -62,7 +62,7 @@ Seven packages (`robot/`, `gait/`, `emotion/`, `sim/`, `mocap/`, `learn/`, `rig/
   `robot.roles` under `TYPE_CHECKING` only, and never imports `learn/`, `mocap/` or `sim/`;
   `emotion/model.py` holds the `EmotionModel` protocol. Only `cli.py` runs the learned-preset IK. `tests/mocap/` may import `sim/`; the package may not.
 - `rig/`: any BVH walk, read, measured, moved by an emotion and written back on its own rig
-  (mapping, compile to MuJoCo, calibration, synthesis, writer, validate, MCP server). May import
+  (mapping, compile to MuJoCo, calibration, decision, synthesis, writer, validate, MCP server). May import
   everything except `learn/` and `sim/`; ONLY `cli.py` imports it: `rig.cli` (parser
   registration, light) on every `main`, and `rig/cli.py` imports the pipeline (`rig.synthesis`,
   `rig.validate`, mink), the lexicon and the BVH writer only inside its command functions, so
@@ -213,16 +213,25 @@ Dependency rules:
 - The double-support inversion goes through `rule_double_support`, now in `gait/footsteps.py`.
 - The pelvis-lowering factor (`reachable_pelvis_factor`, the `pelvis_height` decision) lowers the
   nominal pelvis from the source's mean until the neutral stride is reachable by the flat-foot
-  generator; the output walks lower than the source (measured 0.836 to 0.992 on the real-rig runs).
+  generator; the output walks lower than the source (measured 0.836 to 0.906 on the real-rig runs).
 - Hinge names are `Bone/Channel`; End Sites are named `<bone>_End` (points and sites, not hinges). The pelvis bone's hinges sit on the
   carrier body `pelvis_hinges` under the joint-less root `pelvis`. A mapping file's `roles:`
   section maps a role to a `Bone/Channel` value; internally the flat overrides dict that
   `load_rig` takes namespaces them `role:<role>`.
-- Translation channels below the pelvis: constant columns are folded into the compiled offsets,
-  varying ones are refused. A BVH whose position values duplicate its OFFSETs (Bandai) is read by
-  the reader at twice its bone length; `--scale 0.005` halves the root travel too.
-- Units inference knows only (1, 0.01, 0.0254, 0.1, 0.001) m per unit; CMU's unit is read as
-  inches unless `--scale 0.0564444`.
+- Position channels REPLACE the OFFSET axis by axis (reader and compile alike), except an
+  identically zero column, which keeps the OFFSET; the writer carries the root OFFSET. Below the
+  pelvis constant columns are folded into the compiled offsets, varying ones are refused. Bandai
+  (child columns repeat their OFFSETs) reads at true size; Phase 4.6 added them (twice the bone
+  length).
+- Units inference knows six scales (1, 0.01, 0.0254, 0.1, 0.001, 0.0564444 m per unit; the last is
+  the CMU ASF unit, 1/0.45 inch). The `scale` decision names a runner-up scale inside the
+  leg-length window.
+- A bone with two rotation channels: the chordal-mean reference is refit to the closest rotation
+  its channels can write (`fit_two_channel`), recorded as a `reference:<bone>` decision and
+  warned above `TWO_CHANNEL_WARN_RAD = 0.01`; `channel_angles`' two-axis path takes the Euler
+  branch whose dropped angle is smaller. `Decision` lives in `rig/decision.py`.
+- The validation report's commit line names HEAD and, when tracked files are modified at
+  generation, lists them; commit the spec first and regenerate so it reads a bare hash.
 - On a rig whose shoulder PITCH channel is the innermost rotation channel, `arm_swing_amp` and
   `arm_abduction` are not gated above 0.5 rad commanded abduction (Bandai; no run exceeded 0.483).
 - A half-bound posture group (one skewed side) moves one arm by the full delta and the extractor's

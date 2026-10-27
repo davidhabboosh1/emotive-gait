@@ -19,19 +19,17 @@
 #     LeftFoot, LeftToeBase, LowerBack, ...).
 #   - Units: the CMU ASF length unit (`length 0.45`: 1/0.45 inch = 0.0564444 m, what
 #     mocap/readers/asf_amc.py uses; subject 104's ASF femur is 6.998 units, this file's thigh
-#     6.92). `rig`'s hip-to-ankle inference picks 0.0254 (inches) instead: see the rig
-#     validation report.
+#     6.92). `rig`'s hip-to-ankle inference knows this unit and picks it for this file; see the
+#     rig validation report.
 # bandai2: Bandai-Namco-Research-Motiondataset-2 (Bandai Namco Research Inc., GitHub; the
 #   repository's LICENSE file is CC BY-NC 4.0). Archive-less: the clip downloads from `url` +
 #   its path.
 #   - Clip: dataset-2_walk_normal_001.bvh, 360,143 bytes, 273 frames at 30 fps, 22 joints,
 #     centimetres, y up; root joint_Root with Hips as its 6-channel child. Every joint has 6
 #     channels; the bone vectors sit in constant translation columns (rig.compile folds them).
-#     Those position values repeat the OFFSETs, and the BVH reader adds a position channel to
-#     the OFFSET, so at scale 0.01 every bone reads at twice its length. Scale 0.005 puts the
-#     bones at true size but halves the root's varying Hips travel too (half the step length
-#     and speed); a replace-offset reading of position channels would be the faithful re-read,
-#     a reader change not made. See the rig validation report.
+#     Those position values repeat the OFFSETs; position channels replace the OFFSET axis by
+#     axis, so at scale 0.01 the bones read at true size and the Hips' varying columns carry the
+#     travel. See the rig validation report.
 datasets:
 - id: cmu_bvh
   name: CMU Graphics Lab Motion Capture Database, MotionBuilder-friendly BVH conversion (cgspeed, 2010)

@@ -186,8 +186,8 @@ warning), unobservable fields and the `pelvis_height` decision (below). `walk` a
 `validate` walks the rig at zero emotion and at the four analytic presets, reads each output
 back with the extractor and tabulates the residuals against frozen tolerances; it writes every
 run for at least four gait cycles at its own cadence. Units are inferred from the hip-to-ankle
-length against a table of known scales (1, 0.01, 0.0254, 0.1 and 0.001 m per file unit); `--scale`
-and `--up` override. The mapping file has a `landmarks:` section (landmark to bone) and a
+length against a table of six known scales (1, 0.01, 0.0254, 0.1, 0.001 and 0.0564444 m per file
+unit, the last the CMU ASF length unit, 1/0.45 inch); `--scale` and `--up` override. The mapping file has a `landmarks:` section (landmark to bone) and a
 `roles:` section (role to `Bone/Channel`); `inspect --json` prints a `mapping` object that can be
 edited and fed back with `--mapping` (its `scale` and `up_axis` are honoured; flags win).
 
@@ -225,14 +225,14 @@ On real rigs, worst feasible-run residuals and the maximum foot slip on feasible
 | --- | --- | --- | --- |
 | 100STYLE excerpt | `double_support_frac` -0.0134 | all | 0.0 mm |
 | 100STYLE full clip | `elbow_swing_ratio` +0.0201 | all | 2.9 mm |
-| Bandai Namco dataset-2 walk | `elbow_swing_ratio` -0.0410 | all | 0.0 mm |
-| CMU subject 07 (cgspeed conversion) | `elbow_swing_ratio` -0.5812 (half-bound right elbow) | none: `elbow_r` is skewed, so the elbow fields miss on every run | 2.7 mm |
+| Bandai Namco dataset-2 walk | `elbow_swing_ratio` -0.0454 | all | 0.0 mm |
+| CMU subject 07 (cgspeed conversion) | `elbow_swing_ratio` -0.5812 (half-bound right elbow) | none: `elbow_r` is skewed, so the elbow fields miss on every run | 0.3 mm |
 
-Max slip on feasible runs: two exceed the 2 mm slip bound, the 100STYLE full clip's neutral
-(2.9 mm) and CMU's neutral (2.7 mm). Feasibility is a per-knot 2 mm position threshold while slip
+Max slip on feasible runs: one exceeds the 2 mm slip bound, the 100STYLE full clip's neutral
+(2.9 mm). Feasibility is a per-knot 2 mm position threshold while slip
 is a frame-to-frame measure over a spline-interpolated stance, so a feasible run can slip up to
 about twice the threshold; `rig validate` gates it in its own `slip within` column and the
-report lists both under "Known limitations hit".
+report lists it under "Known limitations hit".
 
 Angry and happy are infeasible on every real rig (the generator cannot reach their strides);
 this is reported, not gated.
@@ -243,7 +243,7 @@ Two decisions that change the output, stated with their numbers:
   no heel-toe roll, so the source's mean pelvis height can leave its stride unreachable. The
   nominal pelvis height is the source's mean lowered by `reachable_pelvis_factor` until the
   neutral stride is reachable (printed by `inspect` as the `pelvis_height` decision): 0.906
-  (100STYLE excerpt), 0.867 (100STYLE full), 0.844 (CMU), 0.992 (Bandai), 0.938 (synthetic base
+  (100STYLE excerpt), 0.867 (100STYLE full), 0.836 (CMU), 0.883 (Bandai), 0.938 (synthetic base
   rig). The G1 does the same: its 0.68 m nominal sits below its 0.79 m stand.
 - **Pitch-innermost shoulders are not gated above 0.5 rad.** When a rig's shoulder pitch channel
   is the innermost rotation channel, the channel couples `arm_swing_amp` and `arm_abduction`;
@@ -263,16 +263,22 @@ Two decisions that change the output, stated with their numbers:
 6. The emotion prompt lexicon is hand-written and English; the MCP host's model does better.
 7. Skewed hinge axes drop procedural upper-body cues; the legs are always solved.
 8. Slip on feasible parameters stays within about twice the IK's 2 mm per-knot threshold (the
-   two real-rig exceedances above are 2.7 and 2.9 mm); an emotion that asks a rig for an
+   one real-rig exceedance above is 2.9 mm); an emotion that asks a rig for an
    unreachable stride is reported, not clipped.
 
 Findings from validation:
 
-- Units inference knows only the five scales above, so CMU's length unit (1/0.45 inch) is read
-  as inches, a rig at 0.45 times its size, unless `--scale 0.0564444` is given.
-- A BVH whose non-root position channels duplicate its OFFSETs (Bandai) is read by the BVH
-  reader at twice its bone length. `--scale 0.005` restores bone length but halves the root
-  travel, so the source gait is read at half its step length.
+- Position channels replace the OFFSET axis by axis, except a column that is identically zero,
+  which keeps it. A BVH whose child bones carry constant position columns that repeat their
+  OFFSETs (Bandai) therefore reads at true size, with the Hips' varying columns carrying the
+  travel; Phase 4.6 added them and read every bone at twice its length.
+- Units inference knows six scales (the five above and the CMU ASF length unit, 0.0564444 m); CMU
+  07_01 is picked at that unit and read at true size, where Phase 4.6 read it as inches, at 0.45
+  of its size. When the second-ranked scale also lands the leg in the plausible window, `inspect`
+  names it as a runner-up and says to pass `--scale` to override.
+- A bone with two rotation channels gets a reference its channels can write back (the chordal
+  mean of such rotations is generally not one two channels can produce). `inspect` lists the
+  fit as a `reference:<bone>` decision and warns above 0.01 rad.
 - The extractor's elbow measure is unsigned, so a hyperextended reference elbow reads back off
   by the fold.
 - A half-bound arm group (one skewed side, as CMU's right elbow) moves one arm by the full delta
