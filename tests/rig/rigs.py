@@ -431,17 +431,15 @@ def walk_and_clip(spec: RigSpec, directory: Path) -> tuple[BvhFile, SkeletonClip
     return file, file.to_clip(end_sites=True)
 
 
-def fold_into_channels(f: BvhFile, bone: str, fraction: float) -> BvhFile:
-    """``f`` with ``fraction`` of ``bone``'s OFFSET moved into constant position channels
-    (prepended to its channels), so the reader's positions are unchanged."""
-    joint = next(j for j in f.joints if j.name == bone)
-    moved = np.asarray(joint.offset, dtype=float) * fraction
+def _with_position_columns(f: BvhFile, bone: str, vector) -> BvhFile:
+    """``f`` with constant position channels (``vector``, file units and axes) prepended to
+    ``bone``'s channels; the OFFSET is left as is and ``f.motion``'s other columns are kept."""
     start = f.channel_slice(bone).start
     joints = tuple(
         BvhJoint(
             j.name,
             j.parent,
-            np.asarray(j.offset, dtype=float) - moved,
+            j.offset,
             ("Xposition", "Yposition", "Zposition") + j.channels,
             j.end_site,
         )
@@ -449,6 +447,19 @@ def fold_into_channels(f: BvhFile, bone: str, fraction: float) -> BvhFile:
         else j
         for j in f.joints
     )
-    extra = np.tile(moved, (f.motion.shape[0], 1))
+    extra = np.tile(np.asarray(vector, dtype=float), (f.motion.shape[0], 1))
     motion = np.concatenate([f.motion[:, :start], extra, f.motion[:, start:]], axis=1)
     return replace(f, joints=joints, motion=motion)
+
+
+def duplicate_offsets(f: BvhFile, bone: str) -> BvhFile:
+    """``f`` with position channels on ``bone`` equal to its OFFSET (the Bandai pattern):
+    under the column-replaces-axis rule the reader's positions are unchanged."""
+    joint = next(j for j in f.joints if j.name == bone)
+    return _with_position_columns(f, bone, joint.offset)
+
+
+def move_offset_into_channels(f: BvhFile, bone: str, vector) -> BvhFile:
+    """``f`` with position channels on ``bone`` set to ``vector`` (file units and axes, length
+    3); the OFFSET stays, so the column replaces it and the bone vector becomes ``vector``."""
+    return _with_position_columns(f, bone, vector)

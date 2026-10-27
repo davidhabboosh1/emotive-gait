@@ -46,7 +46,7 @@ from rig.rigs import (
     FAMILIES,
     FAMILY_VARIANTS,
     RigSpec,
-    fold_into_channels,
+    duplicate_offsets,
     standing_file,
     walk_file,
 )
@@ -426,7 +426,7 @@ def test_a_rig_with_constant_bone_translations_round_trips_and_keeps_them(tmp_pa
     file = read_bvh_file(source, scale=1.0, up_axis=spec.up_axis)
     names = FAMILIES[spec.family]
     for bone in (names["knee"], names["spine2"]):
-        file = fold_into_channels(file, bone, 0.6)
+        file = duplicate_offsets(file, bone)
     folded = tmp_path / "folded.bvh"
     write_bvh(file, folded)
     r = _walk(load_rig(folded, scale=None, up_axis=None, mapping_overrides=None), ZERO)

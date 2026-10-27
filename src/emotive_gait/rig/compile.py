@@ -21,9 +21,9 @@ Conventions:
   ``frame_of`` the body whose frame is the bone's rotated frame (the carrier for the pelvis).
   Ancestors of the pelvis are not compiled, so their rotations are not represented.
 - The pelvis's position channels are irrelevant: everything is measured relative to the pelvis.
-  A translation channel below the pelvis that is constant over the clip is folded into its
-  body's offset (``bone_offset``, mapped to metres and z-up like the offset) in both modes; a
-  varying one is refused (``RigError``). The writer keeps the source's constant values.
+  A translation channel below the pelvis that is constant over the clip is the bone vector on
+  that axis, replacing the OFFSET's component as the reader does (``bone_offset``, mapped to
+  metres and z-up like the offset) in both modes; a varying one is refused (``RigError``). The writer keeps the source's constant values.
 - Hinges and their position actuators are named ``f"{bone}/{channel}"``; bodies are named after
   their bones; a site sits at every bone origin (named like the bone) and every End Site
   (``f"{bone}_End"``); ``driven`` adds ``foot_l`` / ``foot_r`` on the ankle bodies. Ranges are
@@ -105,11 +105,12 @@ CONSTANT_TRANSLATION_TOL = 1e-9  # file units: a position column within this of 
 
 
 def bone_offset(file: BvhFile, bone: int) -> np.ndarray:
-    """``bone``'s OFFSET plus its constant position channels (file units and axes).
+    """``bone``'s vector from its parent (file units and axes), as the reader reads it.
 
-    For a bone below the pelvis: the reader adds a position channel to the offset, so a column
-    constant over the clip (within ``CONSTANT_TRANSLATION_TOL``) is part of the bone vector and
-    is folded in. Raises ``RigError`` for a varying column: only the pelvis may translate.
+    Per axis: no position channel, or an identically zero column (within
+    ``CONSTANT_TRANSLATION_TOL``), leaves the OFFSET component standing; a nonzero column
+    constant over the clip replaces that component. Raises ``RigError`` for a varying column:
+    only the pelvis may translate.
     """
     joint = file.joints[bone]
     offset = np.array(joint.offset, dtype=float)
@@ -124,7 +125,8 @@ def bone_offset(file: BvhFile, bone: int) -> np.ndarray:
                 f"bone {joint.name!r} has a varying translation channel {channel!r}; "
                 "only the pelvis may translate"
             )
-        offset[_AXIS[channel[0]]] += float(column[0])
+        if np.max(np.abs(column)) > CONSTANT_TRANSLATION_TOL:
+            offset[_AXIS[channel[0]]] = float(column[0])
     return offset
 
 
