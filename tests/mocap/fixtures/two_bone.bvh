@@ -1,7 +1,7 @@
 HIERARCHY
 ROOT Hips
 {
-	OFFSET 0 100 0
+	OFFSET 0 0 0
 	CHANNELS 6 Xposition Yposition Zposition Zrotation Xrotation Yrotation
 	JOINT Knee
 	{
@@ -16,6 +16,6 @@ ROOT Hips
 MOTION
 Frames: 3
 Frame Time: 0.0333333
-0 0 0 0 0 0 0 0 0
-0 0 0 0 90 0 0 0 0
-0 10 0 0 0 0 0 0 0
+0 100 0 0 0 0 0 0 0
+0 100 0 0 90 0 0 0 0
+0 110 0 0 0 0 0 0 0

@@ -2,7 +2,10 @@
 
 Euler channels compose in file order, ``R = R_c1 @ R_c2 @ R_c3``; a joint's world rotation is
 ``R_parent_world @ R_local`` and its position is the parent position plus the parent world
-rotation applied to the (scaled) offset. ``read_bvh_file`` keeps everything the file says (hierarchy,
+rotation applied to the (scaled) local translation. A position channel REPLACES that axis of the
+joint's OFFSET (the reading of Blender's importer and MotionBuilder's exporter); an axis without
+a position channel keeps the OFFSET, and so does an identically zero column (the one concession
+to additive files). ``read_bvh_file`` keeps everything the file says (hierarchy,
 channels, End Sites, motion in file units and degrees, frame time); End Sites become clip joints
 only when asked for.
 """
@@ -191,7 +194,8 @@ class BvhFile:
                 column = data[:, first + k]
                 axis = _AXIS[name[0]]
                 if name.endswith("position"):
-                    local_t[:, axis] += column
+                    if not np.all(np.abs(column) <= 1e-9):
+                        local_t[:, axis] = column
                 else:
                     rot = rot @ rotation_about(axis, column)
             first += len(joint.channels)

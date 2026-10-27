@@ -9,6 +9,8 @@ import pytest
 
 from emotive_gait.mocap.readers.bvh import (
     _AXIS,
+    BvhFile,
+    BvhJoint,
     euler_from_matrix,
     read_bvh,
     read_bvh_file,
@@ -84,3 +86,69 @@ def test_style100_excerpt_reads_and_has_240_frames():
     f = read_bvh_file(FIX / "style100_neutral_4s.bvh", scale=0.01, up_axis="y")
     assert f.motion.shape[0] == 240 and f.fps == pytest.approx(60.0, abs=0.01)
     assert "LeftToe" in [j.name for j in f.joints]
+
+
+_ZXY = ("Zrotation", "Xrotation", "Yrotation")
+_XYZ = ("Xposition", "Yposition", "Zposition")
+
+
+def _child_with_positions(offset, column) -> BvhFile:
+    """Root at OFFSET (0, 0, 1) with a zero position row; one child with position + ZXY channels."""
+    column = np.atleast_2d(np.asarray(column, dtype=float))
+    t = column.shape[0]
+    motion = np.zeros((t, 6 + 6 + 3))
+    motion[:, 2] = 0.0
+    motion[:, 6:9] = column
+    joints = (
+        BvhJoint("Root", -1, np.array([0.0, 0.0, 1.0]), _XYZ + _ZXY),
+        BvhJoint("Child", 0, np.array(offset, dtype=float), _XYZ + _ZXY),
+    )
+    return BvhFile(joints, motion[:, :12], 1 / 30, 1.0, "z")
+
+
+def _root(offset, motion_xyz) -> BvhFile:
+    xyz = np.asarray(motion_xyz, dtype=float)
+    motion = np.zeros((xyz.shape[0], 6))
+    motion[:, :3] = xyz
+    joints = (BvhJoint("Root", -1, np.array(offset, dtype=float), _XYZ + _ZXY),)
+    return BvhFile(joints, motion, 1 / 30, 1.0, "z")
+
+
+def test_a_duplicate_constant_child_position_column_reads_the_bone_at_offset_length():
+    f = _child_with_positions(offset=[0, 0, -0.4], column=[0, 0, -0.4])
+    assert np.allclose(f.to_clip().positions[:, 1], [0, 0, 0.6])
+
+
+def test_a_constant_child_position_column_different_from_the_offset_positions_the_bone_at_the_column():
+    f = _child_with_positions(offset=[0, 0, -0.4], column=[0, 0, -0.25])
+    assert np.allclose(f.to_clip().positions[:, 1], [0, 0, 0.75])
+
+
+def test_a_varying_child_position_column_moves_the_bone():
+    f = _child_with_positions(
+        offset=[0, 0, -0.4], column=[[0, 0, -0.4], [0, 0, -0.3], [0.1, 0, -0.4]]
+    )
+    assert np.allclose(f.to_clip().positions[:, 1], [[0, 0, 0.6], [0, 0, 0.7], [0.1, 0, 0.6]])
+
+
+def test_a_zero_child_position_column_under_a_non_zero_offset_keeps_the_offset():
+    f = _child_with_positions(offset=[0, 0, -0.4], column=[0, 0, 0])
+    assert np.allclose(f.to_clip().positions[:, 1], [0, 0, 0.6])
+
+
+def test_root_position_channels_replace_a_non_zero_root_offset():
+    f = _root(offset=[0, 0, 0.9], motion_xyz=[[0, 0, 0.95], [0.1, 0, 0.95]])
+    assert np.allclose(f.to_clip().positions[:, 0], [[0, 0, 0.95], [0.1, 0, 0.95]])
+
+
+def test_an_axis_without_a_position_channel_keeps_its_offset():
+    joints = (
+        BvhJoint(
+            "Root",
+            -1,
+            np.array([0.2, 0.0, 0.9]),
+            ("Yposition", "Zrotation", "Xrotation", "Yrotation"),
+        ),
+    )
+    f = BvhFile(joints, np.array([[0.5, 0.0, 0.0, 0.0]]), 1 / 30, 1.0, "z")
+    assert np.allclose(f.to_clip().positions[0, 0], [0.2, 0.5, 0.9])
