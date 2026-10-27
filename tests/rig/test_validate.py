@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import replace
+from pathlib import Path
 from types import MappingProxyType, SimpleNamespace
 
 from emotive_gait.rig import validate as validate_mod
@@ -147,7 +148,7 @@ def test_a_feasible_run_slipping_beyond_two_mm_is_gated_and_listed(tmp_path):
     assert validation_row("angry", infeasible, 4.0).slip_within is None
 
 
-def test_commit_line_is_the_hash_alone_when_clean_or_only_the_report_changed():
+def test_commit_line_is_the_hash_alone_for_a_bare_hash():
     assert _commit_line("abc1234") == "Commit: `abc1234`."
 
 
@@ -187,3 +188,10 @@ def test_commit_line_outside_a_checkout_says_unknown(monkeypatch):
 
     monkeypatch.setattr(validate_mod.subprocess, "run", boom)
     assert _commit() == "unknown" and _commit_line("unknown") == "Commit: `unknown`."
+
+
+def test_commit_ignores_a_relative_report_path_when_cwd_is_not_the_root(tmp_path, monkeypatch):
+    (tmp_path / "docs").mkdir()
+    monkeypatch.chdir(tmp_path / "docs")
+    monkeypatch.setattr(validate_mod, "_git", _fake_git(tmp_path, " M docs/x.md\n"))
+    assert _commit(report_path=Path("x.md")) == "abc1234"

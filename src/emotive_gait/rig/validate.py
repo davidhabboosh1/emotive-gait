@@ -301,7 +301,7 @@ def _commit(report_path: Path | None = None) -> str:
         return "unknown"
     skip = None
     if report_path is not None:
-        skip = (root / report_path).resolve().as_posix()
+        skip = report_path.resolve().as_posix()  # cwd-based, as the file is written
     changed = set()
     for line in status.splitlines():
         if len(line) < 4:
