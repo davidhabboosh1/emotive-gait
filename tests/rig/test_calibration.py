@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import replace
 from types import MappingProxyType
 
@@ -12,18 +13,30 @@ import pytest
 from emotive_gait.gait.generator import generate
 from emotive_gait.gait.ik import LEG_ROLES
 from emotive_gait.gait.params import GaitParameters
-from emotive_gait.mocap.readers.bvh import BvhFile, euler_from_matrix, rotation_about
+from emotive_gait.mocap.readers.bvh import (
+    _AXIS,
+    BvhFile,
+    BvhJoint,
+    euler_from_matrix,
+    read_bvh_file,
+    rotation_about,
+)
 from emotive_gait.mocap.skeleton import Landmark
+from emotive_gait.mocap.writers.bvh import write_bvh
 from emotive_gait.rig.calibration import (
+    TWO_CHANNEL_WARN_RAD,
     ReferencePose,
+    chordal_mean,
+    fit_two_channel,
     landmark_site_names,
     posture_map,
     reference_pose,
 )
-from emotive_gait.rig.compile import compile_driven, compile_full, z_up_matrix
+from emotive_gait.rig.compile import channel_angles, compile_driven, compile_full, z_up_matrix
 from emotive_gait.rig.mapping import RigError, bind_roles, map_landmarks
 from emotive_gait.rig.profile import rig_profile, rig_robot
 from emotive_gait.rig.ranges import RANGES
+from emotive_gait.rig.synthesis import load_rig
 from emotive_gait.robot.conventions import ROLE_CONVENTIONS, convention_holds
 from emotive_gait.robot.profiles.g1 import G1_PROFILE_WITH_NECK
 from emotive_gait.robot.roles import POSTURE_PARAMETERS, JointRole
@@ -39,7 +52,15 @@ from rig.driven import (
     spec_id,
     static_posture,
 )
-from rig.rigs import FAMILY_VARIANTS, RigSpec, build_rig, toe_rest_height_m, walk_and_clip
+from rig.rigs import (
+    FAMILIES,
+    FAMILY_VARIANTS,
+    RigSpec,
+    build_rig,
+    toe_rest_height_m,
+    walk_and_clip,
+    walk_file,
+)
 
 
 def test_reference_pose_heading_is_the_walk_direction_and_floor_is_the_toe_stance_height(
@@ -441,3 +462,81 @@ def test_a_hyperextended_reference_elbow_is_straight_above_its_zero(tmp_path):
         mujoco.mj_forward(robot.model, data)
         # The test's elbow tilt is not about the hinge axis, so a little bend stays off-plane.
         assert _limb_bend(landmark_points(driven, mapping, data), *_LIMBS[role]) < 0.03
+
+
+def _compose(channels: Sequence[str], radians: Sequence[float]) -> np.ndarray:
+    """``R_c1 @ R_c2 ...`` for rotation ``channels`` at ``radians`` (the reader's order)."""
+    out = np.eye(3)
+    for c, a in zip(channels, radians, strict=True):
+        out = out @ rotation_about(_AXIS[c[0]], [np.degrees(a)])[0]
+    return out
+
+
+def test_fit_two_channel_returns_a_representable_mean_unchanged():
+    channels = ("Zrotation", "Xrotation")
+    mean = rotation_about(2, [12.0])[0] @ rotation_about(0, [-7.0])[0]
+    fitted, residual = fit_two_channel(mean, channels)
+    assert np.allclose(fitted, mean, atol=1e-9) and residual < 1e-9
+
+
+def test_fit_two_channel_projects_a_circulating_mean_and_reports_the_residual():
+    # a(t) = 0.3 sin t, b(t) = 0.3 sin(t + pi/4): an elliptic circulation whose angles
+    # correlate, so the chordal mean has a component about the missing (Y) axis. (A pure
+    # sin/cos circle is uncorrelated over a period: its mean is the identity, representable.)
+    channels = ("Zrotation", "Xrotation")
+    t = np.linspace(0.0, 2.0 * np.pi, 400, endpoint=False)
+    rots = np.stack([_compose(channels, (0.3 * np.sin(x), 0.3 * np.sin(x + np.pi / 4))) for x in t])
+    mean = chordal_mean(rots)
+    fitted, residual = fit_two_channel(mean, channels)
+    assert np.allclose(_compose(channels, channel_angles(fitted, channels)), fitted, atol=1e-9)
+    assert residual > TWO_CHANNEL_WARN_RAD
+    angle = np.arccos(np.clip((np.trace(mean.T @ fitted) - 1.0) / 2.0, -1.0, 1.0))
+    assert np.isclose(residual, angle)
+    plain = _compose(channels, channel_angles(mean, channels))
+    assert np.linalg.norm(fitted - mean) <= np.linalg.norm(plain - mean) + 1e-12
+
+
+def _two_channel_circulating(f: BvhFile, bone: str, *, period_s: float = 3.0) -> BvhFile:
+    """``f`` with ``bone``'s rotation channels cut to two (the up-axis one dropped) moving
+    0.3 sin(t) and 0.3 sin(t + pi/4) rad (written in degrees), t = 2 pi time / ``period_s``."""
+    i = [j.name for j in f.joints].index(bone)
+    joint = f.joints[i]
+    up = "Y" if f.up_axis == "y" else "Z"
+    drop = f.channel_index(bone, f"{up}rotation")
+    kept = tuple(c for c in joint.channels if c != f"{up}rotation")
+    joints = tuple(
+        BvhJoint(j.name, j.parent, j.offset, kept, j.end_site) if k == i else j
+        for k, j in enumerate(f.joints)
+    )
+    motion = np.delete(f.motion, drop, axis=1)
+    t = 2.0 * np.pi * np.arange(motion.shape[0]) * f.frame_time / period_s
+    start = sum(len(j.channels) for j in joints[:i])
+    rotations = [c for c in kept if c.endswith("rotation")]
+    for c, column in zip(rotations, (np.sin(t), np.sin(t + np.pi / 4)), strict=True):
+        motion[:, start + kept.index(c)] = np.degrees(0.3 * column)
+    return replace(f, joints=joints, motion=motion)
+
+
+def test_a_two_channel_bone_with_an_unrepresentable_mean_is_fitted_recorded_and_writes_back(
+    tmp_path,
+):
+    spec = replace(RigSpec(), two_channel_limbs=True)
+    path = walk_file(spec, tmp_path)
+    f = read_bvh_file(path, scale=1.0 / spec.units_per_m, up_axis=spec.up_axis)
+    bone = FAMILIES[spec.family]["upper_arm"]
+    f = _two_channel_circulating(f, bone)
+    write_bvh(f, tmp_path / "circ.bvh")
+    rig = load_rig(tmp_path / "circ.bvh", scale=None, up_axis=None, mapping_overrides=None)
+    d = next(x for x in rig.mapping.decisions if x.what == f"reference:{bone}")
+    assert d.chosen == "fitted" and d.source == "geometry" and "residual" in d.note
+    assert any(bone in w and "two rotation channels" in w for w in rig.mapping.warnings)
+    i = [j.name for j in f.joints].index(bone)
+    channels = tuple(c for c in f.joints[i].channels if c.endswith("rotation"))
+    assert len(channels) == 2
+    reference = rig.reference.local_rotations[i]
+    back = _compose(channels, channel_angles(reference, channels))
+    assert np.allclose(back, reference, atol=1e-9)
+    knee = FAMILIES[spec.family]["knee"]
+    kd = next(x for x in rig.mapping.decisions if x.what == f"reference:{knee}")
+    assert kd.note.endswith("rad")
+    assert not any(knee in w for w in rig.mapping.warnings)  # a pure lateral swing fits exactly

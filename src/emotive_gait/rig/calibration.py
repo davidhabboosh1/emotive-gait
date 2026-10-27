@@ -45,6 +45,7 @@ from typing import TYPE_CHECKING
 
 import mujoco
 import numpy as np
+from scipy.optimize import least_squares
 
 from emotive_gait.mocap.events import PathFrame
 from emotive_gait.mocap.extract import extract_cycles, gait_timing, posture_angles, summarise
@@ -56,6 +57,7 @@ from emotive_gait.rig.compile import (
     channel_angles,
     z_up_matrix,
 )
+from emotive_gait.rig.decision import Decision
 from emotive_gait.rig.errors import RigError
 from emotive_gait.robot.conventions import PROBE_RAD
 from emotive_gait.robot.roles import POSTURE_PARAMETERS, JointRole
@@ -66,6 +68,9 @@ if TYPE_CHECKING:  # rig.mapping imports this module
 
 L = Landmark
 _AXIS = {"X": 0, "Y": 1, "Z": 2}
+# A two-channel bone whose fitted reference is further than this from its mean walking rotation
+# is warned about (the fit is always recorded as a decision).
+TWO_CHANNEL_WARN_RAD = 0.01
 _FEET = ((L.ANKLE_L, L.TOE_L), (L.ANKLE_R, L.TOE_R))
 # Posture parameter -> the roles turned together to probe it (spec 4.3).
 POSTURE_GROUPS: Mapping[str, tuple[JointRole, ...]] = MappingProxyType(
@@ -106,6 +111,10 @@ class ReferencePose:
     # reference pose. The profile's ``foot_site_floor_height`` is 0 by construction (the floor
     # is the stance height of the very point the foot site sits on).
     foot_height: float = 0.0
+    # One ``reference:<bone>`` decision per two-rotation-channel bone (its fit), and a warning
+    # for each whose residual exceeds ``TWO_CHANNEL_WARN_RAD``.
+    decisions: tuple[Decision, ...] = ()
+    warnings: tuple[str, ...] = ()
 
     def baked_rotations(self, names: Sequence[str]) -> np.ndarray:
         """``local_rotations`` with the ankle bones' stance rotations swapped in (a copy).
@@ -123,6 +132,42 @@ def chordal_mean(rotations: np.ndarray) -> np.ndarray:
     """The rotation nearest (Frobenius) to the mean of ``rotations`` (N, 3, 3)."""
     u, _, vt = np.linalg.svd(np.mean(np.asarray(rotations, dtype=float), axis=0))
     return u @ np.diag([1.0, 1.0, np.linalg.det(u @ vt)]) @ vt
+
+
+def fit_two_channel(mean: np.ndarray, channels: Sequence[str]) -> tuple[np.ndarray, float]:
+    """The rotation ``R_c1(a) @ R_c2(b)`` nearest (Frobenius) to ``mean`` and its residual angle.
+
+    ``channels`` are a bone's two rotation channel names in order. A chordal mean of rotations
+    that two channels produce is in general not one they can produce (its component about the
+    missing axis grows with the correlation of the two angles), and ``channel_angles`` would
+    drop that component silently, so the compiled chain and the written BVH would disagree.
+    The fit starts from ``channel_angles(mean, channels)``; the residual is the rotation angle
+    of ``mean.T @ fitted`` (rad).
+    """
+    axes = [_AXIS[c[0]] for c in channels]
+    mean = np.asarray(mean, dtype=float)
+
+    def compose(x: np.ndarray) -> np.ndarray:
+        r0 = rotation_about(axes[0], [np.degrees(x[0])])[0]
+        r1 = rotation_about(axes[1], [np.degrees(x[1])])[0]
+        return r0 @ r1
+
+    start = channel_angles(mean, channels)
+    fit = least_squares(
+        lambda x: (compose(x) - mean).ravel(), start, xtol=1e-14, ftol=1e-14, gtol=1e-14
+    )
+    fitted = compose(fit.x)
+    # The angle of mean.T @ fitted: arccos((trace - 1) / 2), clipped, read through atan2 with
+    # the skew part's sine so that an exact fit reads ~1e-16, not arccos's ~1e-8 floor.
+    r = mean.T @ fitted
+    cos = np.clip((np.trace(r) - 1.0) / 2.0, -1.0, 1.0)
+    sin = 0.5 * np.linalg.norm([r[2, 1] - r[1, 2], r[0, 2] - r[2, 0], r[1, 0] - r[0, 1]])
+    residual = float(np.arctan2(sin, cos))
+    return fitted, residual
+
+
+def _rotation_channels(file: BvhFile, i: int) -> tuple[str, ...]:
+    return tuple(c for c in file.joints[i].channels if c.endswith("rotation"))
 
 
 def _local_rotations(file: BvhFile) -> list[np.ndarray]:
@@ -219,6 +264,46 @@ def reference_pose(file: BvhFile, clip: SkeletonClip, landmarks: LandmarkMap) ->
 
     means = [chordal_mean(r[usable]) for r in local]
     means[root] = chordal_mean(level(root)[usable])
+    decisions: list[Decision] = []
+    warnings: list[str] = []
+
+    def fit(i: int, mean: np.ndarray, *, record: bool = True) -> np.ndarray:
+        """``mean`` fitted onto bone ``i``'s rotation channels when it has exactly two.
+
+        Three distinct channels hold any rotation, so ``channel_angles`` is exact; a single
+        channel's bone only ever rotates about that axis, so the chordal mean of its rotations
+        (all about one axis) is about that axis too and needs nothing; no channel, no motion.
+        """
+        channels = _rotation_channels(file, i)
+        if len(channels) != 2:
+            return mean
+        fitted, residual = fit_two_channel(mean, channels)
+        if not record:
+            return fitted
+        bone = names[i]
+        decisions.append(
+            Decision(
+                what=f"reference:{bone}",
+                chosen="fitted",
+                source="geometry",
+                note=(
+                    f"two rotation channels ({' '.join(channels)}): reference fitted, "
+                    f"residual {residual:.4f} rad"
+                ),
+            )
+        )
+        if residual > TWO_CHANNEL_WARN_RAD:
+            warnings.append(
+                f"{bone}: two rotation channels cannot hold its mean walking rotation; "
+                f"reference fitted with {residual:.4f} rad left over"
+            )
+        return fitted
+
+    # Before reference_world: the ankles' stance rotations compose with the fitted parents.
+    # An ankle's local mean is replaced by its stance rotation when baked, so only the stance
+    # fit below is recorded for it.
+    ankles = {names.index(_bone(landmarks, ankle)) for ankle, _ in _FEET}
+    means = [fit(i, m, record=i not in ankles) for i, m in enumerate(means)]
     reference_world: dict[int, np.ndarray] = {root: means[root]}
     for i in range(root + 1, len(file.joints)):
         if file.joints[i].parent in reference_world:
@@ -229,7 +314,7 @@ def reference_pose(file: BvhFile, clip: SkeletonClip, landmarks: LandmarkMap) ->
         i = names.index(_bone(landmarks, ankle))
         # A usable cycle has stance on both feet, so the mask is never empty here.
         foot_world = chordal_mean(level(i)[mask])
-        stance_rotations[names[i]] = reference_world[file.joints[i].parent].T @ foot_world
+        stance_rotations[names[i]] = fit(i, reference_world[file.joints[i].parent].T @ foot_world)
 
     tracks = clip.landmark_positions(landmarks)
     feet = [tracks.get(toe, tracks[ankle]) for ankle, toe in _FEET]
@@ -247,6 +332,8 @@ def reference_pose(file: BvhFile, clip: SkeletonClip, landmarks: LandmarkMap) ->
         pelvis_height=pelvis_height,
         foot_stance_rotations=MappingProxyType(stance_rotations),
         stance_frames=stance,
+        decisions=tuple(decisions),
+        warnings=tuple(warnings),
     )
     points = _reference_points(file, pose.baked_rotations(names), pelvis)
     foot_points = [_bone(landmarks, toe) or _bone(landmarks, ankle) for ankle, toe in _FEET]

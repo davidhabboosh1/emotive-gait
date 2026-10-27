@@ -48,6 +48,7 @@ from emotive_gait.mocap.readers.bvh import BvhFile
 from emotive_gait.mocap.skeleton import Landmark, LandmarkMap, SkeletonClip
 from emotive_gait.rig.calibration import HingeProbe, ReferencePose, probe_hinges
 from emotive_gait.rig.compile import CompiledRig
+from emotive_gait.rig.decision import Decision, Source
 from emotive_gait.rig.errors import RigError
 from emotive_gait.rig.ranges import RANGES
 from emotive_gait.robot.conventions import ROLE_CONVENTIONS, convention_holds
@@ -87,18 +88,6 @@ REQUIRED: tuple[Landmark, ...] = (
 _LEG = (("hip", "hip"), ("knee", "knee"), ("ankle", "ankle"), ("toe", "toe"))
 _ARM = (("shoulder", "upper_arm"), ("elbow", "forearm"), ("wrist", "hand"))
 _SIDES = ("l", "r")
-
-Source = Literal["name", "geometry", "user"]
-
-
-@dataclass(frozen=True)
-class Decision:
-    """One mapping choice and where it came from."""
-
-    what: str
-    chosen: str
-    source: Source
-    note: str = ""
 
 
 @dataclass(frozen=True)

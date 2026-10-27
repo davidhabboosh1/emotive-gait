@@ -9,9 +9,15 @@ import mujoco
 import numpy as np
 import pytest
 
-from emotive_gait.mocap.readers.bvh import BvhFile, BvhJoint, euler_from_matrix, read_bvh_file
+from emotive_gait.mocap.readers.bvh import BvhFile, BvhJoint, read_bvh_file
 from emotive_gait.mocap.skeleton import Landmark
-from emotive_gait.rig.compile import PELVIS_CARRIER, compile_full, heading_matrix, z_up_matrix
+from emotive_gait.rig.compile import (
+    PELVIS_CARRIER,
+    channel_angles,
+    compile_full,
+    heading_matrix,
+    z_up_matrix,
+)
 from emotive_gait.rig.errors import RigError
 from rig.driven import driven_rig
 from rig.rigs import (
@@ -59,8 +65,17 @@ def _assert_chain_matches_reader(f, pelvis: str, frames: tuple[int, ...]) -> Non
         replace(RigSpec(), up_axis="z"),
         replace(RigSpec(), root_above_pelvis=True),
         replace(RigSpec(), root_height_in_channels=True),
+        replace(RigSpec(), two_channel_limbs=True),
     ],
-    ids=["ZXY", "XYZ", "ZYX", "z-up", "root-above-pelvis", "root-height-in-channels"],
+    ids=[
+        "ZXY",
+        "XYZ",
+        "ZYX",
+        "z-up",
+        "root-above-pelvis",
+        "root-height-in-channels",
+        "two-channel-limbs",
+    ],
 )
 def test_full_chain_reproduces_the_reader_positions_relative_to_the_pelvis(tmp_path, spec):
     write_walk(spec, tmp_path / "w.bvh")
@@ -212,8 +227,9 @@ def _site_points(rig, data) -> dict[str, np.ndarray]:
         replace(RigSpec(), up_axis="z"),
         replace(RigSpec(), root_above_pelvis=True),
         replace(RigSpec(), toes=False),
+        replace(RigSpec(), two_channel_limbs=True),
     ],
-    ids=["ZXY", "XYZ", "ZYX", "z-up", "root-above-pelvis", "no-toes"],
+    ids=["ZXY", "XYZ", "ZYX", "z-up", "root-above-pelvis", "no-toes", "two-channel-limbs"],
 )
 def test_driven_chain_at_zero_equals_full_chain_at_the_reference(tmp_path, spec):
     robot, mapping, ref, driven, full = driven_rig(spec, tmp_path)
@@ -224,10 +240,10 @@ def test_driven_chain_at_zero_equals_full_chain_at_the_reference(tmp_path, spec)
     # The full chain at the reference channel values, the pelvis with the heading put back.
     rotations = ref.baked_rotations(names)
     rotations[pelvis] = p.T @ heading @ p @ rotations[pelvis]
+    # Exact for three channels; for two only because the reference is fitted onto them.
     angles = {
-        bone: np.radians(euler_from_matrix(rotations[i], full.file.joints[i].channels))
+        bone: channel_angles(rotations[i], full.file.joints[i].channels)
         for i, bone in enumerate(names)
-        if len([c for c in full.file.joints[i].channels if c.endswith("rotation")]) == 3
     }
     qpos = np.zeros(full.model.nq)
     for i, hinge in enumerate(full.hinges):
